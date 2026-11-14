@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { azToX, elToY, maskAt, vecToAzEl, wrapDeg, wrapSigned, xToAz } from './geometry';
+import { azToX, elToY, fitVertical, maskAt, vecToAzEl, wrapDeg, wrapSigned, xToAz } from './geometry';
 
 describe('wrapDeg', () => {
   it('wraps into [0, 360)', () => {
@@ -57,5 +57,21 @@ describe('screen mapping', () => {
   it('elToY goes up for positive elevation', () => {
     expect(elToY(2, 500, 50)).toBe(400);
     expect(elToY(-1, 500, 50)).toBe(550);
+  });
+});
+
+describe('fitVertical', () => {
+  it('fits the whole range between the paddings when that needs less than the max stretch', () => {
+    // 4 px/deg, range -2..+10 deg (12 deg) into 400 - 30 - 10 = 360 px -> 7.5x
+    const { exaggeration, horizonY } = fitVertical(400, 4, -2, 10, 10, 30, 10);
+    expect(exaggeration).toBeCloseTo(7.5, 10);
+    expect(horizonY).toBeCloseTo(30 + 10 * 4 * 7.5, 10); // top of range lands on topPad
+    expect(elToY(10, horizonY, 4 * exaggeration)).toBeCloseTo(30, 10);
+    expect(elToY(-2, horizonY, 4 * exaggeration)).toBeCloseTo(390, 10);
+  });
+  it('never stretches more than the maximum', () => {
+    const { exaggeration, horizonY } = fitVertical(2000, 4, -1, 2, 10, 30, 10);
+    expect(exaggeration).toBe(10);
+    expect(horizonY).toBeCloseTo(30 + 2 * 40, 10);
   });
 });

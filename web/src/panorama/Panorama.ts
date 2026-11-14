@@ -2,7 +2,7 @@
 // Milestone 1: black sky, terrain silhouette from the mask, Sun/Earth dots,
 // horizon line, compass ticks, drag with wraparound.
 
-import { azToX, elToY, maskAt, vecToAzEl, wrapDeg, xToAz } from './geometry';
+import { azToX, elToY, fitVertical, maskAt, vecToAzEl, wrapDeg, xToAz } from './geometry';
 
 export interface Body {
   az: number; // deg, site frame
@@ -11,8 +11,11 @@ export interface Body {
 
 export interface PanoramaOptions {
   fovDeg?: number; // horizontal field of view shown across the canvas width
-  exaggeration?: number; // vertical scale factor (1 = true scale)
+  exaggeration?: number; // vertical scale factor (1 = true scale); the maximum when fitting
 }
+
+const TOP_PAD_PX = 34; // room for the compass ticks and labels
+const BOTTOM_PAD_PX = 12;
 
 const COLORS = {
   sky: '#000000',
@@ -34,7 +37,11 @@ export class Panorama {
 
   yaw = 180; // deg, view direction at canvas center
   fovDeg: number;
-  exaggeration: number;
+  exaggeration: number; // current vertical stretch
+  maxExaggeration: number;
+  /** Elevation range (deg) to keep on screen; null = fixed stretch, horizon at 62%. */
+  private fitRange: { min: number; max: number } | null = null;
+  private fittedHorizonY = 0;
   mask: number[] = new Array(360).fill(0);
   sun: Body | null = null;
   earth: Body | null = null;
@@ -45,7 +52,8 @@ export class Panorama {
     if (!ctx) throw new Error('2D canvas not supported');
     this.ctx = ctx;
     this.fovDeg = opts.fovDeg ?? 360;
-    this.exaggeration = opts.exaggeration ?? 10;
+    this.maxExaggeration = opts.exaggeration ?? 10;
+    this.exaggeration = this.maxExaggeration;
     new ResizeObserver(() => this.resize()).observe(canvas);
     this.attachDrag();
     this.resize();
@@ -59,6 +67,27 @@ export class Panorama {
   /** Set a body from its (e, n, u) vector in the site frame. */
   static bodyFromVector(e: number, n: number, u: number): Body {
     return vecToAzEl(e, n, u);
+  }
+
+  /**
+   * Keep elevations minEl..maxEl (deg) on screen: the vertical stretch is
+   * reduced from the maximum just enough to fit them in the canvas height.
+   */
+  fitElevations(minEl: number, maxEl: number): void {
+    this.fitRange = { min: minEl, max: maxEl };
+    this.updateScale();
+    this.requestDraw();
+  }
+
+  private updateScale(): void {
+    if (!this.fitRange) {
+      this.exaggeration = this.maxExaggeration;
+      return;
+    }
+    const fit = fitVertical(this.height, this.pxPerDeg, this.fitRange.min, this.fitRange.max,
+      this.maxExaggeration, TOP_PAD_PX, BOTTOM_PAD_PX);
+    this.exaggeration = fit.exaggeration;
+    this.fittedHorizonY = fit.horizonY;
   }
 
   setBodies(sun: Body | null, earth: Body | null): void {
@@ -76,7 +105,7 @@ export class Panorama {
   }
 
   get horizonY(): number {
-    return this.height * 0.62;
+    return this.fitRange ? this.fittedHorizonY : this.height * 0.62;
   }
 
   requestDraw(): void {
@@ -94,7 +123,9 @@ export class Panorama {
     this.height = rect.height;
     this.canvas.width = Math.round(rect.width * this.dpr);
     this.canvas.height = Math.round(rect.height * this.dpr);
+    this.updateScale();
     this.requestDraw();
+    this.onChange?.();
   }
 
   private attachDrag(): void {

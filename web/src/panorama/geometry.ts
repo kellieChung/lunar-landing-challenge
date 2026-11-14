@@ -47,3 +47,18 @@ export function xToAz(x: number, yawDeg: number, pxPerDeg: number, width: number
 export function elToY(elDeg: number, horizonY: number, pxPerDegV: number): number {
   return horizonY - elDeg * pxPerDegV;
 }
+
+/**
+ * Choose the vertical stretch so elevations from minEl to maxEl fit between
+ * topPad and (height - bottomPad), never stretching more than maxExaggeration.
+ * Returns the stretch and the screen y of the 0 deg (flat) horizon.
+ */
+export function fitVertical(
+  height: number, pxPerDeg: number, minEl: number, maxEl: number,
+  maxExaggeration: number, topPad: number, bottomPad: number,
+): { exaggeration: number; horizonY: number } {
+  const usable = Math.max(height - topPad - bottomPad, 1);
+  const span = Math.max(maxEl - minEl, 0.1);
+  const exaggeration = Math.max(Math.min(maxExaggeration, usable / (span * pxPerDeg)), 1);
+  return { exaggeration, horizonY: topPad + maxEl * pxPerDeg * exaggeration };
+}

@@ -15,6 +15,20 @@ function hourFromUrl(count: number): number {
   return Number.isFinite(n) ? Math.min(Math.max(n, 0), count - 1) : 0;
 }
 
+/**
+ * Elevation range to keep on screen for the whole year, so the stretch stays
+ * fixed while time moves: from just below the lowest horizon to just above
+ * the tallest ridge or the highest Sun/Earth (plus their radius).
+ */
+function elevationRange(data: SiteData, mask: number[]): [number, number] {
+  const maxElev = (u: number[]) => Math.asin(Math.max(...u)) * (180 / Math.PI);
+  const SUN_RADIUS = 0.27; // deg, approximate
+  const EARTH_RADIUS = 0.95; // deg, approximate
+  const MARGIN = 0.5; // deg
+  const top = Math.max(Math.max(...mask), maxElev(data.sun.u) + SUN_RADIUS, maxElev(data.earth.u) + EARTH_RADIUS);
+  return [Math.min(...mask) - MARGIN, top + MARGIN];
+}
+
 export async function openSite(id: string): Promise<void> {
   const data = cache.get(id) ?? (await loadSite(id));
   cache.set(id, data);
@@ -35,6 +49,7 @@ export async function openSite(id: string): Promise<void> {
 
   const center = data.grid.points.find((p) => p.dx_km === 0 && p.dy_km === 0) ?? data.grid.points[0];
   pano.setMask(center.mask_deg);
+  pano.fitElevations(...elevationRange(data, center.mask_deg));
 
   const k = hourFromUrl(data.time.count);
   const sun = Panorama.bodyFromVector(data.sun.e[k], data.sun.n[k], data.sun.u[k]);
@@ -50,7 +65,7 @@ export async function openSite(id: string): Promise<void> {
     readout.textContent =
       `${data.site.name}   ${when} (hour ${k})   view ${fmt(p.yaw)}°\n` +
       `sun   az ${fmt(sun.az)}° el ${fmt(sun.el)}°  (horizon there ${fmt(maskAt(center.mask_deg, sun.az))}°)\n` +
-      `earth az ${fmt(earth.az)}° el ${fmt(earth.el)}°  (horizon there ${fmt(maskAt(center.mask_deg, earth.az))}°)   vertical ×${p.exaggeration}`;
+      `earth az ${fmt(earth.az)}° el ${fmt(earth.el)}°  (horizon there ${fmt(maskAt(center.mask_deg, earth.az))}°)   vertical ×${p.exaggeration.toFixed(1)}`;
   };
   pano.onChange = update;
   update();

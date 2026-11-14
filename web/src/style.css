@@ -51,7 +51,7 @@ html, body {
 #panorama {
   display: block;
   width: 100%;
-  height: 60vh;
+  flex: 1 1 0; /* fill the space between the nav and the readout */
   min-height: 320px;
   cursor: grab;
   touch-action: pan-y;
@@ -74,6 +74,13 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 /* ---------- Panorama screen ---------- */
+
+#pano-screen:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 
 .pano-nav {
   padding: 8px 16px;
