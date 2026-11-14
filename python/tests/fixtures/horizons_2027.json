@@ -3,7 +3,7 @@
  "mast_height_m": 3.0,
  "rows": [
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "SUN",
@@ -14,7 +14,7 @@
    "range_au": 0.98270373345901
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "SUN",
@@ -25,7 +25,7 @@
    "range_au": 0.99781271519521
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "SUN",
@@ -36,7 +36,7 @@
    "range_au": 1.01770564215473
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "SUN",
@@ -47,7 +47,7 @@
    "range_au": 1.0032873911824
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "SUN",
@@ -58,7 +58,7 @@
    "range_au": 0.98144693042225
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "EARTH",
@@ -69,7 +69,7 @@
    "range_au": 0.00261780583199
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "EARTH",
@@ -80,7 +80,7 @@
    "range_au": 0.00245323726001
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "EARTH",
@@ -91,7 +91,7 @@
    "range_au": 0.00261886722009
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "EARTH",
@@ -102,7 +102,7 @@
    "range_au": 0.00248848047745
   },
   {
-   "point": "artemis-candidate",
+   "point": "nobile-rim-2",
    "lat": -84.20156,
    "lon": 60.69989,
    "body": "EARTH",

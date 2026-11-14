@@ -1,5 +1,7 @@
 // Shape of web/public/data/<site_id>.json (see spec section 6).
 
+export type SiteKind = 'south-pole' | 'reference';
+
 export interface Vectors {
   e: number[];
   n: number[];
@@ -12,7 +14,22 @@ export interface GridPoint {
   dx_km: number;
   dy_km: number;
   up_tilt: [number, number];
-  mask_deg: number[]; // 360 values, horizon elevation per 1 deg of azimuth
+  mask_deg: number[]; // 360 values, horizon elevation per 1 deg of azimuth (physics uses only this)
+  mask_bands_deg?: number[][]; // 3 x 360: same, per distance band (3D rendering only)
+}
+
+/** Header of <site_id>_terrain.bin, the near-field heightmap (rendering only). */
+export interface TerrainHeader {
+  file: string;
+  format: string; // "float32-le"
+  nx: number;
+  ny: number;
+  spacing_m: number;
+  x0_m: number;
+  y0_m: number;
+  ground_m: number;
+  order: string;
+  z: string;
 }
 
 export interface SiteData {
@@ -23,14 +40,17 @@ export interface SiteData {
     name: string;
     lat: number | null;
     lon: number | null;
-    kind: 'south-pole' | 'equator' | 'far-side';
+    kind: SiteKind;
     blurb: string;
+    ground_height_m?: number;
+    mast_height_m?: number;
   };
   frame: { description: string };
   time: { start: string; step_hours: number; count: number };
   sun: Vectors & { r_au: number[] };
-  earth: Vectors;
-  grid: { spacing_km: number; size: number; points: GridPoint[] };
+  earth: Vectors & { r_km?: number[] };
+  grid: { spacing_km: number; size: number; mask_bands_km?: number[][]; points: GridPoint[] };
+  terrain?: TerrainHeader;
   precomputed: Record<string, unknown>;
 }
 
@@ -38,7 +58,7 @@ export interface SiteData {
 export interface SiteIndexEntry {
   id: string;
   name: string;
-  kind: 'south-pole' | 'equator' | 'far-side';
+  kind: SiteKind;
   blurb: string;
   lat: number | null; // null = coordinates not cited yet (TODO astronomer)
   lon: number | null;

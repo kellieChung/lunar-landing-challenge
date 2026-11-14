@@ -2,22 +2,33 @@ import pytest
 
 from lunar.sites import KINDS, SITES, get_site, site_index
 
+# The table in spec.MD ("Curated sites"), copied exactly.
+SPEC_TABLE = {
+    "cabeus-b-peak": (-83.661, -69.014),
+    "haworth": (-86.764, -22.777),
+    "malapert-massif": (-85.995, -0.236),
+    "mons-mouton-plateau": (-84.232, 29.926),
+    "mons-mouton": (-85.423, 31.586),
+    "nobile-rim-1": (-85.438, 37.367),
+    "nobile-rim-2": (-84.20156, 60.69989),
+    "de-gerlache-rim-2": (-88.51566, 61.16732),
+    "slater-plain": (-87.149, 126.134),
+}
+
 
 def test_ids_unique():
     ids = [s.id for s in SITES]
     assert len(ids) == len(set(ids))
 
 
-def test_seven_curated_sites():
-    assert len(SITES) == 7
+def test_nine_sites_match_spec_table():
+    assert {s.id: (s.lat, s.lon) for s in SITES} == SPEC_TABLE
 
 
-def test_coords_in_range_or_missing():
+def test_all_sites_in_south_pole_region():
     for s in SITES:
-        assert (s.lat is None) == (s.lon is None), s.id
-        if s.has_coords:
-            assert -90 <= s.lat <= 90, s.id
-            assert -180 <= s.lon <= 360, s.id
+        assert -88.6 <= s.lat <= -83.6, s.id
+        assert -180 <= s.lon <= 180, s.id
 
 
 def test_kinds_valid():
@@ -25,21 +36,21 @@ def test_kinds_valid():
         assert s.kind in KINDS, s.id
 
 
+def test_blurbs_not_invented():
+    for s in SITES:
+        assert s.blurb.startswith("TODO(astronomer)"), s.id
+
+
 def test_get_site():
-    assert get_site("artemis-candidate").lat == pytest.approx(-84.20156)
-    with pytest.raises(ValueError):
-        get_site("apollo-11")  # placeholder, no coordinates yet
+    assert get_site("nobile-rim-2").lat == -84.20156
     with pytest.raises(KeyError):
         get_site("nope")
 
 
 def test_site_index(tmp_path):
-    (tmp_path / "artemis-candidate.json").write_text("{}")
+    (tmp_path / "nobile-rim-2.json").write_text("{}")
     index = site_index(tmp_path)
     assert [e["id"] for e in index] == [s.id for s in SITES]
-    for entry, site in zip(index, SITES):
-        # Only sites with real coordinates get numbers; placeholders stay null.
-        assert (entry["lat"] is None) == (not site.has_coords), site.id
     by_id = {e["id"]: e for e in index}
-    assert by_id["artemis-candidate"]["has_data"] is True
-    assert by_id["apollo-11"]["has_data"] is False
+    assert by_id["nobile-rim-2"]["has_data"] is True
+    assert by_id["haworth"]["has_data"] is False

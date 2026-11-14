@@ -1,0 +1,102 @@
+// Near-field heightmap (<site_id>_terrain.bin): parsing and pure geometry.
+// Rendering only: physics never reads it. See python/lunar/terrain.py.
+
+import type { TerrainHeader } from '../data/types';
+import { maskAt, wrapDeg } from '../panorama/geometry';
+
+const RAD = Math.PI / 180;
+
+export interface Heightmap {
+  nx: number;
+  ny: number;
+  spacing: number; // m
+  x0: number; // m, east of column 0
+  y0: number; // m, north of row 0
+  z: Float32Array; // row-major, z[j * nx + i], m relative to the observer's ground
+}
+
+/** Decode the little-endian float32 file described by its header. */
+export function parseTerrain(buf: ArrayBuffer, h: TerrainHeader): Heightmap {
+  if (h.format !== 'float32-le') throw new Error(`Unknown terrain format ${h.format}`);
+  const n = h.nx * h.ny;
+  if (buf.byteLength !== n * 4) {
+    throw new Error(`Terrain file is ${buf.byteLength} bytes, expected ${n * 4} (${h.nx} x ${h.ny} float32)`);
+  }
+  const view = new DataView(buf);
+  const z = new Float32Array(n);
+  for (let i = 0; i < n; i++) z[i] = view.getFloat32(i * 4, true);
+  return { nx: h.nx, ny: h.ny, spacing: h.spacing_m, x0: h.x0_m, y0: h.y0_m, z };
+}
+
+/** Bilinear height (m) at (x east, y north); NaN outside the grid. */
+export function heightAt(t: Heightmap, x: number, y: number): number {
+  const fi = (x - t.x0) / t.spacing;
+  const fj = (y - t.y0) / t.spacing;
+  if (fi < 0 || fj < 0 || fi > t.nx - 1 || fj > t.ny - 1) return NaN;
+  const i0 = Math.min(Math.floor(fi), t.nx - 2);
+  const j0 = Math.min(Math.floor(fj), t.ny - 2);
+  const a = fi - i0;
+  const b = fj - j0;
+  const z = (i: number, j: number) => t.z[j * t.nx + i];
+  return (z(i0, j0) * (1 - a) * (1 - b) + z(i0 + 1, j0) * a * (1 - b)
+    + z(i0, j0 + 1) * (1 - a) * b + z(i0 + 1, j0 + 1) * a * b);
+}
+
+/**
+ * Vertex positions in three.js axes at true scale with the eye at the origin:
+ * (x east, z - mast, -y north). The scene scales y by k afterwards.
+ */
+export function terrainPositions(t: Heightmap, mastM: number): Float32Array {
+  const out = new Float32Array(t.nx * t.ny * 3);
+  for (let j = 0; j < t.ny; j++) {
+    for (let i = 0; i < t.nx; i++) {
+      const v = j * t.nx + i;
+      out[v * 3] = t.x0 + i * t.spacing;
+      out[v * 3 + 1] = t.z[v] - mastM;
+      out[v * 3 + 2] = -(t.y0 + j * t.spacing);
+    }
+  }
+  return out;
+}
+
+/** Two triangles per cell, wound so their normals point up (+y). */
+export function terrainIndex(nx: number, ny: number): Uint32Array {
+  const out = new Uint32Array((nx - 1) * (ny - 1) * 6);
+  let k = 0;
+  for (let j = 0; j < ny - 1; j++) {
+    for (let i = 0; i < nx - 1; i++) {
+      const a = j * nx + i;
+      const b = a + 1;
+      const c = a + nx;
+      const d = c + 1;
+      out.set([a, b, c, b, d, c], k);
+      k += 6;
+    }
+  }
+  return out;
+}
+
+/**
+ * Never let the mesh rise above the physics horizon: any vertex seen higher
+ * than the mask at its azimuth is lowered onto it. Within nearLimitM the limit
+ * is the near band (0-5 km); farther out (the square's corners) the full mask.
+ * Works on terrainPositions output (eye at origin, true scale). Returns the
+ * number of vertices moved.
+ */
+export function clampToMask(pos: Float32Array, nearMask: number[], mask: number[], nearLimitM = 5000): number {
+  let moved = 0;
+  for (let v = 0; v < pos.length / 3; v++) {
+    const x = pos[v * 3];
+    const y = pos[v * 3 + 1];
+    const north = -pos[v * 3 + 2];
+    const d = Math.hypot(x, north);
+    if (d < 1) continue; // the observer's own vertex
+    const az = wrapDeg(Math.atan2(x, north) / RAD);
+    const limit = maskAt(d <= nearLimitM ? nearMask : mask, az);
+    if (Math.atan2(y, d) / RAD > limit) {
+      pos[v * 3 + 1] = d * Math.tan(limit * RAD);
+      moved++;
+    }
+  }
+  return moved;
+}

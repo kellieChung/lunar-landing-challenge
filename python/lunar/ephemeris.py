@@ -113,13 +113,13 @@ def az_el(e, n, u):
 def site_ephemeris(lat_deg: float, lon_deg: float, start_utc: str, count: int,
                    step_hours: float = 1.0, height_m: float = 3.0,
                    ground_m: float = 0.0) -> dict:
-    """Sun and Earth unit vectors (site frame) plus Sun distance in AU."""
+    """Sun and Earth unit vectors (site frame), Sun distance in AU, Earth distance in km."""
     ets = hourly_ets(start_utc, count, step_hours)
     pos = site_position_km(lat_deg, lon_deg, height_m, ground_m)
     frame = site_frame(lat_deg, lon_deg)
     sun, sun_dist = body_enu("SUN", ets, pos, frame)
-    earth, _ = body_enu("EARTH", ets, pos, frame)
+    earth, earth_dist = body_enu("EARTH", ets, pos, frame)
     return {
         "sun": {"e": sun[:, 0], "n": sun[:, 1], "u": sun[:, 2], "r_au": sun_dist / AU_KM},
-        "earth": {"e": earth[:, 0], "n": earth[:, 1], "u": earth[:, 2]},
+        "earth": {"e": earth[:, 0], "n": earth[:, 1], "u": earth[:, 2], "r_km": earth_dist},
     }

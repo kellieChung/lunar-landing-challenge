@@ -51,6 +51,6 @@ fi
 fetch "$PGDA/LDEM_60S_240MPP_ADJ.TIF" "$DATA/dem/LDEM_60S_240MPP_ADJ.TIF"
 fi
 
-# TODO: equator (Apollo 11) and far-side (Chang'e-4) sites need a global or
-# mid-latitude DEM. Decide at milestone 5.
+# TODO: optional reference sites outside 60-90 S (spec, after milestone 8) need a global or
+# mid-latitude DEM.
 echo "done"

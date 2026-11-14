@@ -1,6 +1,6 @@
 """Points used to validate the ephemeris against JPL Horizons.
 
-Only "artemis-candidate" is a real landing site (from lunar/sites.py).
+Only "nobile-rim-2" (Nobile Rim 2) is a real landing site (from lunar/sites.py).
 The other two are math test points, NOT landing sites: they exist only to
 check our code against NASA's calculator at very different latitudes.
 They are never shown in the app.
@@ -8,10 +8,10 @@ They are never shown in the app.
 
 from lunar.sites import get_site
 
-_nobile = get_site("artemis-candidate")
+_nobile = get_site("nobile-rim-2")
 
 VALIDATION_POINTS = {
-    "artemis-candidate": (_nobile.lat, _nobile.lon),
+    "nobile-rim-2": (_nobile.lat, _nobile.lon),
     "test-equator": (0.0, 0.0),  # math test point, not a landing site
     "test-near-pole": (-89.5, 0.0),  # math test point, not a landing site
 }

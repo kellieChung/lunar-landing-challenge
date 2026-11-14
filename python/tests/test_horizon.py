@@ -6,7 +6,7 @@ import pytest
 
 from lunar import dem as D
 from lunar.ephemeris import site_frame
-from lunar.horizon import horizon_mask, sample_distances_km, unit_vector
+from lunar.horizon import NO_TERRAIN_DEG, horizon_mask, sample_distances_km, unit_vector
 
 R = D.R_MOON_M
 LAT, LON = -84.20156, 60.69989  # Nobile Rim 2
@@ -117,6 +117,42 @@ def test_missing_data_is_skipped_not_zero():
     # If the holes were treated as 0 m, the horizon would be about -0.1 deg
     # (flat ground 5 km away). Skipped properly, only the -500 m terrain counts.
     assert (hz.mask_deg < -1.0).all()
+
+
+# ---- Distance bands (3D view only) ---------------------------------------
+
+def test_bands_on_smooth_sphere():
+    hz = horizon_mask(LAT, LON, flat, observer_height_m=MAST)
+    assert hz.bands_deg.shape == (3, 360)
+    # On a sphere the farthest visible ground is about 3.2 km away for a 3 m
+    # mast, so the 0-5 km band holds the dip; farther bands are lower.
+    np.testing.assert_allclose(hz.bands_deg[0], sphere_dip_deg(MAST), atol=0.001)
+    assert (hz.bands_deg[1] < hz.bands_deg[0]).all()
+    assert (hz.bands_deg[2] < hz.bands_deg[1]).all()
+    np.testing.assert_array_equal(hz.bands_deg.max(axis=0), hz.mask_deg)
+
+
+@pytest.mark.parametrize("dist_km, band", [(3.0, 0), (15.0, 1), (60.0, 2)])
+def test_cone_shows_up_only_in_its_own_band(dist_km, band):
+    tip = peak_direction(0.0, nearest_sample_km(dist_km))
+    hz = horizon_mask(LAT, LON, cone(tip, 3000.0, 2000.0), observer_height_m=MAST)
+    expected = exact_elevation(tip, 3000.0)
+    assert hz.bands_deg[band][0] == pytest.approx(expected, abs=1e-6)
+    for other in {0, 1, 2} - {band}:
+        assert hz.bands_deg[other][0] < expected - 1.0
+    np.testing.assert_array_equal(hz.bands_deg.max(axis=0), hz.mask_deg)
+
+
+def test_band_with_no_samples_is_marked():
+    hz = horizon_mask(LAT, LON, flat, observer_height_m=MAST, max_km=20.0)
+    np.testing.assert_array_equal(hz.bands_deg[2], NO_TERRAIN_DEG)
+    np.testing.assert_array_equal(hz.bands_deg.max(axis=0), hz.mask_deg)
+
+
+def test_rounded_bands_still_max_to_rounded_mask():
+    tip = peak_direction(0.0, nearest_sample_km(15.0))
+    hz = horizon_mask(LAT, LON, cone(tip, 3000.0, 2000.0), observer_height_m=MAST)
+    np.testing.assert_array_equal(np.round(hz.bands_deg, 2).max(axis=0), np.round(hz.mask_deg, 2))
 
 
 # ---- Projection checks against the real map files ---------------------------

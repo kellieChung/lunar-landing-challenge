@@ -26,6 +26,11 @@ NEAR_LIMIT_KM = 5.0
 FAR_GROWTH = 0.01  # beyond 5 km each step is 1% of the distance
 MAX_KM = 150.0
 
+# Distance bands for the 3D view's layered skyline rings (rendering only).
+# A sample at distance d belongs to band (lo, hi] when lo < d <= hi.
+BAND_EDGES_KM = (0.0, 5.0, 30.0, 150.0)
+NO_TERRAIN_DEG = -90.0  # band value when a band has no samples with data
+
 
 def sample_distances_km(max_km: float = MAX_KM) -> np.ndarray:
     """Distances along each azimuth where terrain is sampled."""
@@ -47,6 +52,7 @@ def unit_vector(lat_deg, lon_deg) -> np.ndarray:
 @dataclass
 class Horizon:
     mask_deg: np.ndarray  # (360,) horizon elevation per degree of azimuth
+    bands_deg: np.ndarray  # (3, 360) same, keeping only 0-5, 5-30, 30-150 km (rendering only)
     ground_m: float  # terrain height at the observer (relative to the datum sphere)
     skipped: int  # samples with no terrain data in any map (ignored, never set to 0)
 
@@ -74,7 +80,8 @@ def horizon_mask(lat_deg: float, lon_deg: float, height_fn, frame=None,
     t /= np.linalg.norm(t, axis=1, keepdims=True)
 
     # Walk along great circles: point direction at surface distance s.
-    ang = sample_distances_km(max_km) * 1000.0 / radius_m  # (N,) radians
+    dist_km = sample_distances_km(max_km)
+    ang = dist_km * 1000.0 / radius_m  # (N,) radians
     dirs = (np.cos(ang)[None, :, None] * up_o
             + np.sin(ang)[None, :, None] * t[:, None, :])  # (360, N, 3)
     lat_s = np.degrees(np.arcsin(np.clip(dirs[..., 2], -1, 1)))
@@ -88,4 +95,20 @@ def horizon_mask(lat_deg: float, lon_deg: float, height_fn, frame=None,
     skipped = int(np.isnan(el).sum())
     if np.isnan(el).all(axis=1).any():
         raise ValueError("Some azimuths have no terrain data at all.")
-    return Horizon(mask_deg=np.nanmax(el, axis=1), ground_m=ground, skipped=skipped)
+    return Horizon(mask_deg=np.nanmax(el, axis=1), bands_deg=band_maxima(el, dist_km),
+                   ground_m=ground, skipped=skipped)
+
+
+def band_maxima(el: np.ndarray, dist_km: np.ndarray) -> np.ndarray:
+    """Max elevation within each distance band: (360, N) -> (3, 360).
+
+    Used only to draw layered ridges in the 3D view. The max of the three
+    bands equals the full mask; physics only ever uses the full mask.
+    """
+    edges = BAND_EDGES_KM
+    out = np.full((len(edges) - 1, el.shape[0]), NO_TERRAIN_DEG)
+    for b, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
+        in_band = (dist_km > lo) & (dist_km <= hi)
+        vals = np.where(in_band[None, :] & ~np.isnan(el), el, -np.inf).max(axis=1)
+        out[b] = np.where(np.isfinite(vals), vals, NO_TERRAIN_DEG)
+    return out

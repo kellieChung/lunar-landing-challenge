@@ -46,6 +46,38 @@ TODO
 - **Ground height** at the site comes from the same map and is also used for
   the observer position in the Sun/Earth calculation.
 
+## 3D view (rendering only)
+The 3D view only *shows* the physics. Whether the Sun is lit or Earth is
+visible always comes from the horizon mask (`src/physics/visibility.ts`); if
+the picture and the numbers ever disagree, the numbers are right.
+- **Layered skyline rings:** the same ray walk that builds the horizon mask
+  also keeps the highest angle within three distance bands (0–5, 5–30 and
+  30–150 km). Each band is drawn as a curtain around the viewer, far to near,
+  so the top edge you see is the maximum of the three, which is exactly the
+  physics horizon.
+- **Near terrain:** a 10 × 10 km heightmap (101 × 101 points, 100 m apart)
+  around the site from the same LOLA maps. Heights are measured along the
+  site's "up" direction, so they include the Moon's curvature (flat ground
+  5 km away sits about 7 m lower). Any point drawn above the physics horizon
+  is lowered onto it (a handful of points, because the mesh is coarser than
+  the ray walk), so the mesh can never hide a Sun the physics says is up.
+- **Vertical exaggeration:** every height is stretched by the same factor k
+  around the viewer's eye. An elevation angle *el* is then shown at
+  `atan(k · tan el)`. This keeps the order of things at every azimuth (a Sun
+  above a ridge is drawn above it), keeps the mesh, rings and shadows
+  consistent with each other, and k = 1 is exact true scale. k is chosen per
+  site: the largest value up to 10× that fits the whole year's horizon, Sun
+  and Earth in a 60° view (about 5× at Nobile Rim 2).
+- **Lighting:** one light along the Sun direction casts the shadows on the
+  near terrain. The rings cast no shadows, so the light is switched off when
+  the physics mask (5–150 km bands) says a distant ridge hides the Sun.
+- **Sun and Earth** are drawn at their true angular size (Earth about 3.6×
+  wider than the Sun). Earth's lit fraction is the true one,
+  `(1 − cos θ)/2` with θ the Sun–Earth angle seen from the site.
+- **Known limitation:** at k > 1 the disks stay round while their positions
+  are stretched, so how much of a half-hidden Sun you *see* is approximate.
+  It is exact in "True scale" mode, and the numbers never depend on it.
+
 ## Visibility, sunlit fraction and flux
 TODO
 

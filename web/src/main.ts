@@ -1,15 +1,18 @@
 import './style.css';
 import { Picker } from './screens/picker';
-import { closeSite, openSite } from './screens/site';
+import { openSite } from './screens/site';
 
-// Hash routes:  #/ (or empty) = globe site picker,  #/site/<id> = panorama.
-// Query params (e.g. ?hour=N) sit before the hash and keep working.
+// Routes (full page loads, so the globe and the panorama never share a page):
+//   ./              globe site picker + plain list of sites
+//   ./?site=<id>    panorama for one site (also ?hour=N, ?view=2d|3d)
+// Old links (#/site/<id>, artemis-candidate) are rewritten to the new form.
+
+const ALIASES: Record<string, string> = { 'artemis-candidate': 'nobile-rim-2' };
+const LEGACY_HASH = /^#\/site\/([a-z0-9-]+)$/;
 
 const pickerScreen = document.getElementById('picker-screen')!;
 const panoScreen = document.getElementById('pano-screen')!;
 const errorBox = document.getElementById('error')!;
-
-let picker: Promise<Picker> | null = null;
 
 function showError(err: unknown): void {
   console.error(err);
@@ -17,22 +20,42 @@ function showError(err: unknown): void {
   errorBox.hidden = false;
 }
 
+/** Site id from the URL, rewriting legacy forms in place. null = picker. */
+function siteFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const legacy = window.location.hash.match(LEGACY_HASH)?.[1];
+  let id = params.get('site') ?? legacy ?? null;
+  if (id && ALIASES[id]) id = ALIASES[id];
+  if (id && (id !== params.get('site') || legacy)) {
+    params.set('site', id);
+    history.replaceState(null, '', `${window.location.pathname}?${params}`);
+  }
+  return id && /^[a-z0-9-]+$/.test(id) ? id : null;
+}
+
+async function showPicker(): Promise<void> {
+  panoScreen.hidden = true;
+  pickerScreen.hidden = false;
+  (await Picker.create()).start();
+}
+
 async function route(): Promise<void> {
-  errorBox.hidden = true;
-  const m = window.location.hash.match(/^#\/site\/([a-z0-9-]+)$/);
-  if (m) {
-    (await picker)?.stop();
-    pickerScreen.hidden = true;
-    panoScreen.hidden = false;
-    await openSite(m[1]);
-  } else {
-    closeSite();
-    panoScreen.hidden = true;
-    pickerScreen.hidden = false;
-    picker ??= Picker.create();
-    (await picker).start();
+  const id = siteFromUrl();
+  if (!id) return showPicker();
+  pickerScreen.hidden = true;
+  panoScreen.hidden = false;
+  try {
+    await openSite(id);
+  } catch (err) {
+    showError(`Could not open site "${id}". Pick one from the list below.\n${String(err)}`);
+    await showPicker();
   }
 }
 
-window.addEventListener('hashchange', () => route().catch(showError));
+// An old-style link clicked on this page: reload in the new form.
+window.addEventListener('hashchange', () => {
+  const legacy = window.location.hash.match(LEGACY_HASH)?.[1];
+  if (legacy) window.location.replace(`${window.location.pathname}?site=${ALIASES[legacy] ?? legacy}`);
+});
+
 route().catch(showError);

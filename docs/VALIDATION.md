@@ -4,15 +4,17 @@ Filled in as each milestone lands.
 
 ## Site coordinates and sources
 
-| id | lat | lon | source |
-| --- | --- | --- | --- |
-| artemis-candidate (Nobile Rim 2) | -84.20156 | 60.69989 | TODO(astronomer): cite |
-| apollo-11 | TODO | TODO | TODO(astronomer) |
-| chandrayaan-3 | TODO | TODO | TODO(astronomer) |
-| im-1 | TODO | TODO | TODO(astronomer) |
-| shackleton-ridge | TODO | TODO | TODO(astronomer) |
-| shackleton-floor | TODO | TODO | TODO(astronomer) |
-| change-4 | TODO | TODO | TODO(astronomer) |
+| id | name | lat | lon | source |
+| --- | --- | --- | --- | --- |
+| cabeus-b-peak | Peak near Cabeus B | -83.661 | -69.014 | TODO(astronomer): cite |
+| haworth | Haworth | -86.764 | -22.777 | TODO(astronomer): cite |
+| malapert-massif | Malapert Massif | -85.995 | -0.236 | TODO(astronomer): cite |
+| mons-mouton-plateau | Mons Mouton Plateau | -84.232 | 29.926 | TODO(astronomer): cite |
+| mons-mouton | Mons Mouton | -85.423 | 31.586 | TODO(astronomer): cite |
+| nobile-rim-1 | Nobile Rim 1 | -85.438 | 37.367 | TODO(astronomer): cite |
+| nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper, TODO(astronomer): full citation |
+| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | 61.16732 | paper, TODO(astronomer): full citation |
+| slater-plain | Slater Plain | -87.149 | 126.134 | TODO(astronomer): cite |
 
 ## 1. Horizon tests (synthetic terrain)
 
@@ -62,7 +64,7 @@ NASA JPL Horizons (DE441, `MEAN_ME` high-precision lunar frame, airless
 apparent az/el) for an observer 3 m above the 1737.4 km reference sphere.
 3 points × 5 moments × 2 bodies = 30 comparisons.
 
-Points: **artemis-candidate** is Nobile Rim 2 (−84.20156°, 60.69989°).
+Points: **nobile-rim-2** is Nobile Rim 2 (−84.20156°, 60.69989°).
 **test-equator** (0°, 0°) and **test-near-pole** (−89.5°, 0°) are math test
 points only, not landing sites.
 
@@ -78,16 +80,16 @@ fetched by `python/scripts/fetch_horizons.py`.)
 
 | point | time (UTC) | body | Horizons az / el (°) | ours az / el (°) | Δaz (″) | Δel (″) | separation (″) |
 | --- | --- | --- | --- | --- | ---: | ---: | ---: |
-| artemis-candidate | 2027-01-01 00:00 | Sun | 202.4802 / -4.3458 | 202.4802 / -4.3458 | 0.000 | 0.000 | 0.000 |
-| artemis-candidate | 2027-03-20 06:00 | Sun | 330.0995 / 4.0218 | 330.0995 / 4.0218 | -0.000 | -0.000 | 0.000 |
-| artemis-candidate | 2027-06-15 12:00 | Sun | 345.2970 / 4.4197 | 345.2970 / 4.4197 | -0.000 | -0.000 | 0.000 |
-| artemis-candidate | 2027-09-23 18:00 | Sun | 201.0002 / -4.2211 | 201.0002 / -4.2211 | 0.000 | -0.000 | 0.000 |
-| artemis-candidate | 2027-12-31 23:00 | Sun | 73.1782 / 2.3163 | 73.1782 / 2.3163 | -0.000 | 0.000 | 0.000 |
-| artemis-candidate | 2027-01-01 00:00 | Earth | 306.8327 / -2.7856 | 306.8327 / -2.7855 | -0.001 | 0.089 | 0.089 |
-| artemis-candidate | 2027-03-20 06:00 | Earth | 301.0316 / 1.4833 | 301.0316 / 1.4833 | -0.001 | -0.046 | 0.046 |
-| artemis-candidate | 2027-06-15 12:00 | Earth | 305.4237 / -3.5815 | 305.4237 / -3.5815 | -0.001 | -0.057 | 0.057 |
-| artemis-candidate | 2027-09-23 18:00 | Earth | 294.5463 / 6.0359 | 294.5463 / 6.0359 | -0.002 | 0.094 | 0.094 |
-| artemis-candidate | 2027-12-31 23:00 | Earth | 297.8402 / 5.0983 | 297.8402 / 5.0983 | -0.002 | -0.063 | 0.063 |
+| nobile-rim-2 | 2027-01-01 00:00 | Sun | 202.4802 / -4.3458 | 202.4802 / -4.3458 | 0.000 | 0.000 | 0.000 |
+| nobile-rim-2 | 2027-03-20 06:00 | Sun | 330.0995 / 4.0218 | 330.0995 / 4.0218 | -0.000 | -0.000 | 0.000 |
+| nobile-rim-2 | 2027-06-15 12:00 | Sun | 345.2970 / 4.4197 | 345.2970 / 4.4197 | -0.000 | -0.000 | 0.000 |
+| nobile-rim-2 | 2027-09-23 18:00 | Sun | 201.0002 / -4.2211 | 201.0002 / -4.2211 | 0.000 | -0.000 | 0.000 |
+| nobile-rim-2 | 2027-12-31 23:00 | Sun | 73.1782 / 2.3163 | 73.1782 / 2.3163 | -0.000 | 0.000 | 0.000 |
+| nobile-rim-2 | 2027-01-01 00:00 | Earth | 306.8327 / -2.7856 | 306.8327 / -2.7855 | -0.001 | 0.089 | 0.089 |
+| nobile-rim-2 | 2027-03-20 06:00 | Earth | 301.0316 / 1.4833 | 301.0316 / 1.4833 | -0.001 | -0.046 | 0.046 |
+| nobile-rim-2 | 2027-06-15 12:00 | Earth | 305.4237 / -3.5815 | 305.4237 / -3.5815 | -0.001 | -0.057 | 0.057 |
+| nobile-rim-2 | 2027-09-23 18:00 | Earth | 294.5463 / 6.0359 | 294.5463 / 6.0359 | -0.002 | 0.094 | 0.094 |
+| nobile-rim-2 | 2027-12-31 23:00 | Earth | 297.8402 / 5.0983 | 297.8402 / 5.0983 | -0.002 | -0.063 | 0.063 |
 | test-equator | 2027-01-01 00:00 | Sun | 268.9780 / -6.8839 | 268.9780 / -6.8839 | 0.000 | 0.000 | 0.000 |
 | test-equator | 2027-03-20 06:00 | Sun | 88.0380 / 59.1094 | 88.0380 / 59.1094 | -0.000 | 0.003 | 0.004 |
 | test-equator | 2027-06-15 12:00 | Sun | 88.3483 / 43.9492 | 88.3483 / 43.9492 | -0.000 | 0.002 | 0.000 |
@@ -115,7 +117,7 @@ Full year 2027, hourly, elevations relative to a flat horizon (no terrain).
 
 | point | Sun elevation range | Earth elevation range | notes |
 | --- | --- | --- | --- |
-| artemis-candidate (−84.2°) | −7.34° to +7.35° | −3.71° to +8.82° | Earth often below the flat horizon: comms blackouts even without mountains |
+| nobile-rim-2 (−84.2°) | −7.34° to +7.35° | −3.71° to +8.82° | Earth often below the flat horizon: comms blackouts even without mountains |
 | test-near-pole (−89.5°) | −2.02° to +2.02° | −6.60° to +7.07° | Sun stays within ~2° of the horizon |
 | test-equator (0°, 0°) | −89.95° to +89.60° | +79.69° to +89.97° | Earth parked near the zenith |
 

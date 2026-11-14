@@ -7,7 +7,7 @@
   </head>
   <body>
     <header class="topbar">
-      <h1><a href="#/">Lunar Landing Site Navigator</a></h1>
+      <h1><a href="./">Lunar Landing Site Navigator</a></h1>
       <span class="hook">Can my lander survive here?</span>
       <span id="badge" class="badge" hidden>FAKE DATA</span>
     </header>
@@ -27,8 +27,21 @@
         </aside>
       </section>
       <section id="pano-screen" class="screen" hidden>
-        <nav class="pano-nav"><a href="#/">← All sites</a></nav>
-        <canvas id="panorama" aria-label="360 degree horizon panorama. Drag to look around."></canvas>
+        <nav class="pano-nav">
+          <a href="./">← All sites</a>
+          <div class="pano-controls">
+            <div class="seg" role="group" aria-label="View mode">
+              <button type="button" id="mode-3d" aria-pressed="true">3D</button>
+              <button type="button" id="mode-2d" aria-pressed="false">2D strip</button>
+            </div>
+            <button type="button" id="true-scale" class="toggle" aria-pressed="false">True scale</button>
+          </div>
+        </nav>
+        <div class="pano-stage">
+          <canvas id="pano3d" aria-label="First-person 3D view of the landing site. Drag to look around, scroll or pinch to zoom."></canvas>
+          <canvas id="panorama" aria-label="360 degree horizon strip. Drag to look around."></canvas>
+          <p id="pano3d-fallback" class="pano-fallback" hidden>3D view unavailable in this browser (no WebGL). Showing the 2D strip.</p>
+        </div>
         <div id="readout" class="readout"></div>
       </section>
       <pre id="error" class="error" hidden></pre>

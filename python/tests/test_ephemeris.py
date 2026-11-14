@@ -82,7 +82,7 @@ def test_year_shape_and_units(year):
         assert 0.98 < d["sun"]["r_au"].min() and d["sun"]["r_au"].max() < 1.02
 
 
-@pytest.mark.parametrize("name", ["artemis-candidate", "test-near-pole"])
+@pytest.mark.parametrize("name", ["nobile-rim-2", "test-near-pole"])
 def test_sun_stays_near_horizon_at_high_latitude(year, name):
     # The Sun's height is bounded by the distance from the pole plus the
     # ~1.54 deg tilt of the Moon's axis (1.6 deg leaves a little room for
@@ -113,10 +113,10 @@ def test_shipped_site_json_matches_horizons():
 
     from lunar.validation import angle_between_deg
 
-    site_json = Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "artemis-candidate.json"
+    site_json = Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "nobile-rim-2.json"
     data = json.loads(site_json.read_text())
     t0 = datetime.fromisoformat(data["time"]["start"].replace("Z", "+00:00"))
-    rows = [r for r in json.loads(FIXTURE.read_text())["rows"] if r["point"] == "artemis-candidate"]
+    rows = [r for r in json.loads(FIXTURE.read_text())["rows"] if r["point"] == "nobile-rim-2"]
     assert len(rows) == 10
     for r in rows:
         t = datetime.fromisoformat(r["time"] + "+00:00")

@@ -4,7 +4,7 @@ They come from the same LOLA dataset, so heights should agree apart from
 detail the 240 m map smooths out. A large systematic offset would mean a
 reference or projection mismatch.
 
-    python/.venv/bin/python python/scripts/check_dem_seam.py --site artemis-candidate
+    python/.venv/bin/python python/scripts/check_dem_seam.py --site nobile-rim-2
 """
 
 import argparse

@@ -16,7 +16,7 @@ python/.venv/bin/pip install -e "python[dev]"
 python/.venv/bin/pytest python/tests
 python/scripts/fetch_data.sh kernels  # ~45 MB of SPICE kernels (not committed)
 python/scripts/fetch_data.sh dem      # ~2.8 GB of LOLA elevation maps (NASA GSFC PGDA)
-python/.venv/bin/python python/scripts/build_site.py --site artemis-candidate
+python/.venv/bin/python python/scripts/build_site.py --site nobile-rim-2   # JSON + _terrain.bin
 python/.venv/bin/python python/scripts/validate_horizons.py   # table for docs/VALIDATION.md
 ```
 
@@ -25,7 +25,7 @@ Web (static site):
 ```sh
 cd web
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5173  (a site: /?site=nobile-rim-2&hour=266, add &view=2d for the strip)
 npm test
 npm run build    # -> web/dist
 ```

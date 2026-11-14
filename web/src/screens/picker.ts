@@ -8,8 +8,7 @@ import { formatLatLon } from '../globe/coords';
 
 const KIND_LABEL: Record<SiteIndexEntry['kind'], string> = {
   'south-pole': 'South pole',
-  equator: 'Equator',
-  'far-side': 'Far side',
+  reference: 'Reference',
 };
 
 type Status = 'ready' | 'no-data' | 'no-coords';
@@ -126,12 +125,12 @@ export class Picker {
     const status = statusOf(s);
     const action =
       status === 'ready'
-        ? Object.assign(el('a', 'go', 'Stand here →'), { href: `#/site/${s.id}` })
+        ? Object.assign(el('a', 'go', 'Stand here →'), { href: `?site=${s.id}` })
         : el('span', 'go disabled', STATUS_LABEL[status]);
     card.replaceChildren(
       el('div', 'card-kind', KIND_LABEL[s.kind]),
       el('h3', 'card-name', s.name),
-      el('p', 'card-blurb', s.blurb),
+      ...(s.blurb.startsWith('TODO(') ? [] : [el('p', 'card-blurb', s.blurb)]), // never show placeholders
       el('div', 'card-coords', formatLatLon(s.lat!, s.lon!)),
       action,
     );

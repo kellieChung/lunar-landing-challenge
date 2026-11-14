@@ -1,13 +1,14 @@
 """Curated landing sites.
 
-Coordinates must come from NASA/LROC/mission sources and be cited in
-docs/VALIDATION.md. Never fill these in from memory or by guessing.
-A site with lat/lon = None is a placeholder waiting for the astronomer.
+Nine south-pole sites matching NASA's Artemis III candidate landing regions
+(spec.MD, "Curated sites"). Coordinates are the exact values from the team's
+brief: latitude negative = south, longitude in degrees east (-180..180).
+Do not round them. Citations and blurbs are still TODO(astronomer).
 """
 
 from dataclasses import dataclass
 
-KINDS = ("south-pole", "equator", "far-side")
+KINDS = ("south-pole", "reference")
 
 
 @dataclass(frozen=True)
@@ -25,28 +26,20 @@ class Site:
         return self.lat is not None and self.lon is not None
 
 
-TODO = "TODO(astronomer): coordinates + citation"
+BLURB_TODO = "TODO(astronomer)"
+CITE_TODO = "TODO(astronomer): cite"
+PAPER_TODO = "paper, TODO(astronomer): full citation"
 
 SITES: list[Site] = [
-    Site("apollo-11", "Apollo 11", None, None, "equator",
-         "Equator baseline: Sun climbs high, Earth parked in the sky", TODO),
-    # TODO(astronomer): Chandrayaan-3 is ~69 deg S; confirm whether "kind"
-    # should be "south-pole" or a new "high-latitude" kind.
-    Site("chandrayaan-3", "Chandrayaan-3", None, None, "south-pole",
-         "High-latitude landing that worked", TODO),
-    Site("im-1", "Intuitive Machines IM-1 (Malapert area)", None, None, "south-pole",
-         "Real CLPS pole lander that lost power early", TODO),
-    Site("shackleton-ridge", "Shackleton connecting ridge", None, None, "south-pole",
-         "Among the most-lit terrain on the Moon", TODO),
-    Site("shackleton-floor", "Inside Shackleton crater", None, None, "south-pole",
-         "Permanently shadowed: never lit", TODO),
-    # Coordinates provided by the team; citation still needed.
-    Site("artemis-candidate", "Nobile Rim 2 (Artemis III candidate region)",
-         -84.20156, 60.69989, "south-pole",
-         "Where would you land?",
-         "TODO(astronomer): cite source for Nobile Rim 2 coordinates"),
-    Site("change-4", "Chang'e-4 (far side)", None, None, "far-side",
-         "Earth never rises: why it needed a relay satellite", TODO),
+    Site("cabeus-b-peak", "Peak near Cabeus B", -83.661, -69.014, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("haworth", "Haworth", -86.764, -22.777, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("malapert-massif", "Malapert Massif", -85.995, -0.236, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("mons-mouton-plateau", "Mons Mouton Plateau", -84.232, 29.926, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("mons-mouton", "Mons Mouton", -85.423, 31.586, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("nobile-rim-1", "Nobile Rim 1", -85.438, 37.367, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("nobile-rim-2", "Nobile Rim 2", -84.20156, 60.69989, "south-pole", BLURB_TODO, PAPER_TODO),
+    Site("de-gerlache-rim-2", "de Gerlache Rim 2", -88.51566, 61.16732, "south-pole", BLURB_TODO, PAPER_TODO),
+    Site("slater-plain", "Slater Plain", -87.149, 126.134, "south-pole", BLURB_TODO, CITE_TODO),
 ]
 
 
