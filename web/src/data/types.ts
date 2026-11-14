@@ -13,7 +13,10 @@ export interface GridPoint {
   j: number;
   dx_km: number;
   dy_km: number;
-  up_tilt: [number, number];
+  up_tilt: [number, number]; // the point's up in the site frame: [east, north] parts
+  lat?: number;
+  lon?: number;
+  ground_m?: number; // terrain height at the point (m, LOLA datum)
   mask_deg: number[]; // 360 values, horizon elevation per 1 deg of azimuth (physics uses only this)
   mask_bands_deg?: number[][]; // 3 x 360: same, per distance band (3D rendering only)
 }
@@ -54,6 +57,22 @@ export interface SiteData {
   precomputed: Record<string, unknown>;
 }
 
+/** One grid point in sites.json: where it is and its full-year numbers (for the globe's dots). */
+export interface GridSummary {
+  i: number;
+  j: number;
+  dx_km: number;
+  dy_km: number;
+  lat: number;
+  lon: number;
+  ground_m: number;
+  sunlit_pct: number;
+  earth_pct: number;
+  both_pct: number;
+  longest_dark_h: number;
+  longest_blackout_h: number;
+}
+
 // Shape of web/public/data/sites.json (written by python/scripts/build_sites_index.py).
 export interface SiteIndexEntry {
   id: string;
@@ -63,4 +82,5 @@ export interface SiteIndexEntry {
   lat: number | null; // null = coordinates not cited yet (TODO astronomer)
   lon: number | null;
   has_data: boolean; // web/public/data/<id>.json exists
+  grid?: GridSummary[]; // built sites with an 11 x 11 grid
 }

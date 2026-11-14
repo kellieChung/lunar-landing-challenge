@@ -46,6 +46,28 @@ TODO
 - **Ground height** at the site comes from the same map and is also used for
   the observer position in the Sun/Earth calculation.
 
+## Grid points around a site
+- Each site has an **11 × 11 grid of observer points, 1 km apart** (10 × 10 km),
+  so you can compare nearby landing spots. Point (i, j) is i km east and j km
+  north of the site center, measured on the flat plane touching the Moon at
+  the center and dropped straight down to the surface. The near-terrain
+  heightmap uses the same mapping, so the two always line up.
+- **One frame for azimuth:** all points measure azimuth from the site center's
+  grid north (see Site frame), so "azimuth 90°" means the same direction
+  everywhere in the grid.
+- **Each point's own "up":** the surface curves, so a point 1 km away is
+  tilted about 0.033° from the center's up (5 km: 0.165°). Each point stores
+  that tilt. Its horizon mask is computed with elevation angles from its own
+  up. Before comparing them, the Sun and Earth directions are rotated into the
+  point's own east/north/up, both in Python and in the browser.
+- **Same Sun/Earth for every point:** the Sun and Earth directions are computed
+  once at the site center. Moving 7 km changes the direction to Earth by at
+  most 7 / 384,400 rad ≈ 0.001°, and to the Sun by far less, so this is
+  negligible.
+- The full-year numbers for every point are precomputed in Python and shown
+  as colored dots when you zoom onto a site on the globe. The browser
+  recomputes them for the point you stand on, and both agree to 1e-6.
+
 ## 3D view (rendering only)
 The 3D view only *shows* the physics. Whether the Sun is lit or Earth is
 visible always comes from the horizon mask (`src/physics/visibility.ts`); if
@@ -56,7 +78,10 @@ the picture and the numbers ever disagree, the numbers are right.
   so the top edge you see is the maximum of the three, which is exactly the
   physics horizon.
 - **Near terrain:** a 10 × 10 km heightmap (101 × 101 points, 100 m apart)
-  around the site from the same LOLA maps. Heights are measured along the
+  around the observer from the same LOLA maps. Python exports 20 × 20 km
+  around the site center; the browser moves the origin to the chosen grid
+  point, re-levels it for that point's own up (`z' = z − z(p) + r'·p / R`,
+  see `recenter` in `heightmap.ts`) and keeps the 10 × 10 km around it. Heights are measured along the
   site's "up" direction, so they include the Moon's curvature (flat ground
   5 km away sits about 7 m lower). Any point drawn above the physics horizon
   is lowered onto it (a handful of points, because the mesh is coarser than

@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from lunar import metrics as M
+from lunar.grid import point_vectors
 
 FIXTURE = Path(__file__).parent / "fixtures" / "metrics_parity.json"
 FLAT = [0.0] * 360
@@ -137,7 +138,10 @@ def fixture_cases():
 @pytest.mark.parametrize("case", fixture_cases(), ids=lambda c: c["name"])
 def test_parity_fixture(case):
     mask, exp = case["mask"], case["expected"]
-    s = M.site_series(case["sun"], case["earth"], mask)
+    sun, earth = case["sun"], case["earth"]
+    if "tilt" in case:  # an off-center grid point: see the vectors from there first
+        sun, earth = point_vectors(sun, case["tilt"]), point_vectors(earth, case["tilt"])
+    s = M.site_series(sun, earth, mask)
     np.testing.assert_allclose(s["fraction"], exp["fraction"], atol=1e-12)
     np.testing.assert_allclose(s["earth_margin"], exp["earth_margin"], atol=1e-9)
     for (a, n), want in zip(case["windows"], exp["windows"]):
@@ -149,8 +153,8 @@ def test_parity_fixture(case):
             assert got[k] == pytest.approx(want[k], abs=1e-9)
         for k, v in want["mean_flux_w_m2"].items():
             assert got["mean_flux_w_m2"][k] == pytest.approx(v, abs=1e-6)
-    lit_at = lambda t: M.sun_lit_at(case["sun"], mask, t)
-    earth_at = lambda t: M.earth_visible_at(case["earth"], mask, t)
+    lit_at = lambda t: M.sun_lit_at(sun, mask, t)
+    earth_at = lambda t: M.earth_visible_at(earth, mask, t)
     for (t, body, to), want in zip(case["events"], exp["events"]):
         state_at, hourly = (lit_at, s["lit"]) if body == "sun" else (earth_at, s["earth"])
         got = M.next_change(state_at, hourly, t, to)

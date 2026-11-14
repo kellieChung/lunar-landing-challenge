@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { TerrainHeader } from '../data/types';
 import {
-  clampToMask, heightAt, heightOnMesh, parseTerrain, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap,
+  clampToMask, crop, heightAt, heightOnMesh, parseTerrain, recenter, terrainColors, terrainIndex, terrainPositions, terrainUVs,
+  type Heightmap,
 } from './heightmap';
 
 const header = (nx: number, ny: number): TerrainHeader => ({
@@ -110,5 +111,63 @@ describe('terrainUVs / terrainColors', () => {
     expect(Array.from(terrainColors(t))).toEqual(Array.from(c));
     expect(Math.min(...c)).toBeGreaterThanOrEqual(0.72);
     expect(Math.max(...c)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('recenter and crop (grid points)', () => {
+  // 9 x 9 vertices, 100 m apart, x and y from -400 to 400 m.
+  const n = 9;
+  const big = (f: (x: number, y: number) => number): Heightmap => {
+    const z = new Float32Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) z[j * n + i] = f(-400 + 100 * i, -400 + 100 * j);
+    return { nx: n, ny: n, spacing: 100, x0: -400, y0: -400, z };
+  };
+  const R = 1737400;
+
+  it('is the identity at the site center', () => {
+    const t = big((x, y) => x + 2 * y);
+    expect(recenter(t, 0, 0)).toBe(t);
+  });
+
+  it('puts the point at the origin with zero height', () => {
+    const t = big((x, y) => 50 + x * 0.1 - y * 0.05);
+    const r = recenter(t, 200, -100);
+    expect(r.x0).toBe(-600);
+    expect(r.y0).toBe(-300);
+    expect(heightAt(r, 0, 0)).toBe(0);
+    // A vertex 100 m east of the point: the slope (0.1 * 100 = 10 m) plus the
+    // re-levelling term r'.p / R = 100 * 200 / R.
+    expect(heightAt(r, 100, 0)).toBeCloseTo(10 + (100 * 200) / R, 4);
+  });
+
+  it('turns a sphere seen from the center into a sphere seen from the point', () => {
+    // Flat ground on the sphere, as seen along the center's up: z = -(x^2 + y^2) / 2R.
+    const t = big((x, y) => -(x * x + y * y) / (2 * R));
+    const r = recenter(t, 300, 200);
+    for (const [x, y] of [[100, 0], [-300, 100], [0, -400]]) {
+      expect(heightAt(r, x, y)).toBeCloseTo(-(x * x + y * y) / (2 * R), 5);
+    }
+  });
+
+  it('rejects points that are not on a vertex', () => {
+    expect(() => recenter(big(() => 0), 150, 0)).toThrow(/not a vertex/);
+  });
+
+  it('crops to the square around the origin', () => {
+    const t = big((x, y) => x * 1000 + y);
+    const c = crop(t, 200);
+    expect([c.nx, c.ny, c.x0, c.y0]).toEqual([5, 5, -200, -200]);
+    expect(heightAt(c, -200, -200)).toBe(t.z[2 * n + 2]);
+    expect(heightAt(c, 200, 100)).toBe(200 * 1000 + 100);
+    expect(crop(t, 1000)).toBe(t); // already small enough
+  });
+
+  it('crop after recenter keeps the point in the middle', () => {
+    const t = big((x, y) => x + y);
+    const c = crop(recenter(t, -200, 300), 150);
+    expect([c.nx, c.ny, c.x0, c.y0]).toEqual([3, 3, -100, -100]);
+    const edge = crop(recenter(t, 0, 300), 200); // the map ends 100 m north of this point
+    expect([edge.nx, edge.ny, edge.x0, edge.y0]).toEqual([5, 4, -200, -200]);
+    expect(heightAt(c, 0, 0)).toBe(0);
   });
 });

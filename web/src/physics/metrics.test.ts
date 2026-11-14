@@ -6,8 +6,10 @@
 import { describe, expect, it } from 'vitest';
 import fixtureRaw from '../../../python/tests/fixtures/metrics_parity.json?raw';
 import siteRaw from '../../public/data/nobile-rim-2.json?raw';
+import haworthRaw from '../../public/data/haworth.json?raw';
 import type { SiteData } from '../data/types';
 import { earthVisibleAt, nextChange, sunLitAt } from './events';
+import { pointVectors } from './grid';
 import { fluxWm2, siteSeries, windowMetrics, type SunSeries, type WindowMetrics } from './metrics';
 import type { VectorSeries } from './time';
 
@@ -19,6 +21,7 @@ interface Case {
   earth: VectorSeries;
   windows: [number, number][];
   events: [number, 'sun' | 'earth', boolean][];
+  tilt?: [number, number]; // off-center grid point: rotate the vectors first
   expected: {
     fraction: number[];
     earth_margin: number[];
@@ -42,7 +45,9 @@ function expectMetrics(got: WindowMetrics, want: WindowMetrics, tol: number): vo
 }
 
 describe.each(cases)('parity: $name', (c) => {
-  const s = siteSeries(c.sun, c.earth, c.mask);
+  const sun = c.tilt ? pointVectors(c.sun, c.tilt) : c.sun;
+  const earth = c.tilt ? pointVectors(c.earth, c.tilt) : c.earth;
+  const s = siteSeries(sun, earth, c.mask);
 
   it('sunlit fraction and Earth margin per sample', () => {
     c.expected.fraction.forEach((f, i) => expect(Math.abs(s.fraction[i] - f)).toBeLessThanOrEqual(1e-12));
@@ -54,8 +59,8 @@ describe.each(cases)('parity: $name', (c) => {
   });
 
   it('next sunrise / sunset / Earthrise / Earthset', () => {
-    const lit = (t: number) => sunLitAt(c.sun, c.mask, t);
-    const vis = (t: number) => earthVisibleAt(c.earth, c.mask, t);
+    const lit = (t: number) => sunLitAt(sun, c.mask, t);
+    const vis = (t: number) => earthVisibleAt(earth, c.mask, t);
     c.events.forEach(([t, body, to], i) => {
       const got = body === 'sun' ? nextChange(lit, s.lit, t, to) : nextChange(vis, s.earth, t, to);
       const want = c.expected.events[i];
@@ -65,13 +70,23 @@ describe.each(cases)('parity: $name', (c) => {
   });
 });
 
-describe('shipped site file', () => {
-  const site = JSON.parse(siteRaw) as SiteData & { precomputed: { center: { year: WindowMetrics } } };
-  it('full-year metrics recomputed in the browser match Python', () => {
+type Shipped = SiteData & {
+  precomputed: { center: { year: WindowMetrics }; points: { i: number; j: number; year: WindowMetrics }[] };
+};
+
+describe.each([['nobile-rim-2', siteRaw], ['haworth', haworthRaw]])('shipped site file %s', (_, raw) => {
+  const site = JSON.parse(raw) as Shipped;
+  it('full-year metrics recomputed in the browser match Python (center)', () => {
     const center = site.grid.points.find((p) => p.dx_km === 0 && p.dy_km === 0)!;
     const s = siteSeries(site.sun, site.earth, center.mask_deg);
     // The file rounds to 6 decimals.
     expectMetrics(windowMetrics(s, 0, s.count, site.time.step_hours), site.precomputed.center.year, 1e-6);
+  });
+  it.each([[-5, -5], [5, 5], [3, -2], [-1, 4]])('match Python at grid point (%i, %i)', (i, j) => {
+    const p = site.grid.points.find((q) => q.i === i && q.j === j)!;
+    const want = site.precomputed.points.find((q) => q.i === i && q.j === j)!.year;
+    const s = siteSeries(pointVectors(site.sun, p.up_tilt), pointVectors(site.earth, p.up_tilt), p.mask_deg);
+    expectMetrics(windowMetrics(s, 0, s.count, site.time.step_hours), want, 1e-6);
   });
 });
 

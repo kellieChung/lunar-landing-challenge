@@ -7,14 +7,15 @@ import type { SiteData } from '../data/types';
 import { Panorama } from '../panorama/Panorama';
 import { maskAt, vecToAzEl } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
-import type { Heightmap } from '../panorama3d/heightmap';
+import { crop, recenter, type Heightmap } from '../panorama3d/heightmap';
 import type { Vec3 } from '../panorama3d/mapping';
 import { Scene3D } from '../panorama3d/Scene3D';
 import { earthRadiusDeg, sunRadiusDeg } from '../physics/constants';
 import { earthVisibleAt, nextChange, stateSince, sunLitAt } from '../physics/events';
+import { describeOffset, findPoint, pointVectors } from '../physics/grid';
 import { fluxWm2, siteSeries, windowMetrics } from '../physics/metrics';
 import { batteryState, signalBars } from '../physics/status';
-import { sampleDate, valueAt, vectorAt } from '../physics/time';
+import { sampleDate, valueAt, vectorAt, type VectorSeries } from '../physics/time';
 import { LIT_THRESHOLD, marginDeg, sunlitFraction } from '../physics/visibility';
 import { StatsPanel } from '../ui/StatsPanel';
 import { formatUtc, PAGE_SAMPLES, TimeBar } from '../ui/TimeBar';
@@ -24,6 +25,7 @@ type Mode = '3d' | '2d';
 const TRACK_HOURS = 709; // ~29.5 days: one trip of the Sun around the horizon
 const EARTH_RADIUS_FALLBACK_DEG = 0.95; // only for files without earth.r_km (fake data)
 const MARGIN_DEG = 0.5;
+const NEAR_TERRAIN_HALF_M = 5000; // the 3D view draws 10 x 10 km of ground around the observer
 
 /** ?hour=N (sample index, fractions allowed) opens at that time; kept up to date when time settles. */
 function hourFromUrl(count: number): number {
@@ -45,7 +47,7 @@ function modeFromUrl(): Mode {
   return new URLSearchParams(window.location.search).get('view') === '2d' ? '2d' : '3d';
 }
 
-function vec(v: { e: number[]; n: number[]; u: number[] }, k: number): Vec3 {
+function vec(v: VectorSeries, k: number): Vec3 {
   return [v.e[k], v.n[k], v.u[k]];
 }
 
@@ -54,9 +56,10 @@ function vec(v: { e: number[]; n: number[]; u: number[] }, k: number): Vec3 {
  * fixed while time moves: from just below the lowest horizon to just above
  * the tallest ridge or the highest Sun/Earth (plus their radius).
  */
-function elevationRange(data: SiteData, mask: number[], sunR: number, earthR: number): [number, number] {
-  const maxElev = (u: number[]) => Math.asin(Math.max(...u)) * (180 / Math.PI);
-  const top = Math.max(Math.max(...mask), maxElev(data.sun.u) + sunR, maxElev(data.earth.u) + earthR);
+function elevationRange(sunU: ArrayLike<number>, earthU: ArrayLike<number>, mask: number[], sunR: number,
+  earthR: number): [number, number] {
+  const maxElev = (u: ArrayLike<number>) => Math.asin(Math.max(...Array.from(u))) * (180 / Math.PI);
+  const top = Math.max(Math.max(...mask), maxElev(sunU) + sunR, maxElev(earthU) + earthR);
   return [Math.min(...mask) - MARGIN_DEG, top + MARGIN_DEG];
 }
 
@@ -74,39 +77,60 @@ function showBadge(data: SiteData): void {
 
 export async function openSite(id: string): Promise<void> {
   const data = await loadSite(id);
+
+  // The grid point we stand on (?pt=i,j; default the site center).
+  const point = findPoint(data.grid.points, new URLSearchParams(window.location.search).get('pt'));
+  const atCenter = point.dx_km === 0 && point.dy_km === 0;
+  if (!atCenter) setUrlParam('pt', `${point.i},${point.j}`);
+  else if (new URLSearchParams(window.location.search).has('pt')) setUrlParam('pt', '0,0');
+
   let terrain: Heightmap | null = null;
   if (data.terrain) {
     try {
-      terrain = await loadTerrain(data.terrain);
+      const whole = await loadTerrain(data.terrain);
+      // Rendering only: the ground around this point, levelled for it.
+      terrain = crop(recenter(whole, point.dx_km * 1000, point.dy_km * 1000, data.terrain.ground_m), NEAR_TERRAIN_HALF_M);
     } catch (err) {
       console.error(err); // the 3D view still works with rings only
     }
   }
   showBadge(data);
-  document.title = `${data.site.name} · Lunar Landing Site Navigator`;
+  const spot = describeOffset(point.dx_km, point.dy_km);
+  document.title = `${data.site.name}${atCenter ? '' : ` (${spot.replace(' of the site center', '')})`} · Lunar Landing Site Navigator`;
+  const back = document.getElementById('back-link') as HTMLAnchorElement | null;
+  if (back) back.href = `./?focus=${data.site.id}&pt=${point.i},${point.j}`;
+  const spotLabel = document.getElementById('spot-label');
+  if (spotLabel) {
+    const dz = point.ground_m !== undefined && data.site.ground_height_m !== undefined
+      ? point.ground_m - data.site.ground_height_m : null;
+    spotLabel.textContent = atCenter ? `${data.site.name} · site center`
+      : `${data.site.name} · ${spot}${dz === null ? '' : ` · ground ${dz >= 0 ? '+' : '−'}${Math.abs(dz).toFixed(0)} m`}`;
+  }
 
-  const center = data.grid.points.find((p) => p.dx_km === 0 && p.dy_km === 0) ?? data.grid.points[0];
-  const mask = center.mask_deg;
-  const bands = center.mask_bands_deg ?? null;
+  const mask = point.mask_deg;
+  const bands = point.mask_bands_deg ?? null;
   const mastM = data.site.mast_height_m ?? 3;
+  // Sun/Earth as seen from this point (the file holds them for the site center).
+  const sunV = pointVectors(data.sun, point.up_tilt);
+  const earthV = pointVectors(data.earth, point.up_tilt);
 
   // ---- Physics (the only source of lit / visible) ----
   const count = data.time.count;
   const step = data.time.step_hours;
-  const series = siteSeries(data.sun, data.earth, mask);
+  const series = siteSeries(sunV, earthV, mask);
   const year = windowMetrics(series, 0, count, step);
-  const litAt = (t: number) => sunLitAt(data.sun, mask, t);
-  const earthAt = (t: number) => earthVisibleAt(data.earth, mask, t);
+  const litAt = (t: number) => sunLitAt(sunV, mask, t);
+  const earthAt = (t: number) => earthVisibleAt(earthV, mask, t);
   const earthRAt = (t: number) => (data.earth.r_km ? earthRadiusDeg(valueAt(data.earth.r_km, t)) : EARTH_RADIUS_FALLBACK_DEG);
 
   const sunRMax = sunRadiusDeg(Math.min(...data.sun.r_au));
   const earthRMax = data.earth.r_km ? earthRadiusDeg(Math.min(...data.earth.r_km)) : EARTH_RADIUS_FALLBACK_DEG;
-  const elRange = elevationRange(data, mask, sunRMax, earthRMax);
+  const elRange = elevationRange(sunV.u, earthV.u, mask, sunRMax, earthRMax);
 
   /** Everything about one moment t (fractional sample index). */
   const physicsAt = (t: number) => {
-    const sunEnu = vectorAt(data.sun, t);
-    const earthEnu = vectorAt(data.earth, t);
+    const sunEnu = vectorAt(sunV, t);
+    const earthEnu = vectorAt(earthV, t);
     const rAu = valueAt(data.sun.r_au, t);
     const sun = vecToAzEl(...sunEnu);
     const earth = vecToAzEl(...earthEnu);
@@ -130,9 +154,9 @@ export async function openSite(id: string): Promise<void> {
     if (k !== trackFrom) { // the faint 29.5-day paths only change once per sample
       trackFrom = k;
       const end = Math.min(k + TRACK_HOURS, count);
-      const track = (v: typeof data.sun | typeof data.earth) => Array.from({ length: end - k }, (_, i) => vec(v, k + i));
-      sunTrack = track(data.sun);
-      earthTrack = track(data.earth);
+      const track = (v: VectorSeries) => Array.from({ length: end - k }, (_, i) => vec(v, k + i));
+      sunTrack = track(sunV);
+      earthTrack = track(earthV);
     }
     return { sunTrack, earthTrack };
   };
@@ -174,7 +198,7 @@ export async function openSite(id: string): Promise<void> {
   const update = () => {
     const { sun, earth } = now;
     readout.textContent =
-      `${data.site.name}   ${formatUtc(sampleDate(data.time.start, step, t))} (hour ${t.toFixed(2)})   view ${fmt(active.yaw)}°   ${mode.toUpperCase()}   vertical ×${active.exaggeration.toFixed(1)}\n` +
+      `${data.site.name} · ${spot}   ${formatUtc(sampleDate(data.time.start, step, t))} (hour ${t.toFixed(2)})   view ${fmt(active.yaw)}°   ${mode.toUpperCase()}   vertical ×${active.exaggeration.toFixed(1)}\n` +
       `sun   az ${fmt(sun.az)}° el ${fmt(sun.el)}°  (horizon there ${fmt(maskAt(mask, sun.az))}°)  ${state(now.sunLit, 'LIT', 'behind terrain')}  disk ${Math.round(now.sunFraction * 100)}%\n` +
       `earth az ${fmt(earth.az)}° el ${fmt(earth.el)}°  (horizon there ${fmt(maskAt(mask, earth.az))}°)  ${state(now.earthVisible, 'VISIBLE', 'behind terrain')}`;
   };

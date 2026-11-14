@@ -28,6 +28,59 @@ export function parseTerrain(buf: ArrayBuffer, h: TerrainHeader): Heightmap {
   return { nx: h.nx, ny: h.ny, spacing: h.spacing_m, x0: h.x0_m, y0: h.y0_m, z };
 }
 
+const R_MOON_M = 1737400; // the maps' datum sphere
+
+/**
+ * Move the heightmap's origin to a grid point (dx, dy metres from the site
+ * center) and re-level it for that point: heights become relative to the
+ * point's ground and measured along (nearly) its own up. Flat ground then
+ * curves away from the new observer exactly as it did from the center:
+ *
+ *   z'(r') = z(p + r') - z(p) + r'.p / (R + g)      (r' = position from the point)
+ *
+ * The point must sit on a vertex (whole-km grid points on the 100 m grid
+ * do), so z(p) is an exact DEM value, not an interpolation.
+ */
+export function recenter(t: Heightmap, dxM: number, dyM: number, groundM = 0): Heightmap {
+  if (dxM === 0 && dyM === 0) return t;
+  const ip = Math.round((dxM - t.x0) / t.spacing);
+  const jp = Math.round((dyM - t.y0) / t.spacing);
+  if (Math.abs(t.x0 + ip * t.spacing - dxM) > 1e-6 || Math.abs(t.y0 + jp * t.spacing - dyM) > 1e-6
+    || ip < 0 || jp < 0 || ip >= t.nx || jp >= t.ny) {
+    throw new Error(`Grid point (${dxM}, ${dyM}) m is not a vertex of the heightmap`);
+  }
+  const zp = t.z[jp * t.nx + ip];
+  const base = R_MOON_M + groundM;
+  const z = new Float32Array(t.z.length);
+  for (let j = 0; j < t.ny; j++) {
+    const ry = t.y0 + j * t.spacing - dyM;
+    for (let i = 0; i < t.nx; i++) {
+      const rx = t.x0 + i * t.spacing - dxM;
+      const v = j * t.nx + i;
+      z[v] = t.z[v] - zp + (rx * dxM + ry * dyM) / base;
+    }
+  }
+  return { ...t, x0: t.x0 - dxM, y0: t.y0 - dyM, z };
+}
+
+/**
+ * The square of vertices within halfM of the origin (both axes). The
+ * origin must be a vertex, so the result is centered exactly like the
+ * original 10 x 10 km export.
+ */
+export function crop(t: Heightmap, halfM: number): Heightmap {
+  const i0 = Math.max(0, Math.ceil((-halfM - t.x0) / t.spacing - 1e-9));
+  const i1 = Math.min(t.nx - 1, Math.floor((halfM - t.x0) / t.spacing + 1e-9));
+  const j0 = Math.max(0, Math.ceil((-halfM - t.y0) / t.spacing - 1e-9));
+  const j1 = Math.min(t.ny - 1, Math.floor((halfM - t.y0) / t.spacing + 1e-9));
+  const nx = i1 - i0 + 1;
+  const ny = j1 - j0 + 1;
+  if (nx === t.nx && ny === t.ny) return t;
+  const z = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) z.set(t.z.subarray((j0 + j) * t.nx + i0, (j0 + j) * t.nx + i0 + nx), j * nx);
+  return { nx, ny, spacing: t.spacing, x0: t.x0 + i0 * t.spacing, y0: t.y0 + j0 * t.spacing, z };
+}
+
 /** Bilinear height (m) at (x east, y north); NaN outside the grid. */
 export function heightAt(t: Heightmap, x: number, y: number): number {
   const fi = (x - t.x0) / t.spacing;

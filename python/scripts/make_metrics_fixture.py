@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from lunar import metrics as M
+from lunar.grid import point_vectors
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "web" / "public" / "data" / "nobile-rim-2.json"
@@ -24,19 +25,25 @@ OUT = ROOT / "python" / "tests" / "fixtures" / "metrics_parity.json"
 SLICE = (150, 1150)  # 1000 hours of Nobile Rim 2 with two sunrises/sunsets and Earthrises/sets
 
 
-def real_case() -> dict:
+def real_case(ij=(0, 0)) -> dict:
+    """A slice of the shipped file at grid point ij. Off-center points carry
+    their up_tilt; both languages rotate the vectors with it before anything else."""
     site = json.loads(SITE.read_text())
     a, b = SLICE
-    return {
-        "name": f"nobile-rim-2 samples {a}-{b - 1}",
+    point = next(p for p in site["grid"]["points"] if (p["i"], p["j"]) == ij)
+    case = {
+        "name": f"nobile-rim-2 point {ij} samples {a}-{b - 1}",
         "step_hours": 1,
-        "mask": site["grid"]["points"][0]["mask_deg"],
+        "mask": point["mask_deg"],
         "sun": {k: site["sun"][k][a:b] for k in ("e", "n", "u", "r_au")},
         "earth": {k: site["earth"][k][a:b] for k in ("e", "n", "u")},
         "windows": [[0, 720], [300, 500], [0, 1000]],
         "events": [[0, "sun", True], [0, "sun", False], [0, "earth", True], [0, "earth", False],
                    [100.5, "sun", True], [400.25, "earth", False], [999, "sun", True]],
     }
+    if ij != (0, 0):
+        case["tilt"] = point["up_tilt"]
+    return case
 
 
 def synthetic_case() -> dict:
@@ -60,11 +67,19 @@ def synthetic_case() -> dict:
     }
 
 
+def point_inputs(case: dict) -> tuple[dict, dict]:
+    """Sun/Earth vectors as seen from the case's grid point (rotated by its tilt)."""
+    if "tilt" not in case:
+        return case["sun"], case["earth"]
+    return point_vectors(case["sun"], case["tilt"]), point_vectors(case["earth"], case["tilt"])
+
+
 def answers(case: dict) -> dict:
     mask = case["mask"]
-    s = M.site_series(case["sun"], case["earth"], mask)
-    lit_at = lambda t: M.sun_lit_at(case["sun"], mask, t)
-    earth_at = lambda t: M.earth_visible_at(case["earth"], mask, t)
+    sun, earth = point_inputs(case)
+    s = M.site_series(sun, earth, mask)
+    lit_at = lambda t: M.sun_lit_at(sun, mask, t)
+    earth_at = lambda t: M.earth_visible_at(earth, mask, t)
     events = []
     for t, body, to in case["events"]:
         state_at, hourly = (lit_at, s["lit"]) if body == "sun" else (earth_at, s["earth"])
@@ -78,7 +93,7 @@ def answers(case: dict) -> dict:
 
 
 def main() -> None:
-    cases = [real_case(), synthetic_case()]
+    cases = [real_case(), synthetic_case(), real_case((4, -3))]
     for c in cases:
         c["expected"] = answers(c)
     OUT.write_text(json.dumps({"cases": cases}, indent=None, allow_nan=False, default=float))

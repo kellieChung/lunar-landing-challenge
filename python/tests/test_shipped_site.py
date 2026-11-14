@@ -20,8 +20,50 @@ def site(request):
     return json.loads(path.read_text(), parse_constant=_reject_nan)
 
 
-def test_something_is_shipped():
-    assert "nobile-rim-2" in SHIPPED
+def test_the_four_paper_sites_are_shipped():
+    assert {"nobile-rim-1", "nobile-rim-2", "de-gerlache-rim-2", "haworth"} <= set(SHIPPED)
+
+
+def test_grid_is_11_by_11_with_one_center(site):
+    g = site["grid"]
+    assert g["size"] == 11 and g["spacing_km"] == 1
+    pts = g["points"]
+    assert len(pts) == 121
+    assert sorted({(p["i"], p["j"]) for p in pts}) == [(i, j) for i in range(-5, 6) for j in range(-5, 6)]
+    centers = [p for p in pts if p["dx_km"] == 0 and p["dy_km"] == 0]
+    assert len(centers) == 1
+    c = centers[0]
+    assert c["up_tilt"] == [0.0, 0.0]
+    assert (c["lat"], c["lon"]) == (site["site"]["lat"], site["site"]["lon"])
+    assert c["ground_m"] == site["site"]["ground_height_m"]
+
+
+def test_tilt_matches_offset(site):
+    # Points sit on the tangent plane at the center's ground, so their up leans
+    # toward the offset by d / (R + ground_center) (radians, before normalizing).
+    base_km = 1737.4 + site["site"]["ground_height_m"] / 1000
+    for p in site["grid"]["points"]:
+        assert p["dx_km"] == p["i"] and p["dy_km"] == p["j"]
+        norm = np.sqrt(base_km**2 + p["dx_km"]**2 + p["dy_km"]**2)
+        te, tn = p["up_tilt"]
+        assert te == pytest.approx(p["dx_km"] / norm, abs=1e-7)
+        assert tn == pytest.approx(p["dy_km"] / norm, abs=1e-7)
+
+
+def test_precomputed_points_match_recomputation(site):
+    from lunar.grid import point_vectors
+    from lunar.metrics import rounded_metrics, site_series, window_metrics
+
+    pre = {(q["i"], q["j"]): q["year"] for q in site["precomputed"]["points"]}
+    assert len(pre) == 121
+    pts = {(p["i"], p["j"]): p for p in site["grid"]["points"]}
+    assert pre[(0, 0)] == site["precomputed"]["center"]["year"]
+    for ij in [(-5, -5), (5, 5), (3, -2)]:
+        p = pts[ij]
+        s = site_series(point_vectors(site["sun"], p["up_tilt"]), point_vectors(site["earth"], p["up_tilt"]),
+                        p["mask_deg"])
+        n = site["time"]["count"]
+        assert rounded_metrics(window_metrics(s, 0, n, site["time"]["step_hours"])) == pre[ij]
 
 
 def test_bands_max_to_mask(site):
@@ -38,7 +80,17 @@ def test_terrain_file_matches_header(site):
     assert h["format"] == "float32-le"
     assert len(raw) == h["nx"] * h["ny"] * 4
     z = np.frombuffer(raw, dtype="<f4").reshape(h["ny"], h["nx"])
+    assert (h["nx"], h["ny"], h["spacing_m"]) == (201, 201, 100.0)  # 20 x 20 km
     assert np.isfinite(z).all()
+    # Every grid point sits exactly on a vertex, at its own ground height
+    # (measured along the center's up, so it includes the curvature drop).
+    R = 1737400.0
+    for p in site["grid"]["points"]:
+        col = round((p["dx_km"] * 1000 - h["x0_m"]) / h["spacing_m"])
+        row = round((p["dy_km"] * 1000 - h["y0_m"]) / h["spacing_m"])
+        te, tn = p["up_tilt"]
+        want = (R + p["ground_m"]) * np.sqrt(1 - te * te - tn * tn) - (R + h["ground_m"])
+        assert z[row, col] == pytest.approx(want, abs=0.15), (p["i"], p["j"])
     assert z[h["ny"] // 2, h["nx"] // 2] == pytest.approx(0.0, abs=1e-3)  # observer's ground
     assert h["x0_m"] + (h["nx"] - 1) * h["spacing_m"] == -h["x0_m"]  # centered
 

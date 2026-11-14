@@ -1,10 +1,12 @@
 import './style.css';
-import { Picker } from './screens/picker';
+import { Picker, type PickerFocus } from './screens/picker';
 import { openSite } from './screens/site';
 
 // Routes (full page loads, so the globe and the panorama never share a page):
-//   ./              globe site picker + plain list of sites
-//   ./?site=<id>    panorama for one site (also ?hour=N, ?view=2d|3d)
+//   ./                          globe site picker + plain list of sites
+//   ./?focus=<id>&pt=i,j        picker zoomed onto a site's grid, spot (i, j) picked
+//   ./?site=<id>&pt=i,j         panorama at grid point (i, j) of a site (default 0,0 = center;
+//                               also ?hour=N, ?view=2d|3d)
 // Old links (#/site/<id>, artemis-candidate) are rewritten to the new form.
 
 const ALIASES: Record<string, string> = { 'artemis-candidate': 'nobile-rim-2' };
@@ -33,10 +35,19 @@ function siteFromUrl(): string | null {
   return id && /^[a-z0-9-]+$/.test(id) ? id : null;
 }
 
+/** ?focus=<id>&pt=i,j on the picker. */
+function focusFromUrl(): PickerFocus | null {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('focus');
+  if (!id || !/^[a-z0-9-]+$/.test(id)) return null;
+  const m = (params.get('pt') ?? '').match(/^(-?\d+),(-?\d+)$/);
+  return { id, pt: m ? [Number(m[1]), Number(m[2])] : [0, 0] };
+}
+
 async function showPicker(): Promise<void> {
   panoScreen.hidden = true;
   pickerScreen.hidden = false;
-  (await Picker.create()).start();
+  (await Picker.create(focusFromUrl())).start();
 }
 
 async function route(): Promise<void> {

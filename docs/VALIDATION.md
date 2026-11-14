@@ -7,14 +7,27 @@ Filled in as each milestone lands.
 | id | name | lat | lon | source |
 | --- | --- | --- | --- | --- |
 | cabeus-b-peak | Peak near Cabeus B | -83.661 | -69.014 | TODO(astronomer): cite |
-| haworth | Haworth | -86.764 | -22.777 | TODO(astronomer): cite |
+| haworth | Haworth | -86.80402 | -21.66710 | paper 2 (given as 338.33290° E), TODO(astronomer): full citation |
 | malapert-massif | Malapert Massif | -85.995 | -0.236 | TODO(astronomer): cite |
 | mons-mouton-plateau | Mons Mouton Plateau | -84.232 | 29.926 | TODO(astronomer): cite |
 | mons-mouton | Mons Mouton | -85.423 | 31.586 | TODO(astronomer): cite |
-| nobile-rim-1 | Nobile Rim 1 | -85.438 | 37.367 | TODO(astronomer): cite |
-| nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper, TODO(astronomer): full citation |
-| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | 61.16732 | paper, TODO(astronomer): full citation |
+| nobile-rim-1 | Nobile Rim 1 | -85.54419 | 37.62660 | paper 2, TODO(astronomer): full citation |
+| nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper 1, TODO(astronomer): full citation |
+| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | 61.16732 | paper 1, TODO(astronomer): full citation |
 | slater-plain | Slater Plain | -87.149 | 126.134 | TODO(astronomer): cite |
+
+Data is built for the four paper sites (Nobile Rim 1, Nobile Rim 2,
+de Gerlache Rim 2, Haworth). The other five still use the brief's uncited
+values and have no data yet.
+
+**Check flagged for the astronomer: de Gerlache Rim 2.** At the coordinate
+above, the site center is a deep low spot: ground −3,193 m, terrain 2.2° to
+22° high all around, **0% sunlit in 2027**. That does not look like a crater
+rim; it may be inside a nearby permanently shadowed crater
+(`TODO(astronomer)`: confirm which, and the longitude sign). With the
+longitude sign flipped (−61.16732°, i.e. 298.83° E) the ground is +580 m and
+the horizon drops to −2.1° on one side, which looks like a rim. The data
+stays at the paper's value until the coordinate is confirmed.
 
 ## 1. Horizon tests (synthetic terrain)
 
@@ -56,6 +69,33 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
   the time. Detailed percentages come with the metrics in milestone 4.
 - Computing one 360° mask takes about 0.02 s (spec target: under 2 s);
   loading the two map windows takes about 3.5 s per site.
+
+### Grid points (11 × 11, 1 km apart)
+
+Tests in `python/tests/test_grid.py` and `test_shipped_site.py`. All pass.
+
+| test | what it checks | result |
+| --- | --- | --- |
+| Positions | the center maps back to the site; 1 km east is 1.000 km away, due east | within 1 cm |
+| Up tilt | each point's up leans toward its offset by d / (R + ground) | within 1e-7 |
+| Rotation into a point's frame | orthonormal, unit vectors stay unit, identity at the center; the center's zenith seen from 5 km east is 0.165° lower, due west | within 1e-14 |
+| Smooth sphere from an off-center point | geometric dip at all azimuths (site-frame azimuths) | within 0.001° |
+| Mountain seen from an off-center point | the mask's peak and the exact direction to the summit (rotated into the point's frame) agree | same azimuth within 1°, elevation within 0.1° (cone tip between 1° samples) |
+| Heightmap vs grid | every grid point sits on a heightmap vertex at its own ground height | within 0.15 m |
+| Python ↔ TypeScript | year metrics at off-center points, recomputed in the browser from the file | within 1e-6 |
+
+Full year 2027, 3 m mast. "Best spot" gives grid (i, j): i km east, j km north of the center.
+
+| site | center ground | center sunlit | grid min | grid max (best spot) | center Earth visible | grid Earth visible | grid ground |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| nobile-rim-1 | 6120 m | 78.9% | 0.0% | 78.9% (0, 0) | 60.4% | 0.0–63.3% | 3833 to 6175 m |
+| nobile-rim-2 | 1122 m | 32.9% | 0.0% | 51.9% (−3, 2) | 24.7% | 0.0–75.2% | −605 to 1454 m |
+| de-gerlache-rim-2 | −3193 m | 0.0% | 0.0% | 18.5% (5, −5) | 38.5% | 0.0–51.2% | −4220 to −854 m |
+| haworth | 1819 m | 48.8% | 0.0% | 51.7% (2, 1) | 60.6% | 0.0–65.1% | 1124 to 1929 m |
+
+Each site has spots that never see the Sun within 5 km of its center: small
+craters and pits next to the high ground. Moving a lander 1 km can change
+the sunlit share by tens of percent.
 
 ## 2. Ephemeris vs JPL Horizons
 
@@ -169,6 +209,9 @@ Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
   (about 1 km apart at 100 km), so a narrow distant peak can fall between
   samples. This follows the spec's design.
 - **Fixed 150 km range:** terrain further away is ignored.
+- **Grid points share the center's Sun/Earth directions:** moving 7 km
+  shifts the direction to Earth by at most 0.001° (and the Sun far less).
+  Each point's own "up" is accounted for exactly.
 - **Mast height:** one fixed 3 m observer height for both solar panel and
   antenna.
 - **1-hour sampling:** statistics count whole hours. Rise and set times are

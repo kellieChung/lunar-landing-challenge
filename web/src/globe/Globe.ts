@@ -25,8 +25,19 @@ interface PinObject {
 const SUN_GOLD = 0xffc845;
 const CLICK_SLOP_PX = 5;
 
+/** What an add-on (e.g. GridFocus) needs to draw into and steer the globe. */
+export interface GlobeParts {
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  canvas: HTMLCanvasElement;
+  controls: OrbitControls;
+  moon: THREE.Object3D | null;
+}
+
 export class Globe {
   onSelect: ((id: string) => void) | null = null;
+  /** When set, runs each frame instead of the globe's own orbit controls (used while zoomed onto a site). */
+  frameHook: (() => void) | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -37,6 +48,7 @@ export class Globe {
   private running = false;
   private frame = 0;
   private raycaster = new THREE.Raycaster();
+  private pinsVisible = true;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -112,11 +124,27 @@ export class Globe {
     this.controls.enableDamping = false;
     this.controls.update();
     this.controls.enableDamping = true;
-    const viewLat = Math.max(-70, Math.min(70, lat * 0.8));
-    const [x, y, z] = latLonToVec(viewLat, lon);
-    this.camera.position.set(x, y, z).multiplyScalar(this.fitDistance());
+    this.camera.position.copy(this.viewPosition(lat, lon));
     this.controls.target.set(0, 0, 0);
     this.controls.update();
+  }
+
+  /** Where lookAt(lat, lon) puts the camera (looking at the Moon's center, world up +Y). */
+  viewPosition(lat: number, lon: number): THREE.Vector3 {
+    const viewLat = Math.max(-70, Math.min(70, lat * 0.8));
+    const [x, y, z] = latLonToVec(viewLat, lon);
+    return new THREE.Vector3(x, y, z).multiplyScalar(this.fitDistance());
+  }
+
+  parts(): GlobeParts {
+    return { scene: this.scene, camera: this.camera, canvas: this.canvas, controls: this.controls, moon: this.moon };
+  }
+
+  /** Show or hide the site pins and their labels (hidden while zoomed onto one site). */
+  setPinsVisible(on: boolean): void {
+    this.pinsVisible = on;
+    for (const p of this.pins) p.group.visible = on;
+    if (!on) for (const p of this.pins) p.label.hidden = true;
   }
 
   setSelected(id: string | null): void {
@@ -141,7 +169,8 @@ export class Globe {
     this.running = true;
     const tick = () => {
       if (!this.running) return;
-      this.controls.update();
+      if (this.frameHook) this.frameHook();
+      else this.controls.update();
       this.renderer.render(this.scene, this.camera);
       this.updateLabels();
       this.frame = requestAnimationFrame(tick);
@@ -201,6 +230,7 @@ export class Globe {
     const h = this.canvas.clientHeight;
     const tip = new THREE.Vector3();
     const toCam = new THREE.Vector3();
+    if (!this.pinsVisible) return;
     for (const p of this.pins) {
       p.head.getWorldPosition(tip);
       toCam.subVectors(this.camera.position, tip);
@@ -219,6 +249,7 @@ export class Globe {
     let downY = 0;
     const ndc = new THREE.Vector2();
     const pinAt = (ev: PointerEvent): PinObject | undefined => {
+      if (!this.pinsVisible) return undefined;
       const rect = this.canvas.getBoundingClientRect();
       ndc.set(
         ((ev.clientX - rect.left) / rect.width) * 2 - 1,
@@ -240,7 +271,7 @@ export class Globe {
       if (p) this.onSelect?.(p.pin.id);
     });
     this.canvas.addEventListener('pointermove', (ev) => {
-      if (ev.buttons) return;
+      if (ev.buttons || !this.pinsVisible) return; // an add-on owns the cursor while pins are hidden
       this.canvas.style.cursor = pinAt(ev) ? 'pointer' : 'grab';
     });
   }
