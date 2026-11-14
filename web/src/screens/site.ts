@@ -117,6 +117,7 @@ export async function openSite(id: string): Promise<void> {
   } catch (err) {
     console.error(err);
     scene = null;
+    canvas3d.hidden = true;
   }
 
   let mode: Mode = scene ? modeFromUrl() : '2d';
@@ -151,6 +152,7 @@ export async function openSite(id: string): Promise<void> {
   };
 
   const onLost = () => {
+    scene?.setActive(false); // stop drawing and hide the dead canvas
     scene = null;
     fallback.hidden = false;
     btn3d.disabled = true;
