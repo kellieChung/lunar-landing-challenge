@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { enuToThree, exaggerateEnu, type Vec3 } from './mapping';
 
 const RAD = Math.PI / 180;
+/** Longest Sun/Earth track drawn: 30 days of hourly samples (~one trip around the horizon is 709). */
+export const MAX_TRACK_POINTS = 720;
 
 function normalize(v: Vec3): Vec3 {
   const l = Math.hypot(v[0], v[1], v[2]);
@@ -130,7 +132,11 @@ export class Sky {
     this.earth.frustumCulled = false;
 
     const line = (color: number) => {
-      const l = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({
+      // One fixed buffer per line, rewritten in place as time moves (no GPU churn).
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_TRACK_POINTS * 3), 3));
+      geo.setDrawRange(0, 0);
+      const l = new THREE.Line(geo, new THREE.LineBasicMaterial({
         color, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false,
       }));
       l.renderOrder = 1;
@@ -162,9 +168,14 @@ export class Sky {
     (this.earthMat.uniforms.lightDir.value as THREE.Vector3).set(...enuToThree(L));
 
     const track = (pts: Vec3[], lineObj: THREE.Line) => {
-      const arr = new Float32Array(pts.length * 3);
-      pts.forEach((p, i) => arr.set(enuToThree(exaggerateEnu(p, k)).map((c) => c * R * 0.999), i * 3));
-      lineObj.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+      const attr = lineObj.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const n = Math.min(pts.length, MAX_TRACK_POINTS);
+      for (let i = 0; i < n; i++) {
+        const [x, y, z] = enuToThree(exaggerateEnu(pts[i], k));
+        attr.setXYZ(i, x * R * 0.999, y * R * 0.999, z * R * 0.999);
+      }
+      attr.needsUpdate = true;
+      lineObj.geometry.setDrawRange(0, n);
     };
     track(s.sunTrack, this.sunLine);
     track(s.earthTrack, this.earthLine);

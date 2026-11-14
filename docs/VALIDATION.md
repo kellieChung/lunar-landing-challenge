@@ -137,7 +137,29 @@ Full year 2027, hourly, elevations relative to a flat horizon (no terrain).
 TODO(astronomer): papers and points.
 
 ## 5. Python ↔ TypeScript parity
-TODO (milestone 4)
+
+The browser recomputes all metrics itself, so it must agree with Python.
+`python/scripts/make_metrics_fixture.py` writes
+`python/tests/fixtures/metrics_parity.json` with its own inputs and the
+Python answers; `python/tests/test_metrics.py` and
+`web/src/physics/metrics.test.ts` both recompute and compare. All pass.
+
+| case | what is compared | tolerance | result |
+| --- | --- | --- | --- |
+| Nobile Rim 2, 1,000 h (2 sunrises/sunsets, 2 Earthrises/sets) | sunlit fraction per hour | 1e-12 (exact ninths) | pass |
+| same | Earth margin per hour | 1e-9° | pass |
+| same, 3 windows | hour counts, longest night / blackout | exact | pass |
+| same, 3 windows | % sunlit / Earth / both, mean fraction | 1e-9 | pass |
+| same, 3 windows | mean flux per panel type | 1e-6 W/m² | pass |
+| same, 7 queries | next sunrise / sunset / Earthrise / Earthset | 1e-6 h (< 4 ms) | pass |
+| Synthetic: Sun crossing a ridge at north (azimuth 359° → 0°) | all of the above | same | pass |
+| Shipped `nobile-rim-2.json`, all 8,760 h | browser year metrics vs `precomputed.center.year` (rounded to 6 decimals) | 1e-6 | pass |
+
+Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
+
+| sunlit | mean fraction | Earth visible | both | longest night | longest blackout | mean flux: tracking / vertical / flat |
+| --- | --- | --- | --- | --- | --- | --- |
+| 32.9% | 0.33 | 24.7% | 7.8% | 510 h (21.3 d) | 495 h (20.6 d) | 448 / 446 / 33 W/m² |
 
 ## Limits
 
@@ -149,4 +171,9 @@ TODO (milestone 4)
 - **Fixed 150 km range:** terrain further away is ignored.
 - **Mast height:** one fixed 3 m observer height for both solar panel and
   antenna.
-- TODO: 1-hour time sampling and Site Score weights (milestones 4 and 6).
+- **1-hour sampling:** statistics count whole hours. Rise and set times are
+  refined to well under a second between samples, but a rise and set that
+  both fall inside the same hour are missed.
+- **Battery and signal icons** use simple display rules (instant recharge,
+  72 h battery, bar thresholds), described in METHODS.md.
+- TODO: Site Score weights (milestone 6).

@@ -79,7 +79,59 @@ the picture and the numbers ever disagree, the numbers are right.
   It is exact in "True scale" mode, and the numbers never depend on it.
 
 ## Visibility, sunlit fraction and flux
-TODO
+Code: `python/lunar/metrics.py`, ported line for line to `web/src/physics/`
+(`visibility.ts`, `metrics.ts`, `events.ts`). The browser recomputes
+everything from the shared Sun/Earth vectors and the horizon mask; a shared
+test fixture checks both give the same numbers (see VALIDATION.md §5).
+- **Horizon at any azimuth:** linear interpolation between the 360 mask
+  values (1° apart), wrapping from 359° to 0°.
+- **Sunlit fraction:** the Sun is a disk about 0.53° wide (angular radius
+  `asin(R_sun / d)`, R_sun = 695,700 km). We test 9 points of the disk, its
+  center and 8 points 45° apart on a ring at `r/√2` (r = angular radius),
+  and count how many are above the horizon at their own azimuth: 0 = dark,
+  1/9 … 8/9 = partly behind a ridge, 1 = fully lit. A sideways offset of x
+  degrees on the sky is x / cos(elevation) degrees of azimuth.
+  `TODO(astronomer)`: review the ring radius (a numerical choice; `r/√2`
+  splits the disk into two equal areas).
+- **Lit** means at least half of those points are up (fraction ≥ 0.5). For a
+  locally flat horizon this is the same as "the Sun's center is above it".
+- **Earth visible** means Earth's center is above the horizon. The margin
+  (degrees above or below) is kept, so the UI can show "partly visible"
+  (Earth is about 1.9° wide).
+- **Flux:** `1361 W/m² / r_AU² × sunlit fraction × panel factor`, with
+  panel factor 1 for a Sun-tracking panel, `cos(el)` for a vertical panel
+  facing the Sun and `sin(el)` (0 if negative) for a panel lying flat. At the
+  pole the Sun is within a few degrees of the horizon, so a flat panel gets
+  almost nothing: at Nobile Rim 2 in 2027, 33 W/m² on average against
+  446 W/m² for a vertical one. `TODO(astronomer)`: cite 1361 W/m².
+- **Between hourly samples** (smooth playback, countdowns): the Sun and Earth
+  directions are interpolated linearly and re-normalized, and the Sun
+  distance linearly.
+- **Sunrise, sunset, Earthrise, Earthset:** starting just after the current
+  time, find the first hourly sample whose state (lit / Earth visible)
+  differs, then bisect inside that hour on the interpolated directions until
+  the time is known to well under a second. The same rule decides "lit now",
+  so jumping to a sunrise always lands on a lit moment. A rise and set
+  that both happen inside one hour are not detected.
+- **Window statistics** (the visible 30 days, and all of 2027), over hourly
+  samples: % of hours lit, mean sunlit fraction, % of hours with Earth
+  visible, % with both, the longest dark stretch and the longest Earth
+  blackout (counted only inside the window), and mean flux per panel type.
+  The full-year numbers for the site center are also written into the site
+  file by Python (`precomputed.center.year`), from the same rounded numbers
+  the browser reads.
+
+## Battery and signal icons (display rules, not physics)
+These are metaphors for the public; the real numbers are shown beside them.
+- **Battery:** full and charging whenever the Sun is lit (recharge is
+  assumed instant), then drains evenly over a **72 h** battery (the spec's
+  default endurance) while dark; empty if the night lasts longer. The data
+  starts on 2027-01-01 00:00; if the site is dark then, the battery is
+  assumed full at that moment, and the panel says so.
+- **Signal bars:** 0 ("No service") when Earth's center is behind terrain;
+  1 when its center is up but part of the disk is still hidden (less than one
+  Earth radius of clearance); 2 up to 2°, 3 up to 4°, 4 above that. The bar
+  thresholds are a design choice; the clearance in degrees is shown under it.
 
 ## Site Score
 TODO: formula and weights. The weights are a design choice, not physics.

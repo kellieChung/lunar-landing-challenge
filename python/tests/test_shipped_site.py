@@ -47,3 +47,15 @@ def test_earth_distance(site):
     r = np.array(site["earth"]["r_km"])
     assert len(r) == site["time"]["count"]
     assert 350_000 < r.min() and r.max() < 410_000
+
+
+def test_precomputed_year_metrics(site):
+    m = site["precomputed"]["center"]["year"]
+    assert m["samples"] == site["time"]["count"]
+    for k in ("sunlit_pct", "earth_pct", "both_pct"):
+        assert 0 <= m[k] <= 100
+    assert m["both_pct"] <= min(m["sunlit_pct"], m["earth_pct"])
+    assert 0 <= m["mean_sunlit_fraction"] <= 1
+    assert 0 <= m["longest_dark_h"] <= m["samples"]
+    flux = m["mean_flux_w_m2"]
+    assert 0 <= flux["horizontal"] <= flux["vertical"] <= flux["tracking"] < 1500

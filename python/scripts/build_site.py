@@ -6,6 +6,8 @@ Real Sun/Earth vectors for calendar year 2027 (hourly) and the real horizon
 mask at the site center from the LOLA elevation maps. For the 3D view it also
 writes the horizon split into distance bands and <site_id>_terrain.bin, a
 10 x 10 km heightmap around the center (rendering only, never physics).
+precomputed.center.year holds the full-year metrics at the site center,
+computed from the rounded numbers in the file so the browser gets the same.
 TODO(milestone 5): 11 x 11 grid of points around the center.
 """
 
@@ -16,6 +18,7 @@ from pathlib import Path
 from lunar import ephemeris as E
 from lunar.dem import load_site_dem
 from lunar.horizon import BAND_EDGES_KM, horizon_mask
+from lunar.metrics import rounded_metrics, site_series, window_metrics
 from lunar.sites import get_site
 from lunar.terrain import terrain_grid
 
@@ -69,8 +72,11 @@ def build(site_id: str) -> Path:
                         "mask_bands_deg": [r2(b) for b in hz.bands_deg]}],
         },
         "terrain": terrain.header(terrain_name),
-        "precomputed": {},
     }
+    # Metrics from exactly what the browser will read (rounded vectors and mask).
+    center = data["grid"]["points"][0]
+    series = site_series(data["sun"], data["earth"], center["mask_deg"])
+    data["precomputed"] = {"center": {"year": rounded_metrics(window_metrics(series, 0, COUNT, STEP_HOURS))}}
     out = WEB_DATA / f"{site.id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, separators=(",", ":"), allow_nan=False))

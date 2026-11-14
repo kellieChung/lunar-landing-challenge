@@ -37,12 +37,18 @@
             <button type="button" id="true-scale" class="toggle" aria-pressed="false">True scale</button>
           </div>
         </nav>
-        <div class="pano-stage">
-          <canvas id="pano3d" aria-label="First-person 3D view of the landing site. Drag to look around, scroll or pinch to zoom."></canvas>
-          <canvas id="panorama" aria-label="360 degree horizon strip. Drag to look around."></canvas>
-          <p id="pano3d-fallback" class="pano-fallback" hidden>3D view unavailable in this browser (no WebGL). Showing the 2D strip.</p>
+        <div class="pano-body">
+          <div class="pano-main">
+            <div class="pano-stage">
+              <canvas id="pano3d" aria-label="First-person 3D view of the landing site. Drag to look around, scroll or pinch to zoom."></canvas>
+              <canvas id="panorama" aria-label="360 degree horizon strip. Drag to look around."></canvas>
+              <p id="pano3d-fallback" class="pano-fallback" hidden>3D view unavailable in this browser (no WebGL). Showing the 2D strip.</p>
+            </div>
+            <div id="timebar" class="timebar"></div>
+            <div id="readout" class="readout"></div>
+          </div>
+          <aside id="stats" class="stats" aria-label="Site status and statistics"></aside>
         </div>
-        <div id="readout" class="readout"></div>
       </section>
       <pre id="error" class="error" hidden></pre>
     </main>

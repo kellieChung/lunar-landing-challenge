@@ -16,3 +16,6 @@ export function sunRadiusDeg(rAu: number): number {
 export function earthRadiusDeg(rKm: number): number {
   return Math.asin(R_EARTH_KM / rKm) * DEG;
 }
+
+/** Solar power at 1 AU (W/m^2), same as python/lunar/metrics.py. TODO(astronomer): cite. */
+export const SOLAR_CONSTANT_W_M2 = 1361.0;
