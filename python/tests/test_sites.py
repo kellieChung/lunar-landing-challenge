@@ -1,6 +1,6 @@
 import pytest
 
-from lunar.sites import KINDS, SITES, get_site
+from lunar.sites import KINDS, SITES, get_site, site_index
 
 
 def test_ids_unique():
@@ -31,3 +31,15 @@ def test_get_site():
         get_site("apollo-11")  # placeholder, no coordinates yet
     with pytest.raises(KeyError):
         get_site("nope")
+
+
+def test_site_index(tmp_path):
+    (tmp_path / "artemis-candidate.json").write_text("{}")
+    index = site_index(tmp_path)
+    assert [e["id"] for e in index] == [s.id for s in SITES]
+    for entry, site in zip(index, SITES):
+        # Only sites with real coordinates get numbers; placeholders stay null.
+        assert (entry["lat"] is None) == (not site.has_coords), site.id
+    by_id = {e["id"]: e for e in index}
+    assert by_id["artemis-candidate"]["has_data"] is True
+    assert by_id["apollo-11"]["has_data"] is False

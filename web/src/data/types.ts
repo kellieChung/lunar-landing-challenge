@@ -33,3 +33,14 @@ export interface SiteData {
   grid: { spacing_km: number; size: number; points: GridPoint[] };
   precomputed: Record<string, unknown>;
 }
+
+// Shape of web/public/data/sites.json (written by python/scripts/build_sites_index.py).
+export interface SiteIndexEntry {
+  id: string;
+  name: string;
+  kind: 'south-pole' | 'equator' | 'far-side';
+  blurb: string;
+  lat: number | null; // null = coordinates not cited yet (TODO astronomer)
+  lon: number | null;
+  has_data: boolean; // web/public/data/<id>.json exists
+}

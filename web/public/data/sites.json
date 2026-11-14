@@ -1,0 +1,67 @@
+{
+ "sites": [
+  {
+   "id": "apollo-11",
+   "name": "Apollo 11",
+   "kind": "equator",
+   "blurb": "Equator baseline: Sun climbs high, Earth parked in the sky",
+   "lat": null,
+   "lon": null,
+   "has_data": false
+  },
+  {
+   "id": "chandrayaan-3",
+   "name": "Chandrayaan-3",
+   "kind": "south-pole",
+   "blurb": "High-latitude landing that worked",
+   "lat": null,
+   "lon": null,
+   "has_data": false
+  },
+  {
+   "id": "im-1",
+   "name": "Intuitive Machines IM-1 (Malapert area)",
+   "kind": "south-pole",
+   "blurb": "Real CLPS pole lander that lost power early",
+   "lat": null,
+   "lon": null,
+   "has_data": false
+  },
+  {
+   "id": "shackleton-ridge",
+   "name": "Shackleton connecting ridge",
+   "kind": "south-pole",
+   "blurb": "Among the most-lit terrain on the Moon",
+   "lat": null,
+   "lon": null,
+   "has_data": false
+  },
+  {
+   "id": "shackleton-floor",
+   "name": "Inside Shackleton crater",
+   "kind": "south-pole",
+   "blurb": "Permanently shadowed: never lit",
+   "lat": null,
+   "lon": null,
+   "has_data": false
+  },
+  {
+   "id": "artemis-candidate",
+   "name": "Nobile Rim 2 (Artemis III candidate region)",
+   "kind": "south-pole",
+   "blurb": "Where would you land?",
+   "lat": -84.20156,
+   "lon": 60.69989,
+   "has_data": true
+  },
+  {
+   "id": "change-4",
+   "name": "Chang'e-4 (far side)",
+   "kind": "far-side",
+   "blurb": "Earth never rises: why it needed a relay satellite",
+   "lat": null,
+   "lon": null,
+   "has_data": false
+  }
+ ]
+}

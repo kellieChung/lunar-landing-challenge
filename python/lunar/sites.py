@@ -60,3 +60,21 @@ def get_site(site_id: str) -> Site:
                 )
             return site
     raise KeyError(f"Unknown site id '{site_id}'")
+
+
+def site_index(data_dir) -> list[dict]:
+    """Site list for the web picker (web/public/data/sites.json).
+
+    lat/lon stay None (JSON null) for placeholder sites, so the globe never
+    places a pin we don't have a cited coordinate for. has_data says whether
+    <data_dir>/<id>.json has been built yet.
+    """
+    from pathlib import Path
+
+    data_dir = Path(data_dir)
+    return [
+        {"id": s.id, "name": s.name, "kind": s.kind, "blurb": s.blurb,
+         "lat": s.lat, "lon": s.lon,
+         "has_data": (data_dir / f"{s.id}.json").exists()}
+        for s in SITES
+    ]

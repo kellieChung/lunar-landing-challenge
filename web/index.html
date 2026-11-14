@@ -7,13 +7,31 @@
   </head>
   <body>
     <header class="topbar">
-      <h1>Lunar Landing Site Navigator</h1>
+      <h1><a href="#/">Lunar Landing Site Navigator</a></h1>
       <span class="hook">Can my lander survive here?</span>
       <span id="badge" class="badge" hidden>FAKE DATA</span>
     </header>
     <main>
-      <canvas id="panorama" aria-label="360 degree horizon panorama. Drag to look around."></canvas>
-      <div id="readout" class="readout"></div>
+      <section id="picker-screen" class="screen picker" hidden>
+        <div class="globe-wrap">
+          <canvas id="globe" aria-label="3D Moon with landing-site pins. Drag to rotate, scroll to zoom."></canvas>
+          <div id="globe-labels" class="globe-labels"></div>
+          <p id="globe-fallback" class="globe-fallback" hidden>3D view unavailable in this browser. Use the site list.</p>
+          <p class="globe-hint">Drag to rotate · scroll to zoom · click a pin</p>
+        </div>
+        <aside class="picker-panel" aria-label="Landing sites">
+          <h2>Where would you land?</h2>
+          <div id="site-card" class="site-card" hidden></div>
+          <h3 class="list-heading">All sites</h3>
+          <ul id="site-list" class="site-list"></ul>
+        </aside>
+      </section>
+      <section id="pano-screen" class="screen" hidden>
+        <nav class="pano-nav"><a href="#/">← All sites</a></nav>
+        <canvas id="panorama" aria-label="360 degree horizon panorama. Drag to look around."></canvas>
+        <div id="readout" class="readout"></div>
+      </section>
+      <pre id="error" class="error" hidden></pre>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

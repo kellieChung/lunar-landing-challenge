@@ -15,6 +15,8 @@ from lunar import ephemeris as E
 from lunar.fake import fake_mask
 from lunar.sites import get_site
 
+from build_sites_index import write_index
+
 WEB_DATA = Path(__file__).resolve().parents[2] / "web" / "public" / "data"
 START = "2027-01-01T00:00:00Z"
 COUNT = 8760  # hours in 2027
@@ -58,6 +60,7 @@ def main() -> None:
     args = parser.parse_args()
     out = build(args.site)
     print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB)")
+    print(f"wrote {write_index()}")
 
 
 if __name__ == "__main__":
