@@ -16,7 +16,8 @@ export interface GridPoint {
 }
 
 export interface SiteData {
-  fake?: boolean;
+  fake?: boolean; // whole file is made up (milestone 1 test data)
+  mask_fake?: boolean; // real Sun/Earth, but the terrain mask is still made up
   site: {
     id: string;
     name: string;

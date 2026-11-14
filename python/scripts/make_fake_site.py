@@ -12,19 +12,10 @@ import json
 import math
 from pathlib import Path
 
+from lunar.fake import fake_mask
+
 OUT = Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "fake.json"
 N_SAMPLES = 24  # hourly
-
-
-def fake_mask() -> list[float]:
-    mask = []
-    for az in range(360):
-        a = math.radians(az)
-        h = 1.2 + 0.8 * math.sin(2 * a + 0.5) + 0.5 * math.sin(5 * a + 1.3) + 0.3 * math.sin(11 * a)
-        h += 2.5 * math.exp(-(((az - 250) / 12) ** 2))  # a tall peak
-        h += 1.4 * math.exp(-(((az - 40) / 6) ** 2))  # a sharp peak near grid north
-        mask.append(round(max(h, -0.5), 2))
-    return mask
 
 
 def unit(az_deg: float, el_deg: float) -> tuple[float, float, float]:

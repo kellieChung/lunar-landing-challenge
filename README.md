@@ -4,7 +4,7 @@
 
 NASA Space Apps 2026 · Team **T^2 = Ka^3**
 
-> Work in progress. Milestone 1 (skeleton) shows **fake** terrain only.
+> Work in progress. Sun/Earth positions are real (validated against JPL Horizons); the terrain is still made up until milestone 3.
 
 ## Develop
 
@@ -14,8 +14,10 @@ Python (offline precompute, Python ≥ 3.11):
 python3.12 -m venv python/.venv
 python/.venv/bin/pip install -e "python[dev]"
 python/.venv/bin/pytest python/tests
-python/scripts/fetch_data.sh          # ~2 GB of SPICE kernels + LOLA DEMs (not committed)
-python/.venv/bin/python python/scripts/make_fake_site.py
+python/scripts/fetch_data.sh kernels  # ~45 MB of SPICE kernels (not committed)
+python/scripts/fetch_data.sh dem      # ~2 GB of LOLA elevation maps (milestone 3)
+python/.venv/bin/python python/scripts/build_site.py --site artemis-candidate
+python/.venv/bin/python python/scripts/validate_horizons.py   # table for docs/VALIDATION.md
 ```
 
 Web (static site):
