@@ -2,7 +2,7 @@
 // shows the physics result (lit or dark); it is never lit "by the renderer".
 
 import * as THREE from 'three';
-import { heightAt, type Heightmap } from './heightmap';
+import { heightOnMesh, type Heightmap } from './heightmap';
 
 const RAD = Math.PI / 180;
 
@@ -59,6 +59,16 @@ export function buildLander(): Lander {
     }
   });
 
+  // Soft dark patch under the lander so it reads as standing on the ground
+  // even when there is no sunlight to cast a real shadow.
+  const contact = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshBasicMaterial({
+    map: contactTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
+  }));
+  contact.rotation.x = -Math.PI / 2;
+  contact.position.y = 0.03;
+  contact.renderOrder = 1;
+  group.add(contact);
+
   return {
     group,
     setPanelLit(lit) {
@@ -73,18 +83,32 @@ export function buildLander(): Lander {
   };
 }
 
+function contactTexture(): THREE.Texture {
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(0,0,0,0.75)');
+  grad.addColorStop(0.6, 'rgba(0,0,0,0.35)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(c);
+}
+
 /**
  * Where to stand the lander so it looks the same at every stretch k: scaled
  * uniformly by k and placed k * d0 metres away (similar triangles), on the
  * stretched ground there. Eye at the origin; three.js axes.
  */
-export function landerPlacement(t: Heightmap | null, mastM: number, k: number, azDeg: number, d0 = 20): {
+export function landerPlacement(t: Heightmap | null, mastM: number, k: number, azDeg: number, d0 = 30): {
   pos: [number, number, number]; scale: number;
 } {
   const d = k * d0;
   const x = Math.sin(azDeg * RAD) * d;
   const north = Math.cos(azDeg * RAD) * d;
-  const zGround = t ? heightAt(t, x, north) : NaN;
+  const zGround = t ? heightOnMesh(t, x, north) : NaN; // on the drawn triangles, so the feet touch
   const ground = Number.isFinite(zGround) ? zGround : 0;
   return { pos: [x, k * (ground - mastM), -north], scale: k };
 }

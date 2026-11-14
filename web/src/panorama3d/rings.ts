@@ -3,10 +3,53 @@
 // near, so what you see on top is max(bands) = mask_deg, the physics horizon.
 
 import * as THREE from 'three';
+import { maskAt } from '../panorama/geometry';
 import { exaggerateEl } from './mapping';
 
 const RAD = Math.PI / 180;
 const MIN_TRUE_DEG = -89; // "no terrain" (-90) and anything below is pulled up to this
+
+// ---- Shading (rendering only: never decides lit / visible) ----
+
+/** How the rings are lit at one moment. All angles in degrees, true scale. */
+export interface RingLight {
+  fill: number; // night readability fill, 0..1 (matches the scene's hemisphere light)
+  sunAz: number;
+  sunEl: number; // true elevation
+  sunDay: number; // 0..1: how much sunlight reaches this band's ridges
+  earthAz: number;
+  earthLight: number; // 0..1 Earthshine strength
+}
+
+const SUN_WEIGHT = 1.0;
+const EARTH_WEIGHT = 0.35;
+export const GLOW_BELOW_DEG = 3; // rim glow while the Sun is up to this far below a ridge
+const GLOW_WIDTH_DEG = 8; // azimuth spread of the rim glow
+
+/**
+ * Brightness of the ridge at azimuth colAz. A ridge face looks back toward
+ * the viewer, so it is lit when the light is behind the viewer: strongest
+ * at 180 deg from the Sun, darker (backlit) toward the Sun.
+ */
+export function ringShade(colAz: number, L: RingLight): number {
+  const facing = (lightAz: number) => Math.max(0, -Math.cos((colAz - lightAz) * RAD));
+  const sun = L.sunDay * (0.35 + 0.65 * facing(L.sunAz)) * SUN_WEIGHT;
+  const earth = L.earthLight * facing(L.earthAz) * EARTH_WEIGHT;
+  return L.fill + sun + earth;
+}
+
+/**
+ * Golden rim glow 0..1 on a ridge edge at colAz, when the Sun is just behind
+ * that ridge (up to GLOW_BELOW_DEG below its top at the Sun's azimuth).
+ * A pointer to the hidden Sun, not a physics result.
+ */
+export function rimGlow(colAz: number, mask: number[], L: RingLight): number {
+  const below = maskAt(mask, L.sunAz) - L.sunEl;
+  if (below <= 0 || below >= GLOW_BELOW_DEG) return 0;
+  const strength = 1 - below / GLOW_BELOW_DEG;
+  const d = ((colAz - L.sunAz + 540) % 360) - 180;
+  return strength * Math.exp(-((d / GLOW_WIDTH_DEG) ** 2));
+}
 
 /**
  * Vertex positions for one ring at horizontal radius `radius`: for each of
@@ -49,48 +92,80 @@ function ringIndex(columns: number): number[] {
 export interface Ring {
   group: THREE.Group;
   update(k: number): void;
-  setColor(color: THREE.ColorRepresentation): void;
+  /** Recolor for the current light (cheap; call every time step). */
+  shade(light: RingLight): void;
   dispose(): void;
 }
 
+const EDGE_GREY = new THREE.Color(0xc8ccd4);
+const GLOW = new THREE.Color(0xffc845);
+
 /**
- * One ring: a flat, unlit curtain plus a brighter edge line along its top.
- * Backdrop objects never depth-test; `order` sets the draw order (far first).
+ * One ring: a flat curtain plus a brighter edge line along its top, both
+ * colored per column by ringShade / rimGlow. Backdrop objects never
+ * depth-test; `order` sets the draw order (far first).
  */
 export function buildRing(mask: number[], k: number, radius: number, color: number, edgeAlpha: number, order: number): Ring {
+  const n = mask.length;
+  const base = new THREE.Color(color);
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(ringPositions(mask, k, radius), 3));
-  geo.setIndex(ringIndex(mask.length));
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n + 1) * 2 * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array((n + 1) * 2 * 3), 3));
+  geo.setIndex(ringIndex(n));
   const mat = new THREE.MeshBasicMaterial({
-    color, side: THREE.DoubleSide, transparent: true, opacity: 1, depthTest: false, depthWrite: false,
+    vertexColors: true, side: THREE.DoubleSide, depthTest: false, depthWrite: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = order;
   mesh.frustumCulled = false;
 
   const edgeGeo = new THREE.BufferGeometry();
-  const edgeMat = new THREE.LineBasicMaterial({
-    color: 0xc8ccd4, transparent: true, opacity: edgeAlpha, depthTest: false, depthWrite: false,
-  });
+  edgeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));
+  edgeGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));
+  const edgeMat = new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false });
   const edge = new THREE.Line(edgeGeo, edgeMat);
   edge.renderOrder = order + 0.5;
   edge.frustumCulled = false;
 
   const update = (kk: number) => {
     const pos = ringPositions(mask, kk, radius);
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const tops = new Float32Array((mask.length + 1) * 3);
-    for (let c = 0; c <= mask.length; c++) tops.set(pos.subarray(c * 6, c * 6 + 3), c * 3);
-    edgeGeo.setAttribute('position', new THREE.BufferAttribute(tops, 3));
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    (posAttr.array as Float32Array).set(pos);
+    posAttr.needsUpdate = true;
+    const tops = edgeGeo.getAttribute('position') as THREE.BufferAttribute;
+    for (let c = 0; c <= n; c++) (tops.array as Float32Array).set(pos.subarray(c * 6, c * 6 + 3), c * 3);
+    tops.needsUpdate = true;
   };
+
+  const tmp = new THREE.Color();
+  const edgeTmp = new THREE.Color();
+  const shade = (L: RingLight) => {
+    const cols = geo.getAttribute('color') as THREE.BufferAttribute;
+    const edgeCols = edgeGeo.getAttribute('color') as THREE.BufferAttribute;
+    for (let c = 0; c <= n; c++) {
+      const az = ((c % n) * 360) / n;
+      const b = ringShade(az, L);
+      tmp.copy(base).multiplyScalar(b);
+      cols.setXYZ(2 * c, tmp.r, tmp.g, tmp.b);
+      cols.setXYZ(2 * c + 1, tmp.r, tmp.g, tmp.b);
+      // Edge: a faint lighter line over the curtain, turning gold where the Sun hides.
+      edgeTmp.copy(EDGE_GREY).multiplyScalar(Math.min(1, b));
+      edgeTmp.lerp(tmp, 1 - edgeAlpha).lerp(GLOW, rimGlow(az, mask, L));
+      edgeCols.setXYZ(c, edgeTmp.r, edgeTmp.g, edgeTmp.b);
+    }
+    cols.needsUpdate = true;
+    edgeCols.needsUpdate = true;
+  };
+
   update(k);
+  shade({ fill: 1, sunAz: 0, sunEl: -90, sunDay: 0, earthAz: 0, earthLight: 0 });
 
   const group = new THREE.Group();
   group.add(mesh, edge);
   return {
     group,
     update,
-    setColor: (c) => mat.color.set(c),
+    shade,
     dispose: () => {
       geo.dispose();
       mat.dispose();

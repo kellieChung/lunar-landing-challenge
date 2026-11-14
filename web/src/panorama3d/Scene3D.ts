@@ -14,11 +14,12 @@ import * as THREE from 'three';
 import { maskAt } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
 import { attachLookControls } from './controls';
-import { clampToMask, terrainIndex, terrainPositions, type Heightmap } from './heightmap';
+import { regolithTexture } from './ground';
+import { clampToMask, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap } from './heightmap';
 import { buildLander, landerPlacement, type Lander } from './lander';
 import { cameraEuler, defaultPitch, enuToThree, exaggerateEnu, fitExaggeration3D, type Vec3 } from './mapping';
-import { buildRing, maxMask, type Ring } from './rings';
-import { Sky, type SkyState } from './sky';
+import { buildRing, maxMask, type Ring, type RingLight } from './rings';
+import { earthLitFraction, Sky, type SkyState } from './sky';
 
 const BACKDROP_R = 1000; // m; any value works since the camera never moves
 const K_MAX = 10;
@@ -29,10 +30,22 @@ const PITCH_MAX = 75;
 const FOV_MIN = 8;
 const FOV_MAX = 75;
 const LIGHT_DIST = 20_000; // m
-const AMBIENT = 0.12; // keeps shadowed ground readable (rendering only)
-// The near ring shows as a thin sliver above the coarser mesh; tint it like the
-// mesh (dark when the physics says the Sun is hidden) so it never reads as a lit ridge.
-const NEAR_RING_DARK = new THREE.Color(0x303237);
+// Lighting (rendering only; never decides lit / visible):
+const SUN_INTENSITY = 6; // the Sun is always low, so flat ground only gets a grazing share
+// Readability fill so shapes never vanish at night. Not a physical light
+// (real starlight is negligible); cool-tinted and kept well below sunlight so
+// lit vs dark stays obvious.
+const FILL_INTENSITY = 0.9;
+const FILL_SKY = 0x7086b8;
+const FILL_GROUND = 0x141518;
+// Light bounced off sunlit ridges into a shadowed spot (real, and large at the
+// poles): extra fill while the far ridges are lit but the local Sun is hidden.
+const BOUNCE = 0.7;
+const RING_FILL = 0.42; // the same fill, for the unlit skyline rings
+// Earthshine: sunlight reflected by Earth. Real, pale blue, and strongest when
+// Earth is up and nearly full. Scaled for display, not photometry.
+const EARTHSHINE_MAX = 0.9;
+const EARTHSHINE_COLOR = 0xa9c6ff;
 const RING_STYLE = [
   // near (0-5 km), mid (5-30 km), far (30-150 km)
   { color: 0x5a5d63, edge: 0.5 },
@@ -51,6 +64,7 @@ export interface SiteInput {
 
 export interface TimeInput extends Omit<SkyState, 'sunGlow'> {
   sunLit: boolean; // from physics (horizon mask)
+  earthMarginDeg: number; // from physics: Earth's center above (+) or below (-) the horizon
 }
 
 function smoothstep(a: number, b: number, x: number): number {
@@ -76,7 +90,10 @@ export class Scene3D implements PanoramaView {
   private terrainGroup = new THREE.Group();
   private terrainMesh: THREE.Mesh | null = null;
   private lander: Lander = buildLander();
-  private sunLight = new THREE.DirectionalLight(0xffffff, 3);
+  private sunLight = new THREE.DirectionalLight(0xffffff, SUN_INTENSITY);
+  private earthLight = new THREE.DirectionalLight(EARTHSHINE_COLOR, 0);
+  private fill = new THREE.HemisphereLight(FILL_SKY, FILL_GROUND, FILL_INTENSITY);
+  private groundTexture: THREE.Texture;
   private lightCenter = new THREE.Vector3();
   private site: SiteInput | null = null;
   private time: TimeInput | null = null;
@@ -100,7 +117,9 @@ export class Scene3D implements PanoramaView {
     this.camera.rotation.order = 'YXZ';
     this.backdrop.add(this.sky.group);
 
-    this.near.add(new THREE.AmbientLight(0xffffff, AMBIENT));
+    this.near.add(this.fill);
+    this.near.add(this.earthLight, this.earthLight.target);
+    this.groundTexture = regolithTexture(this.renderer.capabilities.getMaxAnisotropy());
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.bias = -0.0005;
@@ -184,9 +203,13 @@ export class Scene3D implements PanoramaView {
       if (moved > 0) console.info(`terrain: lowered ${moved} vertices onto the physics horizon`);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(terrainUVs(site.terrain), 2));
+      geo.setAttribute('color', new THREE.BufferAttribute(terrainColors(site.terrain), 3));
       geo.setIndex(new THREE.BufferAttribute(terrainIndex(site.terrain.nx, site.terrain.ny), 1));
       geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({ color: 0x8c8c8c, roughness: 1, metalness: 0, flatShading: true });
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x9a9a9a, map: this.groundTexture, vertexColors: true, roughness: 1, metalness: 0,
+      });
       this.terrainMesh = new THREE.Mesh(geo, mat);
       this.terrainMesh.castShadow = true;
       this.terrainMesh.receiveShadow = true;
@@ -236,15 +259,37 @@ export class Scene3D implements PanoramaView {
     const site = this.site;
     if (!t || !site) return;
     const sun = azElOf(t.sunEnu);
+    const earth = azElOf(t.earthEnu);
     // The rings cast no shadows, so gate the light by the far horizon (5-150 km)
     // from the physics mask; the shadow map handles the near terrain itself.
     const far = site.bands ? maxMask(site.bands[1], site.bands[2]) : site.mask;
     const gate = smoothstep(-t.sunRadiusDeg, t.sunRadiusDeg, sun.el - maskAt(far, sun.az));
-    this.sunLight.intensity = 3 * gate;
-    if (site.bands) {
-      const nearRing = this.rings[this.rings.length - 1]; // drawn last = nearest
-      nearRing.setColor(NEAR_RING_DARK.clone().lerp(new THREE.Color(RING_STYLE[0].color), gate));
-    }
+    this.sunLight.intensity = SUN_INTENSITY * gate;
+
+    // Earthshine: along Earth's (shown) direction, by Earth's phase, only while
+    // the physics says Earth is above the horizon (eased across its disk).
+    const earthUp = smoothstep(-t.earthRadiusDeg, t.earthRadiusDeg, t.earthMarginDeg);
+    const earthshine = earthLitFraction(t.sunEnu, t.earthEnu) * earthUp;
+    this.earthLight.intensity = EARTHSHINE_MAX * earthshine;
+    const eDir = new THREE.Vector3(...enuToThree(exaggerateEnu(t.earthEnu, this.k)));
+    this.earthLight.position.copy(this.lightCenter).addScaledVector(eDir, LIGHT_DIST);
+    this.earthLight.target.position.copy(this.lightCenter);
+    this.earthLight.target.updateMatrixWorld();
+
+    // Rings: distant ridges catch sunlight whenever the Sun is above the flat
+    // horizon, and never look darker than the local physics allows. The
+    // nearest ring is the sliver above the mesh, so it follows the mesh's light.
+    const light: RingLight = {
+      fill: RING_FILL, sunAz: sun.az, sunEl: sun.el, sunDay: 0,
+      earthAz: earth.az, earthLight: earthshine,
+    };
+    const farDay = Math.max(gate, smoothstep(-t.sunRadiusDeg, t.sunRadiusDeg, sun.el));
+    this.fill.intensity = FILL_INTENSITY * (1 + BOUNCE * Math.max(0, farDay - gate));
+    this.rings.forEach((r, i) => {
+      const nearest = site.bands !== null && i === this.rings.length - 1;
+      r.shade({ ...light, sunDay: nearest ? gate : farDay });
+    });
+
     const dir = new THREE.Vector3(...enuToThree(exaggerateEnu(t.sunEnu, this.k)));
     this.sunLight.position.copy(this.lightCenter).addScaledVector(dir, LIGHT_DIST);
     this.sunLight.target.updateMatrixWorld();

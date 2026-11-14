@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { exaggerateEl } from './mapping';
-import { maxMask, ringPositions } from './rings';
+import { GLOW_BELOW_DEG, maxMask, rimGlow, ringPositions, ringShade } from './rings';
 
 const R = 1000;
 const mask = Array.from({ length: 360 }, (_, i) => Math.sin((i * Math.PI) / 90) * 3);
@@ -46,5 +46,35 @@ describe('ringPositions', () => {
 describe('maxMask', () => {
   it('is the element-wise max', () => {
     expect(maxMask([1, 5, -90], [2, 0, -3])).toEqual([2, 5, -3]);
+  });
+});
+
+describe('ringShade', () => {
+  const night = { fill: 0.4, sunAz: 90, sunEl: -5, sunDay: 0, earthAz: 0, earthLight: 0 };
+  it('is just the fill at night with no Earthshine', () => {
+    for (const az of [0, 90, 200]) expect(ringShade(az, night)).toBeCloseTo(0.4, 12);
+  });
+  it('by day, ridges opposite the Sun are brighter than backlit ones toward it', () => {
+    const day = { ...night, sunEl: 1, sunDay: 1 };
+    expect(ringShade(270, day)).toBeGreaterThan(ringShade(90, day));
+    expect(ringShade(90, day)).toBeGreaterThan(night.fill); // still some light
+  });
+  it('Earthshine lights the ridges opposite Earth', () => {
+    const e = { ...night, earthAz: 0, earthLight: 1 };
+    expect(ringShade(180, e)).toBeGreaterThan(ringShade(0, e));
+  });
+});
+
+describe('rimGlow', () => {
+  const flat2 = new Array(360).fill(2);
+  const L = { fill: 0.4, sunAz: 100, sunEl: 1, sunDay: 0, earthAz: 0, earthLight: 0 };
+  it('peaks at the Sun azimuth when the Sun is just below the ridge', () => {
+    expect(rimGlow(100, flat2, L)).toBeCloseTo(1 - 1 / GLOW_BELOW_DEG, 9);
+    expect(rimGlow(100, flat2, L)).toBeGreaterThan(rimGlow(110, flat2, L));
+    expect(rimGlow(280, flat2, L)).toBeCloseTo(0, 6);
+  });
+  it('is off when the Sun is above the ridge or far below it', () => {
+    expect(rimGlow(100, flat2, { ...L, sunEl: 2.5 })).toBe(0);
+    expect(rimGlow(100, flat2, { ...L, sunEl: -2 })).toBe(0);
   });
 });

@@ -100,3 +100,79 @@ export function clampToMask(pos: Float32Array, nearMask: number[], mask: number[
   }
   return moved;
 }
+
+/**
+ * Height (m) on the drawn mesh at (x east, y north): the same two triangles
+ * per cell that terrainIndex builds (split along the b-c diagonal), so things
+ * placed with it sit exactly on the rendered ground. NaN outside the grid.
+ */
+export function heightOnMesh(t: Heightmap, x: number, y: number): number {
+  const fi = (x - t.x0) / t.spacing;
+  const fj = (y - t.y0) / t.spacing;
+  if (fi < 0 || fj < 0 || fi > t.nx - 1 || fj > t.ny - 1) return NaN;
+  const i0 = Math.min(Math.floor(fi), t.nx - 2);
+  const j0 = Math.min(Math.floor(fj), t.ny - 2);
+  const u = fi - i0;
+  const v = fj - j0;
+  const z = (i: number, j: number) => t.z[j * t.nx + i];
+  const za = z(i0, j0);
+  const zb = z(i0 + 1, j0);
+  const zc = z(i0, j0 + 1);
+  const zd = z(i0 + 1, j0 + 1);
+  if (u + v <= 1) return za + u * (zb - za) + v * (zc - za); // triangle a, b, c
+  return zd + (1 - u) * (zc - zd) + (1 - v) * (zb - zd); // triangle b, d, c
+}
+
+/** Planar texture coordinates: one texture repeat every `repeatM` metres. */
+export function terrainUVs(t: Heightmap, repeatM = 60): Float32Array {
+  const out = new Float32Array(t.nx * t.ny * 2);
+  for (let j = 0; j < t.ny; j++) {
+    for (let i = 0; i < t.nx; i++) {
+      const v = j * t.nx + i;
+      out[v * 2] = (t.x0 + i * t.spacing) / repeatM;
+      out[v * 2 + 1] = (t.y0 + j * t.spacing) / repeatM;
+    }
+  }
+  return out;
+}
+
+/** Deterministic pseudo-random value in [0, 1) for an integer lattice point. */
+function hash2(i: number, j: number, seed: number): number {
+  let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(seed, 2147483647);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Smooth value noise in [0, 1) at (x, y) metres with the given cell size. */
+function valueNoise(x: number, y: number, cell: number, seed: number): number {
+  const fx = x / cell;
+  const fy = y / cell;
+  const i = Math.floor(fx);
+  const j = Math.floor(fy);
+  const s = (t: number) => t * t * (3 - 2 * t);
+  const u = s(fx - i);
+  const v = s(fy - j);
+  const a = hash2(i, j, seed);
+  const b = hash2(i + 1, j, seed);
+  const c = hash2(i, j + 1, seed);
+  const d = hash2(i + 1, j + 1, seed);
+  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+}
+
+/**
+ * Gentle large-scale brightness mottling (grey RGB per vertex, 0.72-1.0),
+ * so the ground doesn't look like one flat material. Rendering only.
+ */
+export function terrainColors(t: Heightmap): Float32Array {
+  const out = new Float32Array(t.nx * t.ny * 3);
+  for (let j = 0; j < t.ny; j++) {
+    for (let i = 0; i < t.nx; i++) {
+      const x = t.x0 + i * t.spacing;
+      const y = t.y0 + j * t.spacing;
+      const n = 0.65 * valueNoise(x, y, 900, 1) + 0.35 * valueNoise(x, y, 260, 2);
+      const g = 0.72 + 0.28 * n;
+      out.set([g, g, g], (j * t.nx + i) * 3);
+    }
+  }
+  return out;
+}

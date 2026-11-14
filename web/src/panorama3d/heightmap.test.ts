@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { TerrainHeader } from '../data/types';
-import { clampToMask, heightAt, parseTerrain, terrainIndex, terrainPositions, type Heightmap } from './heightmap';
+import {
+  clampToMask, heightAt, heightOnMesh, parseTerrain, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap,
+} from './heightmap';
 
 const header = (nx: number, ny: number): TerrainHeader => ({
   file: 'x.bin', format: 'float32-le', nx, ny, spacing_m: 100, x0_m: -100, y0_m: -100,
@@ -74,5 +76,39 @@ describe('clampToMask', () => {
     pos.forEach((value, i) => {
       if (i !== v * 3 + 1) expect(value).toBe(before[i]);
     });
+  });
+});
+
+describe('heightOnMesh', () => {
+  // One cell: a (0,0)=0, b (1,0)=10, c (0,1)=20, d (1,1)=100.
+  const t: Heightmap = { nx: 2, ny: 2, spacing: 100, x0: 0, y0: 0, z: Float32Array.from([0, 10, 20, 100]) };
+  it('equals the vertex heights at the corners', () => {
+    expect(heightOnMesh(t, 0, 0)).toBeCloseTo(0, 9);
+    expect(heightOnMesh(t, 100, 0)).toBeCloseTo(10, 9);
+    expect(heightOnMesh(t, 0, 100)).toBeCloseTo(20, 9);
+    expect(heightOnMesh(t, 100, 100)).toBeCloseTo(100, 9);
+  });
+  it('lies on the drawn triangles, not the bilinear surface', () => {
+    // Center of the cell is on the b-c diagonal: mean of b and c.
+    expect(heightOnMesh(t, 50, 50)).toBeCloseTo(15, 9);
+    expect(heightAt(t, 50, 50)).toBeCloseTo(32.5, 9); // bilinear differs
+    // Inside triangle b, d, c.
+    expect(heightOnMesh(t, 75, 75)).toBeCloseTo(100 + 0.25 * (20 - 100) + 0.25 * (10 - 100), 9);
+  });
+  it('is NaN outside the grid', () => {
+    expect(heightOnMesh(t, -1, 50)).toBeNaN();
+  });
+});
+
+describe('terrainUVs / terrainColors', () => {
+  const t = grid([0, 1, 2, 10, 11, 12, 20, 21, 22]);
+  it('have one entry per vertex and are deterministic', () => {
+    expect(terrainUVs(t, 50).length).toBe(9 * 2);
+    expect(terrainUVs(t, 50)[0]).toBeCloseTo(-2, 9); // x = -100 m / 50 m
+    const c = terrainColors(t);
+    expect(c.length).toBe(9 * 3);
+    expect(Array.from(terrainColors(t))).toEqual(Array.from(c));
+    expect(Math.min(...c)).toBeGreaterThanOrEqual(0.72);
+    expect(Math.max(...c)).toBeLessThanOrEqual(1);
   });
 });

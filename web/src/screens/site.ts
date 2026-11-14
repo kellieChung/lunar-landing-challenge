@@ -187,7 +187,7 @@ export async function openSite(id: string): Promise<void> {
     now = physicsAt(t);
     scene?.setTime({
       sunEnu: now.sunEnu, earthEnu: now.earthEnu, sunRadiusDeg: now.sunR, earthRadiusDeg: now.earthR,
-      ...tracksAt(t), sunLit: now.sunLit,
+      ...tracksAt(t), sunLit: now.sunLit, earthMarginDeg: now.earthMargin,
     });
     flat.setBodies(now.sun, now.earth);
 
