@@ -68,7 +68,8 @@ describe.each(cases)('parity: $name', (c) => {
 describe('shipped site file', () => {
   const site = JSON.parse(siteRaw) as SiteData & { precomputed: { center: { year: WindowMetrics } } };
   it('full-year metrics recomputed in the browser match Python', () => {
-    const s = siteSeries(site.sun, site.earth, site.grid.points[0].mask_deg);
+    const center = site.grid.points.find((p) => p.dx_km === 0 && p.dy_km === 0)!;
+    const s = siteSeries(site.sun, site.earth, center.mask_deg);
     // The file rounds to 6 decimals.
     expectMetrics(windowMetrics(s, 0, s.count, site.time.step_hours), site.precomputed.center.year, 1e-6);
   });

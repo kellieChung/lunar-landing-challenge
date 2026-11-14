@@ -74,7 +74,7 @@ def build(site_id: str) -> Path:
         "terrain": terrain.header(terrain_name),
     }
     # Metrics from exactly what the browser will read (rounded vectors and mask).
-    center = data["grid"]["points"][0]
+    center = next(p for p in data["grid"]["points"] if p["dx_km"] == 0 and p["dy_km"] == 0)
     series = site_series(data["sun"], data["earth"], center["mask_deg"])
     data["precomputed"] = {"center": {"year": rounded_metrics(window_metrics(series, 0, COUNT, STEP_HOURS))}}
     out = WEB_DATA / f"{site.id}.json"
