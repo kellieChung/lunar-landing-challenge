@@ -19,8 +19,8 @@ export interface Lander {
 /** Built at true size in metres, standing on y = 0, about 3 m tall. */
 export function buildLander(): Lander {
   const group = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({ color: 0xb8b2a0, roughness: 0.6, metalness: 0.2, flatShading: true });
-  const foil = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.5, metalness: 0.4, flatShading: true });
+  const metal = new THREE.MeshStandardMaterial({ color: 0xd0d5dd, roughness: 0.35, metalness: 0.8, flatShading: true });
+  const foil = new THREE.MeshStandardMaterial({ color: 0xd4a038, roughness: 0.28, metalness: 0.85, flatShading: true });
 
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 1.2, 8), foil);
   body.position.y = 1.3;

@@ -277,18 +277,53 @@ function valueNoise(x: number, y: number, cell: number, seed: number): number {
 }
 
 /**
- * Gentle large-scale brightness mottling (grey RGB per vertex, 0.72-1.0),
- * so the ground doesn't look like one flat material. Rendering only.
+ * Realistic geological surface variegation (grey RGB per vertex in [0.72, 1.0]).
+ * Integrates DEM elevation slope and curvature so crater rims are brighter
+ * (fresh anorthosite ejecta) and steep slopes show rock/scree contrast.
  */
 export function terrainColors(t: Heightmap): Float32Array {
   const out = new Float32Array(t.nx * t.ny * 3);
-  for (let j = 0; j < t.ny; j++) {
-    for (let i = 0; i < t.nx; i++) {
-      const x = t.x0 + i * t.spacing;
-      const y = t.y0 + j * t.spacing;
-      const n = 0.65 * valueNoise(x, y, 900, 1) + 0.35 * valueNoise(x, y, 260, 2);
-      const g = 0.72 + 0.28 * n;
-      out.set([g, g, g], (j * t.nx + i) * 3);
+  const z = t.z;
+  const nx = t.nx;
+  const ny = t.ny;
+  const s = t.spacing;
+
+  for (let j = 0; j < ny; j++) {
+    const jm = Math.max(0, j - 1);
+    const jp = Math.min(ny - 1, j + 1);
+    for (let i = 0; i < nx; i++) {
+      const im = Math.max(0, i - 1);
+      const ip = Math.min(nx - 1, i + 1);
+
+      const v = j * nx + i;
+      const x = t.x0 + i * s;
+      const y = t.y0 + j * s;
+
+      // 1. Multi-scale geological value noise
+      const n = 0.50 * valueNoise(x, y, 900, 1) +
+                0.32 * valueNoise(x, y, 260, 2) +
+                0.18 * valueNoise(x, y, 80, 3);
+
+      // 2. Local slope gradient |grad z|
+      const dzdx = (z[j * nx + ip] - z[j * nx + im]) / ((ip - im || 1) * s);
+      const dzdy = (z[jp * nx + i] - z[jm * nx + i]) / ((jp - jm || 1) * s);
+      const slope = Math.hypot(dzdx, dzdy);
+
+      // 3. Local Laplacian curvature (concave crater bowl vs convex crater rim)
+      const laplacian = (z[j * nx + ip] + z[j * nx + im] + z[jp * nx + i] + z[jm * nx + i] - 4 * z[v]) / (s * s);
+
+      // Convex features (rims, laplacian < 0) are brighter fresh ejecta
+      // Concave features (bowls, laplacian > 0) are darker mature regolith
+      const rimBoost = -laplacian * 40.0;
+      const screeDarkening = Math.min(0.06, slope * 0.1);
+
+      // Combine with base tone (centered at ~0.85)
+      let g = 0.73 + 0.22 * n + Math.max(-0.05, Math.min(0.06, rimBoost)) - screeDarkening;
+      g = Math.max(0.72, Math.min(1.0, g));
+
+      out[v * 3] = g;
+      out[v * 3 + 1] = g;
+      out[v * 3 + 2] = g;
     }
   }
   return out;

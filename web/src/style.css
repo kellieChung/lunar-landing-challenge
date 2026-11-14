@@ -251,7 +251,7 @@ main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 10px 8px;
+  padding: 10px 14px;
   border: 0;
   background: none;
   color: var(--fg);
@@ -279,9 +279,11 @@ button.site-item-body:focus-visible { outline: 2px solid var(--fg); outline-offs
 
 .pano-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .pano-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -302,7 +304,7 @@ button.site-item-body:focus-visible { outline: 2px solid var(--fg); outline-offs
 }
 
 .tb-row { display: flex; align-items: center; gap: 12px; }
-.tb-top { margin-bottom: 10px; flex-wrap: wrap; }
+.tb-top { margin-bottom: 10px; flex-wrap: wrap; row-gap: 8px; }
 
 .timebar button {
   padding: 4px 10px;
@@ -345,7 +347,8 @@ button.site-item-body:focus-visible { outline: 2px solid var(--fg); outline-offs
 
 .tb-months, .tb-ticks { position: relative; height: 16px; flex: 1; }
 .tb-months span, .tb-ticks span { position: absolute; top: 2px; font-size: 11px; white-space: nowrap; }
-.tb-months { margin-bottom: 4px; }
+.tb-months { margin-bottom: 6px; }
+.tb-ticks { margin-top: 6px; }
 .tb-ticks span { transform: translateX(-50%); }
 .tb-ticks span:first-child { transform: none; }
 .tb-ticks span:last-child { transform: translateX(-100%); }
@@ -401,6 +404,7 @@ button.site-item-body:focus-visible { outline: 2px solid var(--fg); outline-offs
 .st-h { margin: 0 0 6px; font-weight: 400; }
 .st-h span { text-transform: none; letter-spacing: 0; }
 .st-value { font: 600 15px var(--mono); color: var(--fg); }
+.st-battery-text { font-size: 13px; white-space: nowrap; }
 .st-sub { font: 11px var(--mono); color: var(--muted); }
 
 .st-outline { fill: none; stroke: var(--muted); stroke-width: 1.5; }
@@ -473,7 +477,7 @@ button.site-item-body:focus-visible { outline: 2px solid var(--fg); outline-offs
 .ov-arrow.left { left: 10px; }
 .ov-arrow.right { right: 10px; }
 .ov-arrow.ov-sun { color: var(--sun); }
-.ov-arrow.ov-earth { color: var(--earth); top: 58px; }
+.ov-arrow.ov-earth { color: var(--earth); top: 62px; }
 .ov-arrow.hidden-body { border-style: dashed; }
 .ov-arrow:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 

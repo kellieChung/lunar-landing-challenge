@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { enuToThree, exaggerateEnu, type Vec3 } from './mapping';
+import { createStarfield } from '../globe/spaceEnvironment';
 
 const RAD = Math.PI / 180;
 /** Longest Sun/Earth track drawn: 30 days of hourly samples (~one trip around the horizon is 709). */
@@ -90,18 +91,64 @@ function backdropSprite(tex: THREE.Texture, opacity: number, order: number): THR
 
 const EARTH_VERT = /* glsl */ `
   varying vec3 vNormal;
+  varying vec3 vPosition;
   void main() {
     vNormal = normalize(mat3(modelMatrix) * normal);
+    vPosition = position;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
 const EARTH_FRAG = /* glsl */ `
   uniform vec3 lightDir;
-  uniform vec3 dayColor;
+  uniform vec3 oceanColor;
+  uniform vec3 landColor;
+  uniform vec3 cloudColor;
+  uniform vec3 nightColor;
   varying vec3 vNormal;
+  varying vec3 vPosition;
+
+  float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
   void main() {
-    float lit = smoothstep(-0.03, 0.03, dot(normalize(vNormal), lightDir));
-    gl_FragColor = vec4(mix(vec3(0.02, 0.03, 0.05), dayColor, lit), 1.0);
+    vec3 n = normalize(vNormal);
+    float nDotL = dot(n, lightDir);
+    float lit = smoothstep(-0.06, 0.08, nDotL);
+
+    vec3 p = normalize(vPosition);
+    vec2 uv = vec2(atan(p.z, p.x) / 6.28318 + 0.5, asin(clamp(p.y, -1.0, 1.0)) / 3.14159 + 0.5);
+
+    // Continent / ocean mask
+    float land = noise(uv * 6.0) * 0.65 + noise(uv * 12.0) * 0.35;
+    vec3 surface = (land > 0.48) ? landColor : oceanColor;
+
+    // Swirling clouds
+    float cloud = noise(uv * 9.0 + vec2(0.2, 0.1)) * 0.6 + noise(uv * 18.0) * 0.4;
+    if (cloud > 0.52) {
+      surface = mix(surface, cloudColor, smoothstep(0.52, 0.72, cloud));
+    }
+
+    // Atmospheric limb scattering (Rayleigh edge halo)
+    vec3 viewDir = vec3(0.0, 0.0, 1.0);
+    float fresnel = pow(1.0 - max(0.0, dot(n, viewDir)), 2.2);
+    vec3 atmoGlow = vec3(0.35, 0.65, 1.0) * fresnel * (0.3 + 0.7 * lit);
+
+    vec3 day = surface + atmoGlow;
+    gl_FragColor = vec4(mix(nightColor, day, lit), 1.0);
     #include <colorspace_fragment>
   }`;
 
@@ -141,7 +188,10 @@ export class Sky {
       fragmentShader: EARTH_FRAG,
       uniforms: {
         lightDir: { value: new THREE.Vector3(1, 0, 0) },
-        dayColor: { value: new THREE.Color(0x5aa9ff) },
+        oceanColor: { value: new THREE.Color(0x123868) },
+        landColor: { value: new THREE.Color(0x2d6335) },
+        cloudColor: { value: new THREE.Color(0xdce8f7) },
+        nightColor: { value: new THREE.Color(0x020306) },
       },
       transparent: true,
       depthTest: false,
@@ -156,7 +206,12 @@ export class Sky {
     // Where Earth goes over the whole year: the monthly loop drifts and changes
     // shape inside a box about 16 x 13 deg (libration). Sized in setEarthYear.
     this.earthYearLine = trackLine(0x5aa9ff, EARTH_YEAR_OPACITY, 0, 0);
-    this.group.add(this.earthYearLine, this.sunLine, this.earthLine, this.glow, this.sun, this.earth);
+
+    // Deep-space starfield drawn behind the tracks and bodies
+    const stars = createStarfield(radius * 0.98, 3000);
+    stars.renderOrder = -1;
+
+    this.group.add(stars, this.earthYearLine, this.sunLine, this.earthLine, this.glow, this.sun, this.earth);
   }
 
   /** Earth's direction at every sample of the year (true unit vectors), for the faint year path. */

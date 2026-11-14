@@ -105,15 +105,40 @@ const GLOW = new THREE.Color(0xffc845);
  * colored per column by ringShade / rimGlow. Backdrop objects never
  * depth-test; `order` sets the draw order (far first).
  */
-export function buildRing(mask: number[], k: number, radius: number, color: number, edgeAlpha: number, order: number): Ring {
+export function buildRing(
+  mask: number[],
+  k: number,
+  radius: number,
+  color: number,
+  edgeAlpha: number,
+  order: number,
+  texture?: THREE.Texture | null,
+): Ring {
   const n = mask.length;
   const base = new THREE.Color(color);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n + 1) * 2 * 3), 3));
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array((n + 1) * 2 * 3), 3));
+
+  // Seamless cylindrical UVs: u tiles around the 360 deg azimuth, v runs 0 (base) to 1 (ridge crest)
+  const uvs = new Float32Array((n + 1) * 2 * 2);
+  const uTiles = 14;
+  for (let c = 0; c <= n; c++) {
+    const u = (c / n) * uTiles;
+    uvs[c * 4] = u;
+    uvs[c * 4 + 1] = 1.0;
+    uvs[c * 4 + 2] = u;
+    uvs[c * 4 + 3] = 0.0;
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geo.setIndex(ringIndex(n));
+
   const mat = new THREE.MeshBasicMaterial({
-    vertexColors: true, side: THREE.DoubleSide, depthTest: false, depthWrite: false,
+    map: texture ?? null,
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    depthTest: false,
+    depthWrite: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = order;
@@ -146,8 +171,10 @@ export function buildRing(mask: number[], k: number, radius: number, color: numb
       const az = ((c % n) * 360) / n;
       const b = ringShade(az, L);
       tmp.copy(base).multiplyScalar(b);
+      // Top ridge edge: illuminated crest
       cols.setXYZ(2 * c, tmp.r, tmp.g, tmp.b);
-      cols.setXYZ(2 * c + 1, tmp.r, tmp.g, tmp.b);
+      // Base: vertical depth falloff toward darker ground for natural perspective
+      cols.setXYZ(2 * c + 1, tmp.r * 0.65, tmp.g * 0.65, tmp.b * 0.70);
       // Edge: a faint lighter line over the curtain, turning gold where the Sun hides.
       edgeTmp.copy(EDGE_GREY).multiplyScalar(Math.min(1, b));
       edgeTmp.lerp(tmp, 1 - edgeAlpha).lerp(GLOW, rimGlow(az, mask, L));

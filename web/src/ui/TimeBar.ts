@@ -304,7 +304,7 @@ export class TimeBar {
         const x0 = x(runStart);
         const rw = x(i) - x0;
         if (sprites) {
-          this.drawRun(ctx, sprites[state], x0, y, rw, k, sh, runStart === from, i === to);
+          this.drawRun(ctx, sprites[state], x0, y, rw, k, sh);
         } else {
           ctx.fillStyle = colors[state];
           ctx.fillRect(x0, 0, rw + 0.5, h); // +0.5 px closes hairline gaps
@@ -314,13 +314,20 @@ export class TimeBar {
     }
   }
 
-  /** One run as a 3-slice of the bar sprite; the ends overlap the neighbour so outlines don't double. */
-  private drawRun(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x0: number, y: number, rw: number, k: number, sh: number, first: boolean, last: boolean): void {
+  /** One run as a 3-slice of the bar sprite; runs abut cleanly without overlapping so each bar finishes completely. */
+  private drawRun(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    x0: number,
+    y: number,
+    rw: number,
+    k: number,
+    sh: number,
+  ): void {
     const cap = SPRITE_CAP * k;
-    const left = first ? x0 : x0 - cap / 2; // half a cap into the previous run
-    const width = rw + (first ? 0 : cap / 2) + (last ? 0 : cap / 2);
-    const lx = Math.round(left);
-    const w = Math.max(Math.round(left + width) - lx, 1);
+    const lx = Math.round(x0);
+    const rx = Math.round(x0 + rw);
+    const w = Math.max(rx - lx, 1);
     if (w < cap * 2) {
       // Too narrow for two caps: just the face, squeezed.
       ctx.drawImage(img, SPRITE_CAP, 0, SPRITE_W - 2 * SPRITE_CAP, SPRITE_H, lx, y, w, sh);
@@ -328,7 +335,7 @@ export class TimeBar {
     }
     ctx.drawImage(img, 0, 0, SPRITE_CAP, SPRITE_H, lx, y, cap, sh);
     ctx.drawImage(img, SPRITE_CAP, 0, SPRITE_W - 2 * SPRITE_CAP, SPRITE_H, lx + cap, y, w - 2 * cap, sh);
-    ctx.drawImage(img, SPRITE_W - SPRITE_CAP, 0, SPRITE_CAP, SPRITE_H, lx + w - cap, y, cap, sh);
+    ctx.drawImage(img, SPRITE_W - SPRITE_CAP, 0, SPRITE_CAP, SPRITE_H, rx - cap, y, cap, sh);
   }
 
   private drawYear(): void {

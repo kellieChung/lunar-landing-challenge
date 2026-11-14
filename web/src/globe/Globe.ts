@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { latLonToVec } from './coords';
+import { filterCollidingLabels, type LabelCandidate } from './collision';
+import { createDistantEarth, createStarfield, createLimbHalo, type DistantEarth } from './spaceEnvironment';
 
 export interface GlobePin {
   id: string;
@@ -37,6 +39,11 @@ export class Globe {
   private running = false;
   private frame = 0;
   private raycaster = new THREE.Raycaster();
+  private keyLight: THREE.DirectionalLight;
+  private distantEarth: DistantEarth | null = null;
+  private occlusionSphere: THREE.Mesh;
+  private hoveredPin: PinObject | null = null;
+  private selectedId: string | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -47,12 +54,27 @@ export class Globe {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.scene.background = new THREE.Color(0x000000);
 
+    // Deep-space starfield and distant Earth hanging in cislunar space
+    const stars = createStarfield(75, 3500);
+    this.scene.add(stars);
+
+    this.distantEarth = createDistantEarth(30, 0.85);
+    this.scene.add(this.distantEarth.mesh);
+
+    // Fast occlusion proxy for pointer picking: avoids testing topography
+    // triangles on every mousemove event.
+    this.occlusionSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.97, 32, 16),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
+    this.scene.add(this.occlusionSphere);
+
     // Light rides with the camera (offset up-left) so the side you look at is
     // always readable, with low-angle shading that shows the craters.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
-    key.position.set(-2, 1.5, 1);
-    this.camera.add(key);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    this.keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    this.keyLight.position.set(-2, 1.5, 1);
+    this.camera.add(this.keyLight);
     this.scene.add(this.camera);
 
     this.controls = new OrbitControls(this.camera, canvas);
@@ -61,7 +83,7 @@ export class Globe {
     this.controls.dampingFactor = 0.08;
     this.controls.rotateSpeed = 0.6;
     this.controls.minDistance = 1.6;
-    this.controls.maxDistance = 8;
+    this.controls.maxDistance = 12;
 
     this.attachPicking();
     new ResizeObserver(() => this.resize()).observe(canvas);
@@ -71,30 +93,110 @@ export class Globe {
   async load(url: string): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(url);
     const moon = gltf.scene;
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x9a9a9a,
-      roughness: 0.95,
-      metalness: 0,
-      flatShading: true,
-    });
+
+    const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
     let sum = 0;
     let n = 0;
     moon.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
-        obj.material = material;
+        // If the model does not have UVs (e.g. legacy icosphere), generate spherical UVs.
+        if (!obj.geometry.getAttribute('uv')) {
+          obj.geometry = this.prepareMoonGeometry(obj.geometry);
+        }
+
+        const curMat = obj.material;
+        const matWithMap =
+          curMat instanceof THREE.MeshStandardMaterial && curMat.map
+            ? curMat
+            : Array.isArray(curMat) && curMat[0] instanceof THREE.MeshStandardMaterial && curMat[0].map
+              ? (curMat[0] as THREE.MeshStandardMaterial)
+              : null;
+
+        if (matWithMap) {
+          if (matWithMap.map) {
+            matWithMap.map.anisotropy = maxAniso;
+            matWithMap.map.colorSpace = THREE.SRGBColorSpace;
+          }
+          matWithMap.roughness = 0.94;
+          matWithMap.metalness = 0.02;
+          matWithMap.flatShading = false;
+        } else {
+          obj.material = new THREE.MeshStandardMaterial({
+            color: 0x9a9a9a,
+            roughness: 0.95,
+            metalness: 0.02,
+            flatShading: false,
+          });
+        }
+
         const pos = obj.geometry.getAttribute('position');
-        for (let i = 0; i < pos.count; i++) {
+        const stride = Math.max(1, Math.floor(pos.count / 10000));
+        for (let i = 0; i < pos.count; i += stride) {
           sum += Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i));
           n++;
         }
       }
     });
-    // Safety net: scale so the mean surface radius is 1, whatever the export scale.
-    if (n > 0) moon.scale.setScalar(n / sum);
+    // Scale so the mean surface radius is 1 if it deviates from 1.
+    if (n > 0) {
+      const meanR = sum / n;
+      if (Math.abs(meanR - 1.0) > 0.005) {
+        moon.scale.setScalar(1 / meanR);
+      }
+    }
     this.scene.add(moon);
     moon.updateMatrixWorld(true);
     this.moon = moon;
+
+    // Soft Fresnel limb glow shell
+    const halo = createLimbHalo(1.04);
+    this.scene.add(halo);
+
     this.placePins();
+  }
+
+  /**
+   * Prepares geometry by un-indexing, computing spherical UVs, and wrapping triangles
+   * that cross the antimeridian (lon 180 deg) seam to prevent texture distortion.
+   */
+  private prepareMoonGeometry(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+    const nonIndexed = geo.index ? (geo.toNonIndexed() as THREE.BufferGeometry) : geo.clone();
+    const pos = nonIndexed.getAttribute('position');
+    const uvs = new Float32Array(pos.count * 2);
+
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const r = Math.hypot(x, y, z);
+      const lat = Math.asin(Math.max(-1, Math.min(1, y / r)));
+      // Longitude: +X is lon 0 (facing Earth), -Z is lon 90 deg E
+      const lon = Math.atan2(-z, x);
+      uvs[i * 2] = (lon + Math.PI) / (2 * Math.PI);
+      uvs[i * 2 + 1] = (lat + Math.PI / 2) / Math.PI;
+    }
+
+    // Seam wrapping: if a triangle spans across u = 0 and u = 1, shift smaller u by +1.0
+    const triCount = pos.count / 3;
+    for (let t = 0; t < triCount; t++) {
+      const i0 = t * 3;
+      const i1 = t * 3 + 1;
+      const i2 = t * 3 + 2;
+      const u0 = uvs[i0 * 2];
+      const u1 = uvs[i1 * 2];
+      const u2 = uvs[i2 * 2];
+      const minU = Math.min(u0, u1, u2);
+      const maxU = Math.max(u0, u1, u2);
+      if (maxU - minU > 0.5) {
+        if (u0 < 0.5) uvs[i0 * 2] += 1.0;
+        if (u1 < 0.5) uvs[i1 * 2] += 1.0;
+        if (u2 < 0.5) uvs[i2 * 2] += 1.0;
+      }
+    }
+
+    nonIndexed.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    nonIndexed.computeVertexNormals();
+    return nonIndexed;
   }
 
   setPins(pins: GlobePin[]): void {
@@ -125,6 +227,7 @@ export class Globe {
   }
 
   setSelected(id: string | null): void {
+    this.selectedId = id;
     for (const p of this.pins) {
       const on = p.pin.id === id;
       p.head.scale.setScalar(on ? 1.6 : 1);
@@ -144,9 +247,14 @@ export class Globe {
   start(): void {
     if (this.running) return;
     this.running = true;
+    const lightWorldDir = new THREE.Vector3();
     const tick = () => {
       if (!this.running) return;
       this.controls.update();
+      if (this.distantEarth) {
+        this.keyLight.getWorldDirection(lightWorldDir);
+        this.distantEarth.setLightDir(lightWorldDir.negate());
+      }
       this.renderer.render(this.scene, this.camera);
       this.updateLabels();
       this.frame = requestAnimationFrame(tick);
@@ -183,7 +291,10 @@ export class Globe {
     label.addEventListener('click', () => this.onSelect?.(pin.id));
     this.labelLayer.appendChild(label);
 
-    return { pin, group, head, hit, label, normal: new THREE.Vector3() };
+    const pinObj: PinObject = { pin, group, head, hit, label, normal: new THREE.Vector3() };
+    label.addEventListener('pointerenter', () => { this.hoveredPin = pinObj; });
+    label.addEventListener('pointerleave', () => { if (this.hoveredPin === pinObj) this.hoveredPin = null; });
+    return pinObj;
   }
 
   /** Sit each pin on the actual (bumpy) surface by raycasting toward the center. */
@@ -206,16 +317,61 @@ export class Globe {
     const h = this.canvas.clientHeight;
     const tip = new THREE.Vector3();
     const toCam = new THREE.Vector3();
+
+    interface Placed {
+      pin: PinObject;
+      x: number;
+      y: number;
+      priority: number;
+    }
+
+    const candidates: LabelCandidate<Placed>[] = [];
+
     for (const p of this.pins) {
       p.head.getWorldPosition(tip);
       toCam.subVectors(this.camera.position, tip);
       const facing = toCam.dot(p.normal) > 0;
-      p.label.hidden = !facing || !this.moon;
-      if (p.label.hidden) continue;
+      if (!facing || !this.moon) {
+        p.label.hidden = true;
+        continue;
+      }
       tip.project(this.camera);
       const x = (tip.x * 0.5 + 0.5) * w;
       const y = (-tip.y * 0.5 + 0.5) * h;
-      p.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+
+      const lw = p.label.offsetWidth || 130;
+      const lh = p.label.offsetHeight || 26;
+      const left = x + 14;
+      const top = y - 11;
+      const isSelected = p.pin.id === this.selectedId;
+      const isHovered = p === this.hoveredPin;
+      const priority = isSelected ? 2 : isHovered ? 1 : 0;
+
+      const placed: Placed = {
+        pin: p,
+        x,
+        y,
+        priority,
+      };
+
+      candidates.push({
+        item: placed,
+        rect: { left, top, right: left + lw, bottom: top + lh },
+        priority,
+      });
+    }
+
+    const visibleItems = new Set(filterCollidingLabels(candidates, 4));
+
+    for (const p of this.pins) {
+      const match = candidates.find((c) => c.item.pin === p && visibleItems.has(c.item));
+      if (match) {
+        p.label.hidden = false;
+        p.label.style.transform = `translate(${match.item.x.toFixed(1)}px, ${match.item.y.toFixed(1)}px)`;
+        p.label.style.zIndex = match.priority > 0 ? '10' : '1';
+      } else {
+        p.label.hidden = true;
+      }
     }
   }
 
@@ -231,8 +387,8 @@ export class Globe {
       );
       this.raycaster.setFromCamera(ndc, this.camera);
       const targets: THREE.Object3D[] = this.pins.map((p) => p.hit);
-      if (this.moon) targets.push(this.moon);
-      const first = this.raycaster.intersectObjects(targets, true)[0];
+      if (this.occlusionSphere) targets.push(this.occlusionSphere);
+      const first = this.raycaster.intersectObjects(targets, false)[0];
       return first && this.pins.find((p) => p.hit === first.object);
     };
     this.canvas.addEventListener('pointerdown', (ev) => {
@@ -246,7 +402,12 @@ export class Globe {
     });
     this.canvas.addEventListener('pointermove', (ev) => {
       if (ev.buttons) return;
-      this.canvas.style.cursor = pinAt(ev) ? 'pointer' : 'grab';
+      const p = pinAt(ev);
+      this.canvas.style.cursor = p ? 'pointer' : 'grab';
+      this.hoveredPin = p ?? null;
+    });
+    this.canvas.addEventListener('pointerleave', () => {
+      this.hoveredPin = null;
     });
   }
 

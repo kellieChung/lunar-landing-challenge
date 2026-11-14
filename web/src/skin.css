@@ -95,8 +95,15 @@
   cursor: not-allowed;
 }
 
-.seg { gap: 2px; }
-.seg button + button { border-left-width: 8px; }
+.seg {
+  display: flex;
+  gap: 4px;
+}
+.seg button,
+.seg button + button {
+  border-style: solid;
+  border-left: 8px solid transparent;
+}
 
 /* Play / pause: grey at rest, pushed-in blue while playing. */
 .timebar .tb-play,
@@ -247,7 +254,10 @@ button.go { background: none; }
 .site-item { border-top: 0; }
 .site-item + .site-item { margin-top: 2px; }
 
-.site-item-body { position: relative; }
+.site-item-body {
+  position: relative;
+  padding: 10px 14px;
+}
 .site-item-body::after {
   content: "";
   position: absolute;
@@ -290,10 +300,15 @@ button.site-item-body:hover::after { opacity: 0.9; }
   border-width: 6px;
   border-image: url(./assets/ui-sprout/slot.png) 4 fill;
   image-rendering: pixelated;
-  padding: 0 2px;
+  padding: 2px 6px;
 }
 .st-countdowns dt { color: var(--ink-muted); }
 .st-countdowns dd { color: var(--ink); white-space: nowrap; }
+
+.st-battery-text {
+  font-size: 12px;
+  white-space: nowrap;
+}
 
 /* ---------- Time slider thumb: blue pill ---------- */
 

@@ -18,7 +18,7 @@ import * as THREE from 'three';
 import { maskAt } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
 import { attachLookControls } from './controls';
-import { regolithTexture } from './ground';
+import { regolithBumpTexture, regolithTexture, ridgeTexture } from './ground';
 import {
   clampToMask, patchHole, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap, type Hole,
 } from './heightmap';
@@ -58,9 +58,9 @@ const EARTHSHINE_MAX = 0.9;
 const EARTHSHINE_COLOR = 0xa9c6ff;
 const RING_STYLE = [
   // near (0-5 km), mid (5-30 km), far (30-150 km)
-  { color: 0x5a5d63, edge: 0.5 },
-  { color: 0x3a3d44, edge: 0.35 },
-  { color: 0x26282d, edge: 0.25 },
+  { color: 0x767b84, edge: 0.45 },
+  { color: 0x5a5f68, edge: 0.30 },
+  { color: 0x3e434c, edge: 0.20 },
 ];
 
 export interface SiteInput {
@@ -107,6 +107,8 @@ export class Scene3D implements PanoramaView {
   private earthLight = new THREE.DirectionalLight(EARTHSHINE_COLOR, 0);
   private fill = new THREE.HemisphereLight(FILL_SKY, FILL_GROUND, FILL_INTENSITY);
   private groundTexture: THREE.Texture;
+  private groundBump: THREE.Texture;
+  private ridgeTexture: THREE.Texture;
   private overlay: Overlay;
   private lightCenter = new THREE.Vector3();
   private site: SiteInput | null = null;
@@ -138,7 +140,10 @@ export class Scene3D implements PanoramaView {
 
     this.near.add(this.fill);
     this.near.add(this.earthLight, this.earthLight.target);
-    this.groundTexture = regolithTexture(this.renderer.capabilities.getMaxAnisotropy());
+    const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
+    this.groundTexture = regolithTexture(maxAniso);
+    this.groundBump = regolithBumpTexture(maxAniso);
+    this.ridgeTexture = ridgeTexture(maxAniso);
     this.overlay = new Overlay(canvas.parentElement ?? document.body, (az) => this.setYaw(az));
     this.sunLight.castShadow = true;
     // About 3.5 m per texel over the 10 x 10 km ground at 4096, so the 10 m
@@ -213,7 +218,7 @@ export class Scene3D implements PanoramaView {
     // Far first: draw order 10, 20, 30 (all after the sky's 0-9).
     this.rings = layers.map((_, i) => i).reverse().map((i, order) => {
       const style = RING_STYLE[site.bands ? i : 0];
-      const ring = buildRing(layers[i], this.k, BACKDROP_R, style.color, style.edge, 10 + 10 * order);
+      const ring = buildRing(layers[i], this.k, BACKDROP_R, style.color, style.edge, 10 + 10 * order, this.ridgeTexture);
       this.backdrop.add(ring.group);
       return ring;
     });
@@ -259,7 +264,13 @@ export class Scene3D implements PanoramaView {
     geo.setIndex(new THREE.BufferAttribute(terrainIndex(t.nx, t.ny, hole), 1));
     geo.computeVertexNormals();
     this.terrainMaterial ??= new THREE.MeshStandardMaterial({
-      color: 0x9a9a9a, map: this.groundTexture, vertexColors: true, roughness: 1, metalness: 0,
+      color: 0xc4c7cc,
+      map: this.groundTexture,
+      bumpMap: this.groundBump,
+      bumpScale: 0.22,
+      vertexColors: true,
+      roughness: 0.94,
+      metalness: 0.03,
     });
     const mesh = new THREE.Mesh(geo, this.terrainMaterial);
     mesh.castShadow = true;
