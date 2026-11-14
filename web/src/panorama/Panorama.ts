@@ -56,7 +56,7 @@ export class Panorama implements PanoramaView {
     if (!ctx) throw new Error('2D canvas not supported');
     this.ctx = ctx;
     this.fovDeg = opts.fovDeg ?? 360;
-    this.maxExaggeration = opts.exaggeration ?? 10;
+    this.maxExaggeration = opts.exaggeration ?? 5;
     this.defaultMaxExaggeration = this.maxExaggeration;
     this.exaggeration = this.maxExaggeration;
     new ResizeObserver(() => this.resize()).observe(canvas);

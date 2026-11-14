@@ -91,9 +91,9 @@ the picture and the numbers ever disagree, the numbers are right.
   `atan(k · tan el)`. This keeps the order of things at every azimuth (a Sun
   above a ridge is drawn above it), keeps the mesh, rings and shadows
   consistent with each other, and k = 1 is exact true scale. k is chosen per
-  site: the largest value up to 10× that fits the whole year's horizon, Sun
-  and Earth in 80% of the view height (about 4× at Nobile Rim 2 on a wide
-  screen).
+  site: the largest value up to 5× that fits the whole year's horizon, Sun
+  and Earth in 80% of the view height (about 2.6× at Haworth on a wide
+  screen). The 2D strip uses the same 5× cap.
 - **Level view:** the camera never tilts. Looking up or down slides the
   image like an architectural shift lens, so the horizon stays a straight
   line in every direction. The default view is at most 90° wide.

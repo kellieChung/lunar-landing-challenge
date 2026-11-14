@@ -1,5 +1,7 @@
 // Sun, Earth and their tracks on the backdrop sphere. Positions come from the
-// physics vectors (stretched by k); visibility is never decided here.
+// physics vectors (stretched by k); visibility is never decided here. The sky
+// is drawn in its own pass before the skyline rings (see Scene3D), so ridges
+// always cover it.
 
 import * as THREE from 'three';
 import { enuToThree, exaggerateEnu, type Vec3 } from './mapping';
@@ -45,6 +47,21 @@ export function earthPhaseLight(sunTrue: Vec3, earthTrue: Vec3, sunShown: Vec3, 
     -Math.cos(phi) * v[1] + Math.sin(phi) * perp[1],
     -Math.cos(phi) * v[2] + Math.sin(phi) * perp[2],
   ]);
+}
+
+const EARTH_YEAR_OPACITY = 0.12;
+
+/** A faint line with one fixed buffer, rewritten in place as time moves (no GPU churn). */
+function trackLine(color: number, opacity: number, order: number, points: number): THREE.Line {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points * 3), 3));
+  geo.setDrawRange(0, 0);
+  const l = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color, transparent: true, opacity, depthTest: false, depthWrite: false,
+  }));
+  l.renderOrder = order;
+  l.frustumCulled = false;
+  return l;
 }
 
 function radialTexture(stops: [number, string][]): THREE.CanvasTexture {
@@ -98,7 +115,7 @@ export interface SkyState {
   sunGlow: number; // 0..1 from physics (no glow when the Sun is hidden)
 }
 
-/** Sun disk + glow, Earth sphere with phase, faint tracks. Order 0-9 (behind the rings). */
+/** Sun disk + glow, Earth sphere with phase, faint tracks. Drawn before the rings, in renderOrder. */
 export class Sky {
   readonly group = new THREE.Group();
   private sun: THREE.Sprite;
@@ -107,6 +124,9 @@ export class Sky {
   private earthMat: THREE.ShaderMaterial;
   private sunLine: THREE.Line;
   private earthLine: THREE.Line;
+  private earthYearLine: THREE.Line;
+  private earthYear: Vec3[] = [];
+  private earthYearK = NaN; // stretch the year path was last written at (NaN = needs writing)
 
   constructor(private radius: number) {
     this.glow = backdropSprite(radialTexture([
@@ -131,21 +151,23 @@ export class Sky {
     this.earth.renderOrder = 5;
     this.earth.frustumCulled = false;
 
-    const line = (color: number) => {
-      // One fixed buffer per line, rewritten in place as time moves (no GPU churn).
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_TRACK_POINTS * 3), 3));
-      geo.setDrawRange(0, 0);
-      const l = new THREE.Line(geo, new THREE.LineBasicMaterial({
-        color, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false,
-      }));
-      l.renderOrder = 1;
-      l.frustumCulled = false;
-      return l;
-    };
-    this.sunLine = line(0xffc845);
-    this.earthLine = line(0x5aa9ff);
-    this.group.add(this.sunLine, this.earthLine, this.glow, this.sun, this.earth);
+    this.sunLine = trackLine(0xffc845, 0.3, 1, MAX_TRACK_POINTS);
+    this.earthLine = trackLine(0x5aa9ff, 0.3, 1, MAX_TRACK_POINTS);
+    // Where Earth goes over the whole year: the monthly loop drifts and changes
+    // shape inside a box about 16 x 13 deg (libration). Sized in setEarthYear.
+    this.earthYearLine = trackLine(0x5aa9ff, EARTH_YEAR_OPACITY, 0, 0);
+    this.group.add(this.earthYearLine, this.sunLine, this.earthLine, this.glow, this.sun, this.earth);
+  }
+
+  /** Earth's direction at every sample of the year (true unit vectors), for the faint year path. */
+  setEarthYear(pts: Vec3[]): void {
+    this.earthYear = pts;
+    const geo = this.earthYearLine.geometry;
+    const attr = geo.getAttribute('position') as THREE.BufferAttribute;
+    if (attr.count < pts.length) {
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts.length * 3), 3));
+    }
+    this.earthYearK = NaN;
   }
 
   update(s: SkyState, k: number): void {
@@ -167,17 +189,24 @@ export class Sky {
     const L = earthPhaseLight(s.sunEnu, s.earthEnu, sunShown, earthShown);
     (this.earthMat.uniforms.lightDir.value as THREE.Vector3).set(...enuToThree(L));
 
-    const track = (pts: Vec3[], lineObj: THREE.Line) => {
-      const attr = lineObj.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const n = Math.min(pts.length, MAX_TRACK_POINTS);
-      for (let i = 0; i < n; i++) {
-        const [x, y, z] = enuToThree(exaggerateEnu(pts[i], k));
-        attr.setXYZ(i, x * R * 0.999, y * R * 0.999, z * R * 0.999);
-      }
-      attr.needsUpdate = true;
-      lineObj.geometry.setDrawRange(0, n);
-    };
-    track(s.sunTrack, this.sunLine);
-    track(s.earthTrack, this.earthLine);
+    this.writeLine(s.sunTrack, this.sunLine, k);
+    this.writeLine(s.earthTrack, this.earthLine, k);
+    if (k !== this.earthYearK) { // the year path only changes with the stretch
+      this.earthYearK = k;
+      this.writeLine(this.earthYear, this.earthYearLine, k);
+    }
+  }
+
+  /** Write directions into a line's fixed buffer (stretched by k), up to its size. */
+  private writeLine(pts: Vec3[], lineObj: THREE.Line, k: number): void {
+    const R = this.radius;
+    const attr = lineObj.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const n = Math.min(pts.length, attr.count);
+    for (let i = 0; i < n; i++) {
+      const [x, y, z] = enuToThree(exaggerateEnu(pts[i], k));
+      attr.setXYZ(i, x * R * 0.999, y * R * 0.999, z * R * 0.999);
+    }
+    attr.needsUpdate = true;
+    lineObj.geometry.setDrawRange(0, n);
   }
 }

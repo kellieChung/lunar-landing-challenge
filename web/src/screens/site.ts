@@ -146,6 +146,9 @@ export async function openSite(id: string): Promise<void> {
     };
   };
 
+  // Faint background path: where Earth goes over the whole year.
+  const earthYear: Vec3[] = Array.from({ length: count }, (_, i) => vec(earthV, i));
+
   let trackFrom = -1;
   let sunTrack: Vec3[] = [];
   let earthTrack: Vec3[] = [];
@@ -182,7 +185,7 @@ export async function openSite(id: string): Promise<void> {
   let scene: Scene3D | null = null;
   try {
     scene = new Scene3D(canvas3d);
-    scene.setSite({ mask, bands, terrain, mastM, elRange, landerAz: now.sun.az - 30 });
+    scene.setSite({ mask, bands, terrain, mastM, elRange, earthYear, landerAz: now.sun.az - 30 });
   } catch (err) {
     console.error(err);
     scene = null;

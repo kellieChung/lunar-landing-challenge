@@ -1,11 +1,15 @@
 // First-person 3D panorama (three.js). The camera stands at the observer's
 // eye (mast height) and only turns; it never moves.
 //
-// Two render passes:
-//  1. Backdrop, no depth test, drawn in a fixed order: Sun/Earth/tracks, then
-//     the skyline rings far to near. Because the camera never moves, the
-//     backdrop radius doesn't matter and nothing z-fights.
-//  2. Clear depth, then the near scene with depth: terrain mesh, lander, light.
+// Three render passes:
+//  1. Sky, no depth test: Earth's paths, Sun glow, Sun, Earth.
+//  2. Skyline rings, no depth test, far to near, painting over the sky.
+//     The sky needs its own pass: three.js draws opaque objects (the rings)
+//     before transparent ones (everything in the sky) within one render(),
+//     whatever their renderOrder, so a shared pass put the Sun and Earth in
+//     front of ridges the physics says hide them. Because the camera never
+//     moves, the backdrop radius doesn't matter and nothing z-fights.
+//  3. Clear depth, then the near scene with depth: terrain mesh, lander, light.
 //
 // Rendering never decides visibility: "lit" and "Earth visible" are passed in
 // from the physics (horizon mask); the scene only draws them.
@@ -25,7 +29,7 @@ import { buildRing, maxMask, type Ring, type RingLight } from './rings';
 import { earthLitFraction, Sky, type SkyState } from './sky';
 
 const BACKDROP_R = 1000; // m; any value works since the camera never moves
-const K_MAX = 10;
+const K_MAX = 5; // most vertical stretch; a site with tall terrain gets less (see fitExaggeration3D)
 const DEFAULT_VFOV = 55; // the actual default comes from defaultVfov(aspect): at most 90 deg across
 const USABLE_FRACTION = 0.8; // the whole year's shown elevation span fits in this much of the view height
 // "Pitch" is a vertical lens shift (the camera stays level), so keep it moderate.
@@ -63,6 +67,7 @@ export interface SiteInput {
   terrain: Heightmap | null;
   mastM: number;
   elRange: [number, number]; // whole year: lowest horizon .. highest Sun/Earth/ridge (deg)
+  earthYear: Vec3[]; // Earth's direction at every sample of the year (true unit vectors)
   landerAz: number; // deg
 }
 
@@ -87,7 +92,8 @@ export class Scene3D implements PanoramaView {
 
   private renderer: THREE.WebGLRenderer;
   private camera = new THREE.PerspectiveCamera(DEFAULT_VFOV, 1, 1, 80_000);
-  private backdrop = new THREE.Scene();
+  private skyScene = new THREE.Scene();
+  private backdrop = new THREE.Scene(); // skyline rings
   private near = new THREE.Scene();
   private sky = new Sky(BACKDROP_R);
   private rings: Ring[] = [];
@@ -122,7 +128,7 @@ export class Scene3D implements PanoramaView {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.camera.rotation.order = 'YXZ';
-    this.backdrop.add(this.sky.group);
+    this.skyScene.add(this.sky.group);
 
     this.near.add(this.fill);
     this.near.add(this.earthLight, this.earthLight.target);
@@ -189,6 +195,7 @@ export class Scene3D implements PanoramaView {
 
   setSite(site: SiteInput): void {
     this.site = site;
+    this.sky.setEarthYear(site.earthYear);
     for (const r of this.rings) {
       this.backdrop.remove(r.group);
       r.dispose();
@@ -329,6 +336,7 @@ export class Scene3D implements PanoramaView {
     this.camera.rotation.set(e.x, e.y, e.z, e.order);
     this.camera.updateMatrixWorld();
     this.renderer.clear();
+    this.renderer.render(this.skyScene, this.camera);
     this.renderer.render(this.backdrop, this.camera);
     this.renderer.clearDepth();
     this.renderer.render(this.near, this.camera);
