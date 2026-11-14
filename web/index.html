@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lunar Landing Site Navigator</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Lunar Landing Site Navigator</h1>
+      <span class="hook">Can my lander survive here?</span>
+      <span id="badge" class="badge" hidden>FAKE DATA</span>
+    </header>
+    <main>
+      <canvas id="panorama" aria-label="360 degree horizon panorama. Drag to look around."></canvas>
+      <div id="readout" class="readout"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lunar"
+version = "0.1.0"
+description = "Offline precompute for the Lunar Landing Site Navigator"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "spiceypy",
+    "rasterio",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["lunar*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
