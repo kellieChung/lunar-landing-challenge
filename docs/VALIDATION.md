@@ -175,5 +175,5 @@ Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
   refined to well under a second between samples, but a rise and set that
   both fall inside the same hour are missed.
 - **Battery and signal icons** use simple display rules (instant recharge,
-  72 h battery, bar thresholds), described in METHODS.md.
+  192 h battery, bar thresholds), described in METHODS.md.
 - TODO: Site Score weights (milestone 6).

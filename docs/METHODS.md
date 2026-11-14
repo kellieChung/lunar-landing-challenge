@@ -152,7 +152,7 @@ test fixture checks both give the same numbers (see VALIDATION.md §5).
 ## Battery and signal icons (display rules, not physics)
 These are metaphors for the public; the real numbers are shown beside them.
 - **Battery:** full and charging whenever the Sun is lit (recharge is
-  assumed instant), then drains evenly over a **72 h** battery (the spec's
+  assumed instant), then drains evenly over a **192 h** (8-day) battery (the team's
   default endurance) while dark; empty if the night lasts longer. The data
   starts on 2027-01-01 00:00; if the site is dark then, the battery is
   assumed full at that moment, and the panel says so.

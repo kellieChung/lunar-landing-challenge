@@ -2,7 +2,7 @@
 // metaphors (design choices, documented in docs/METHODS.md), not physics:
 // the real numbers they come from are always shown beside them.
 
-export const BATTERY_HOURS = 72; // default battery endurance (spec, Site Score section)
+export const BATTERY_HOURS = 192; // battery endurance (8 days; team choice, replaces the spec's 72 h default)
 
 export interface Battery {
   level: number; // 0..1

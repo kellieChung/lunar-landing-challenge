@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { batteryState, signalBars } from './status';
+import { BATTERY_HOURS, batteryState, signalBars } from './status';
 import { stateSince, nextChange } from './events';
 import { valueAt, vectorAt } from './time';
 
 describe('batteryState', () => {
   it('is full and charging while lit', () => {
-    expect(batteryState(true, 0, false)).toMatchObject({ level: 1, charging: true, hoursLeft: 72 });
+    expect(batteryState(true, 0, false)).toMatchObject({ level: 1, charging: true, hoursLeft: BATTERY_HOURS });
   });
-  it('drains linearly over 72 h of dark, then stays empty', () => {
-    expect(batteryState(false, 18, false)).toMatchObject({ level: 0.75, charging: false, hoursLeft: 54 });
-    expect(batteryState(false, 100, false)).toMatchObject({ level: 0, hoursLeft: 0 });
+  it('drains linearly over the 192 h battery in the dark, then stays empty', () => {
+    expect(BATTERY_HOURS).toBe(192);
+    expect(batteryState(false, 48, false)).toMatchObject({ level: 0.75, charging: false, hoursLeft: 144 });
+    expect(batteryState(false, 200, false)).toMatchObject({ level: 0, hoursLeft: 0 });
   });
 });
 
