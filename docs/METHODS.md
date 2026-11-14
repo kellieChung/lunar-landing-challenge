@@ -67,10 +67,38 @@ the picture and the numbers ever disagree, the numbers are right.
   above a ridge is drawn above it), keeps the mesh, rings and shadows
   consistent with each other, and k = 1 is exact true scale. k is chosen per
   site: the largest value up to 10× that fits the whole year's horizon, Sun
-  and Earth in a 60° view (about 5× at Nobile Rim 2).
-- **Lighting:** one light along the Sun direction casts the shadows on the
-  near terrain. The rings cast no shadows, so the light is switched off when
-  the physics mask (5–150 km bands) says a distant ridge hides the Sun.
+  and Earth in 80% of the view height (about 4× at Nobile Rim 2 on a wide
+  screen).
+- **Level view:** the camera never tilts. Looking up or down slides the
+  image like an architectural shift lens, so the horizon stays a straight
+  line in every direction. The default view is at most 90° wide.
+- **Lighting** (all display only; it never feeds a number):
+  - One light along the Sun direction casts the shadows on the near
+    terrain. The rings cast no shadows, so this light is switched off when
+    the physics mask (5–150 km bands) says a distant ridge hides the Sun.
+  - **Earthshine:** a pale blue light along Earth's direction. Its strength
+    follows Earth's lit fraction (its phase) and fades out when the physics
+    says Earth is below the horizon. Earthshine is real; its brightness here
+    is scaled for display, not measured.
+  - **Bounce light:** extra soft light while the surrounding ridges are
+    sunlit but the Sun is hidden from the viewer, as light reflected off
+    sunlit slopes does at the poles. Scaled for display.
+  - **Readability fill:** a faint, cool light from above so shapes never
+    vanish at night. It is not a physical light (starlight is negligible) and
+    stays well below sunlight, so lit and dark remain obvious.
+- **Ridge shading:** the skyline rings are lit per direction: ridges facing
+  the Sun are bright, ridges toward the Sun are backlit and darker. They
+  count as sunlit whenever the Sun is above the flat horizon, and never
+  darker than the viewer's own physics state allows. When the Sun is up to
+  3° below a ridge, that ridge's edge glows gold around the Sun's direction:
+  a pointer to where the Sun is hiding.
+- **Ground:** smooth shading, a fine regolith texture and gentle
+  large-scale brightness mottling (made up, for depth cues). The lander
+  stands on the drawn triangles, with a soft contact shadow.
+- **Compass and markers:** an HTML compass strip along the top shows
+  directions and the Sun and Earth, with arrows when they are off-screen.
+  Rings pinned to the Sun and Earth make the true-size disks easy to find;
+  they turn dashed with "behind terrain" when the physics says hidden.
 - **Sun and Earth** are drawn at their true angular size (Earth about 3.6×
   wider than the Sun). Earth's lit fraction is the true one,
   `(1 − cos θ)/2` with θ the Sun–Earth angle seen from the site.

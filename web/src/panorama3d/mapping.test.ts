@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { vecToAzEl } from '../panorama/geometry';
 import {
-  azElToEnu, cameraEuler, defaultPitch, enuToThree, exaggerateEl, exaggerateEnu, fitExaggeration3D,
+  azElToEnu, azToScreenX, cameraEuler, defaultPitch, defaultVfov, lensShiftPx, enuToThree, exaggerateEl, exaggerateEnu, fitExaggeration3D,
 } from './mapping';
 
 describe('exaggeration', () => {
@@ -79,5 +79,57 @@ describe('axes', () => {
     const look = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(e.x, e.y, e.z, e.order));
     const want = enuToThree(azElToEnu(90, 20));
     want.forEach((c, i) => expect(look.toArray()[i]).toBeCloseTo(c, 9));
+  });
+});
+
+describe('level camera with lens shift', () => {
+  const W = 1600;
+  const H = 600;
+  const vfov = defaultVfov(W / H);
+  const cam = (yaw: number, pitch: number) => {
+    const c = new THREE.PerspectiveCamera(vfov, W / H, 1, 1e5);
+    c.setViewOffset(W, H, 0, -lensShiftPx(pitch, vfov, H), W, H);
+    c.updateProjectionMatrix();
+    const e = cameraEuler(yaw, 0);
+    c.rotation.set(e.x, e.y, e.z, e.order);
+    c.updateMatrixWorld();
+    return c;
+  };
+  const project = (c: THREE.PerspectiveCamera, az: number, el: number) =>
+    new THREE.Vector3(...enuToThree(azElToEnu(az, el))).multiplyScalar(1000).project(c);
+
+  it('keeps the horizon straight across the view, at any pitch', () => {
+    for (const pitch of [0, 15, -10]) {
+      const c = cam(40, pitch);
+      const ys = [0, 15, 30, 40].map((d) => project(c, 40 + d, 0).y);
+      ys.forEach((y) => expect(y).toBeCloseTo(ys[0], 9));
+    }
+  });
+
+  it('shows elevation = pitch at screen center', () => {
+    expect(project(cam(0, 20), 0, 20).y).toBeCloseTo(0, 9);
+    expect(project(cam(0, 0), 0, 0).y).toBeCloseTo(0, 9);
+  });
+
+  it('caps the horizontal field of view at 90 deg on wide screens', () => {
+    const h = (2 * Math.atan(Math.tan((vfov * Math.PI) / 360) * (W / H)) * 180) / Math.PI;
+    expect(h).toBeCloseTo(90, 6);
+    expect(defaultVfov(1)).toBe(55);
+  });
+
+  it('azToScreenX matches where a ridge point is drawn, at any elevation', () => {
+    const c = cam(100, 12);
+    const hfov = 90;
+    for (const [az, el] of [[130, 5], [70, -2], [100, 30]]) {
+      expect(azToScreenX(az, 100, hfov).x).toBeCloseTo(project(c, az, el).x, 6);
+    }
+  });
+
+  it('azToScreenX wraps at 0/360 and says which way to turn', () => {
+    expect(azToScreenX(350, 10, 90).x).toBeCloseTo(Math.tan((-20 * Math.PI) / 180), 9);
+    expect(azToScreenX(80, 0, 60).side).toBe(1);
+    expect(azToScreenX(280, 0, 60).side).toBe(-1);
+    expect(azToScreenX(181, 0, 60).side).toBe(-1); // behind you, a little to the left
+    expect(azToScreenX(5, 0, 60).side).toBe(0);
   });
 });

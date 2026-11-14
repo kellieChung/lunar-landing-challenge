@@ -17,16 +17,20 @@ import { attachLookControls } from './controls';
 import { regolithTexture } from './ground';
 import { clampToMask, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap } from './heightmap';
 import { buildLander, landerPlacement, type Lander } from './lander';
-import { cameraEuler, defaultPitch, enuToThree, exaggerateEnu, fitExaggeration3D, type Vec3 } from './mapping';
+import {
+  cameraEuler, defaultPitch, defaultVfov, enuToThree, exaggerateEnu, fitExaggeration3D, lensShiftPx, type Vec3,
+} from './mapping';
+import { Overlay, type OverlayBody } from './Overlay';
 import { buildRing, maxMask, type Ring, type RingLight } from './rings';
 import { earthLitFraction, Sky, type SkyState } from './sky';
 
 const BACKDROP_R = 1000; // m; any value works since the camera never moves
 const K_MAX = 10;
-const DEFAULT_VFOV = 60;
-const USABLE_DEG = 54; // shown elevation span the whole year should fit in
-const PITCH_MIN = -45;
-const PITCH_MAX = 75;
+const DEFAULT_VFOV = 55; // the actual default comes from defaultVfov(aspect): at most 90 deg across
+const USABLE_FRACTION = 0.8; // the whole year's shown elevation span fits in this much of the view height
+// "Pitch" is a vertical lens shift (the camera stays level), so keep it moderate.
+const PITCH_MIN = -35;
+const PITCH_MAX = 35;
 const FOV_MIN = 8;
 const FOV_MAX = 75;
 const LIGHT_DIST = 20_000; // m
@@ -94,6 +98,7 @@ export class Scene3D implements PanoramaView {
   private earthLight = new THREE.DirectionalLight(EARTHSHINE_COLOR, 0);
   private fill = new THREE.HemisphereLight(FILL_SKY, FILL_GROUND, FILL_INTENSITY);
   private groundTexture: THREE.Texture;
+  private overlay: Overlay;
   private lightCenter = new THREE.Vector3();
   private site: SiteInput | null = null;
   private time: TimeInput | null = null;
@@ -102,7 +107,9 @@ export class Scene3D implements PanoramaView {
   private active = true;
 
   private _yaw = 180;
-  private pitch = 0;
+  private pitch = 0; // deg of (shown) elevation at screen center, done as a lens shift
+  private baseVfov = DEFAULT_VFOV; // default for the canvas shape
+  private zoom = 1; // user zoom factor on top of baseVfov
   private k = 1;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -120,6 +127,7 @@ export class Scene3D implements PanoramaView {
     this.near.add(this.fill);
     this.near.add(this.earthLight, this.earthLight.target);
     this.groundTexture = regolithTexture(this.renderer.capabilities.getMaxAnisotropy());
+    this.overlay = new Overlay(canvas.parentElement ?? document.body, (az) => this.setYaw(az));
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.bias = -0.0005;
@@ -135,11 +143,13 @@ export class Scene3D implements PanoramaView {
       look: (dy, dp) => {
         this._yaw = (((this._yaw + dy) % 360) + 360) % 360;
         this.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, this.pitch + dp));
+        this.applyProjection();
         this.changed();
       },
       zoom: (f) => {
-        this.camera.fov = Math.min(FOV_MAX, Math.max(FOV_MIN, this.camera.fov * f));
-        this.camera.updateProjectionMatrix();
+        const fov = Math.min(FOV_MAX, Math.max(FOV_MIN, this.baseVfov * this.zoom * f));
+        this.zoom = fov / this.baseVfov;
+        this.applyProjection();
         this.changed();
       },
     });
@@ -168,6 +178,7 @@ export class Scene3D implements PanoramaView {
   setActive(on: boolean): void {
     this.active = on;
     this.canvas.hidden = !on;
+    this.overlay.setVisible(on);
     if (on) this.resize();
   }
 
@@ -228,8 +239,9 @@ export class Scene3D implements PanoramaView {
   private rebuild(resetPitch = true): void {
     if (!this.site) return;
     const [lo, hi] = this.site.elRange;
-    this.k = this.trueScale ? 1 : fitExaggeration3D(lo, hi, USABLE_DEG, K_MAX);
+    this.k = this.trueScale ? 1 : fitExaggeration3D(lo, hi, USABLE_FRACTION * this.baseVfov, K_MAX);
     if (resetPitch) this.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, defaultPitch(lo, hi, this.k)));
+    this.applyProjection();
     for (const r of this.rings) r.update(this.k);
     this.terrainGroup.scale.set(1, this.k, 1);
     this.terrainGroup.updateMatrixWorld(true);
@@ -313,13 +325,32 @@ export class Scene3D implements PanoramaView {
   }
 
   private render(): void {
-    const e = cameraEuler(this._yaw, this.pitch);
+    const e = cameraEuler(this._yaw, 0); // always level; pitch is the lens shift
     this.camera.rotation.set(e.x, e.y, e.z, e.order);
     this.camera.updateMatrixWorld();
     this.renderer.clear();
     this.renderer.render(this.backdrop, this.camera);
     this.renderer.clearDepth();
     this.renderer.render(this.near, this.camera);
+    this.updateOverlay();
+  }
+
+  /** Compass strip and Sun/Earth markers, at where the disks are drawn. */
+  private updateOverlay(): void {
+    const t = this.time;
+    if (!t) return;
+    const body = (enu: Vec3, hidden: boolean): OverlayBody => {
+      const p = new THREE.Vector3(...enuToThree(exaggerateEnu(enu, this.k)));
+      const inFront = p.clone().applyQuaternion(this.camera.quaternion.clone().invert()).z < 0;
+      p.project(this.camera);
+      return { az: azElOf(enu).az, screen: { x: p.x, y: p.y, inFront }, hidden };
+    };
+    this.overlay.update({
+      yaw: this._yaw,
+      hfov: this.hFovDeg,
+      sun: body(t.sunEnu, !t.sunLit),
+      earth: body(t.earthEnu, t.earthMarginDeg <= 0),
+    });
   }
 
   private resize(): void {
@@ -328,7 +359,22 @@ export class Scene3D implements PanoramaView {
     if (w === 0 || h === 0) return; // hidden
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    const base = defaultVfov(w / h);
+    if (Math.abs(base - this.baseVfov) > 0.5) {
+      this.baseVfov = base;
+      this.rebuild(false); // the stretch is fitted to the view height
+    }
+    this.applyProjection();
     this.changed();
+  }
+
+  /** Field of view and lens shift for the current canvas, zoom and pitch. */
+  private applyProjection(): void {
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    if (w === 0 || h === 0) return;
+    this.camera.fov = Math.min(FOV_MAX, Math.max(FOV_MIN, this.baseVfov * this.zoom));
+    this.camera.setViewOffset(w, h, 0, -lensShiftPx(this.pitch, this.camera.fov, h), w, h);
+    this.camera.updateProjectionMatrix();
   }
 }

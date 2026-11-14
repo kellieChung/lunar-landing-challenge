@@ -423,3 +423,78 @@ button.site-item-body:focus-visible { outline: 2px solid var(--fg); outline-offs
 .st-table tbody th { text-align: left; color: var(--muted); }
 .st-table thead th { color: var(--muted); font-size: 11px; }
 .st-table td { color: var(--fg); }
+
+/* ---------- 3D overlay: compass strip and Sun/Earth markers ---------- */
+
+.ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; font: 11px var(--mono); }
+
+.ov-compass {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(5, 7, 10, 0.6);
+  border-bottom: 1px solid var(--line);
+}
+.ov-tick {
+  position: absolute;
+  top: 5px;
+  transform: translateX(-50%);
+  color: var(--muted);
+}
+.ov-tick::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  width: 1px;
+  height: 5px;
+  background: var(--muted);
+}
+.ov-cardinal { color: var(--fg); font-weight: 600; }
+.ov-strip-mark { position: absolute; top: 2px; transform: translateX(-50%); font-size: 15px; line-height: 18px; }
+.ov-strip-mark.ov-sun { color: var(--sun); }
+.ov-strip-mark.ov-earth { color: var(--earth); }
+.ov-strip-mark.hidden-body { opacity: 0.55; }
+
+.ov-arrow {
+  position: absolute;
+  top: 30px;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  background: rgba(5, 7, 10, 0.75);
+  font: 12px var(--mono);
+  cursor: pointer;
+  pointer-events: auto; /* the only clickable part: turn to the body */
+}
+.ov-arrow.left { left: 10px; }
+.ov-arrow.right { right: 10px; }
+.ov-arrow.ov-sun { color: var(--sun); }
+.ov-arrow.ov-earth { color: var(--earth); top: 58px; }
+.ov-arrow.hidden-body { border-style: dashed; }
+.ov-arrow:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+.ov-pin { position: absolute; width: 0; height: 0; }
+.ov-ring {
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.ov-pin.ov-earth .ov-ring { left: -20px; top: -20px; width: 40px; height: 40px; }
+.ov-label {
+  position: absolute;
+  left: 22px;
+  top: -8px;
+  white-space: nowrap;
+  padding: 1px 5px;
+  background: rgba(5, 7, 10, 0.65);
+}
+.ov-pin.ov-earth .ov-label { left: 26px; }
+.ov-pin.ov-sun { color: var(--sun); }
+.ov-pin.ov-earth { color: var(--earth); }
+.ov-pin.hidden-body .ov-ring { border-style: dashed; opacity: 0.8; }

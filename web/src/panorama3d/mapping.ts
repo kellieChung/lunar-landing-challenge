@@ -66,3 +66,32 @@ export function defaultPitch(minEl: number, maxEl: number, k: number): number {
 export function cameraEuler(yawDeg: number, pitchDeg: number): { x: number; y: number; z: number; order: 'YXZ' } {
   return { x: pitchDeg * RAD, y: -yawDeg * RAD, z: 0, order: 'YXZ' };
 }
+
+// ---- Level camera with a vertical lens shift --------------------------------
+// The camera never tilts. "Looking up or down" slides the image window like
+// an architectural shift lens, so the horizon stays a straight line at every
+// yaw and vertical things stay vertical.
+
+/** Vertical field of view (deg) so the horizontal one is at most hMaxDeg. */
+export function defaultVfov(aspect: number, vMaxDeg = 55, hMaxDeg = 90): number {
+  const v = (2 * Math.atan(Math.tan((hMaxDeg / 2) * RAD) / aspect)) / RAD;
+  return Math.min(vMaxDeg, v);
+}
+
+/** Pixels to slide the view window up so screen center shows elevation pitchDeg. */
+export function lensShiftPx(pitchDeg: number, vfovDeg: number, heightPx: number): number {
+  return (Math.tan(pitchDeg * RAD) * heightPx) / (2 * Math.tan((vfovDeg / 2) * RAD));
+}
+
+/**
+ * Where an azimuth lands across the screen for a level camera facing yawDeg:
+ * normalized x (-1 left edge, +1 right edge), exact at every elevation.
+ * side: 0 on screen, -1 off to the left, +1 off to the right (the shorter turn).
+ */
+export function azToScreenX(azDeg: number, yawDeg: number, hfovDeg: number): { x: number; side: -1 | 0 | 1 } {
+  const d = ((((azDeg - yawDeg) % 360) + 540) % 360) - 180; // [-180, 180)
+  const sign = d < 0 ? -1 : 1;
+  if (Math.abs(d) >= 89.999) return { x: sign * Infinity, side: sign };
+  const x = Math.tan(d * RAD) / Math.tan((hfovDeg / 2) * RAD);
+  return { x, side: Math.abs(x) <= 1 ? 0 : sign };
+}
