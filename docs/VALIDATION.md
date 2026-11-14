@@ -85,7 +85,8 @@ Full year 2027, hourly, elevations relative to a flat horizon (no terrain).
   ±1.6°. That only holds right at the pole. In general the Sun's elevation is
   bounded by *(distance from the pole) + ~1.5°* (the tilt of the Moon's axis),
   so Nobile Rim 2, about 6° from the pole, sees the Sun up to about 7.3°. The
-  test uses that latitude-dependent bound.
+  test uses that latitude-dependent bound. `TODO(astronomer)`: confirm and cite
+  the ~1.54° axis tilt.
 - **Libration (equator point):** Earth wanders −7.76° to +7.65° east–west and
   −6.86° to +6.88° north–south around the zenith. This matches the commonly
   quoted lunar libration of about 7.9° in longitude and 6.9° in latitude.

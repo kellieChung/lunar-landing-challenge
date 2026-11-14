@@ -86,7 +86,7 @@ def test_year_shape_and_units(year):
 def test_sun_stays_near_horizon_at_high_latitude(year, name):
     # The Sun's height is bounded by the distance from the pole plus the
     # ~1.54 deg tilt of the Moon's axis (1.6 deg leaves a little room for
-    # libration). Near the pole this is the spec's "within ~1.6 deg"; at
+    # libration). TODO(astronomer): confirm and cite the 1.54 deg value. Near the pole this is the spec's "within ~1.6 deg"; at
     # Nobile Rim 2 (about 6 deg from the pole) the Sun can reach about 7 deg.
     lat = VALIDATION_POINTS[name][0]
     d = year[name]
@@ -103,3 +103,26 @@ def test_earth_barely_moves_at_equator(year):
     north_offset = np.degrees(np.arcsin(d["earth"]["n"]))
     assert np.abs(east_offset).max() < 8.0
     assert np.abs(north_offset).max() < 7.0
+
+
+def test_shipped_site_json_matches_horizons():
+    """The file the app actually loads must agree with Horizons at every
+    validation time (checks hour indexing and 5-decimal rounding; catches a
+    stale JSON that wasn't rebuilt). Needs no kernels."""
+    from datetime import datetime
+
+    from lunar.validation import angle_between_deg
+
+    site_json = Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "artemis-candidate.json"
+    data = json.loads(site_json.read_text())
+    t0 = datetime.fromisoformat(data["time"]["start"].replace("Z", "+00:00"))
+    rows = [r for r in json.loads(FIXTURE.read_text())["rows"] if r["point"] == "artemis-candidate"]
+    assert len(rows) == 10
+    for r in rows:
+        t = datetime.fromisoformat(r["time"] + "+00:00")
+        k = round((t - t0).total_seconds() / 3600 / data["time"]["step_hours"])
+        body = data[r["body"].lower()]
+        ours = [body["e"][k], body["n"][k], body["u"][k]]
+        az, el = np.radians(r["az_deg"]), np.radians(r["el_deg"])
+        theirs = [np.cos(el) * np.sin(az), np.cos(el) * np.cos(az), np.sin(el)]
+        assert angle_between_deg(ours, theirs) < 0.001, (r["body"], r["time"], k)
