@@ -21,9 +21,9 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
 
 | test | what it checks | expected | result |
 | --- | --- | --- | --- |
-| Smooth sphere | every azimuth shows the geometric dip `−acos(R/(R+h))` | −0.0586° | within 0.001° at all 360 azimuths |
+| Smooth sphere | every azimuth shows the geometric dip `−acos(R/(R+h))` | −0.1065° | within 0.001° at all 360 azimuths |
 | Cone mountain (1 km high, 4 km due north) | north value equals the exact 3D angle to the tip | exact 3D angle | within 1e-6°; spec's small-angle formula agrees within 0.05° |
-| Cone, looking away | south shows only the sphere dip | −0.0586° | within 0.001° |
+| Cone, looking away | south shows only the sphere dip | −0.1065° | within 0.001° |
 | Orientation | a peak placed at 0°, 90°, 180°, 270° shows up at that same azimuth | same index | pass (guards against a mirrored panorama) |
 | Near/far maps | a peak only in the far map is seen where the near map has no data; a near-map peak wins over a flat far map | peak visible | pass |
 | Missing data | samples with no data in either map are skipped, never treated as 0 m | skipped | pass |

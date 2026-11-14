@@ -56,7 +56,7 @@ def sphere_dip_deg(h):
 
 def test_smooth_sphere_gives_geometric_dip():
     hz = horizon_mask(LAT, LON, flat, observer_height_m=MAST)
-    expected = sphere_dip_deg(MAST)  # about -0.0586 deg for a 3 m mast
+    expected = sphere_dip_deg(MAST)  # about -0.1065 deg for a 3 m mast
     np.testing.assert_allclose(hz.mask_deg, expected, atol=0.001)
     assert hz.ground_m == 0 and hz.skipped == 0
 
@@ -135,8 +135,9 @@ def test_projection_matches_rasterio(names):
 
     with rasterio.open(_real_dem_path(names)) as src:
         crs = src.crs
-    lats = [-84.20156, -80.0, -89.0, -86.0]
-    lons = [0.0, 60.69989, 135.0, 270.0]
+    # Every combination of 4 latitudes x 4 longitudes (16 points).
+    grid_lat, grid_lon = np.meshgrid([-84.20156, -80.0, -89.0, -86.0], [0.0, 60.69989, 135.0, 270.0])
+    lats, lons = grid_lat.ravel().tolist(), grid_lon.ravel().tolist()
     xs, ys = transform("+proj=longlat +R=1737400 +no_defs", crs, lons, lats)
     ours = D.polar_stereo_xy(np.array(lats), np.array(lons))
     np.testing.assert_allclose(ours[0], xs, atol=0.01)
