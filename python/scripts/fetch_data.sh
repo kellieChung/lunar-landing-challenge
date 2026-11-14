@@ -49,7 +49,13 @@ else
 fi
 # Far field: 60-90 S at 240 m/pixel (210 MB), used where the near map has no data.
 fetch "$PGDA/LDEM_60S_240MPP_ADJ.TIF" "$DATA/dem/LDEM_60S_240MPP_ADJ.TIF"
+# 10 m/pixel 30 x 30 km windows of LDEM_83S_10MPP_ADJ (5.1 GB) for sites with no 5 m tile
+# (Cabeus B peak, Slater Plain). Range reads, about 35 MB per site.
+.venv/bin/python scripts/fetch_10mpp_crops.py
 fi
+
+# 5 m/pixel LOLA site tiles (*_5mpp_surf.tif, e.g. SL2_final_adj_5mpp_surf.tif) are downloaded
+# by hand into data/dem/. lunar/dem.py finds them (and the 10 m crops) by location.
 
 # TODO: optional reference sites outside 60-90 S (spec, after milestone 8) need a global or
 # mid-latitude DEM.

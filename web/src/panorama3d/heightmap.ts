@@ -15,16 +15,23 @@ export interface Heightmap {
   z: Float32Array; // row-major, z[j * nx + i], m relative to the observer's ground
 }
 
-/** Decode the little-endian float32 file described by its header. */
+/** Decode the little-endian file described by its header (float32, or int16 times scale_m). */
 export function parseTerrain(buf: ArrayBuffer, h: TerrainHeader): Heightmap {
-  if (h.format !== 'float32-le') throw new Error(`Unknown terrain format ${h.format}`);
   const n = h.nx * h.ny;
-  if (buf.byteLength !== n * 4) {
-    throw new Error(`Terrain file is ${buf.byteLength} bytes, expected ${n * 4} (${h.nx} x ${h.ny} float32)`);
+  const bytes = h.format === 'float32-le' ? 4 : h.format === 'int16-le' ? 2 : 0;
+  if (!bytes) throw new Error(`Unknown terrain format ${h.format}`);
+  if (buf.byteLength !== n * bytes) {
+    throw new Error(`Terrain file is ${buf.byteLength} bytes, expected ${n * bytes} (${h.nx} x ${h.ny} ${h.format})`);
   }
   const view = new DataView(buf);
   const z = new Float32Array(n);
-  for (let i = 0; i < n; i++) z[i] = view.getFloat32(i * 4, true);
+  if (bytes === 4) {
+    for (let i = 0; i < n; i++) z[i] = view.getFloat32(i * 4, true);
+  } else {
+    const scale = h.scale_m;
+    if (!scale) throw new Error('int16-le terrain needs scale_m');
+    for (let i = 0; i < n; i++) z[i] = view.getInt16(i * 2, true) * scale;
+  }
   return { nx: h.nx, ny: h.ny, spacing: h.spacing_m, x0: h.x0_m, y0: h.y0_m, z };
 }
 
@@ -112,12 +119,25 @@ export function terrainPositions(t: Heightmap, mastM: number): Float32Array {
   return out;
 }
 
-/** Two triangles per cell, wound so their normals point up (+y). */
-export function terrainIndex(nx: number, ny: number): Uint32Array {
-  const out = new Uint32Array((nx - 1) * (ny - 1) * 6);
+/** Cell index range [i0, i1) x [j0, j1) to leave out of a mesh. */
+export interface Hole {
+  i0: number;
+  i1: number;
+  j0: number;
+  j1: number;
+}
+
+/**
+ * Two triangles per cell, wound so their normals point up (+y). Cells inside
+ * `hole` are left out (where the detail patch is drawn instead).
+ */
+export function terrainIndex(nx: number, ny: number, hole?: Hole | null): Uint32Array {
+  const holeCells = hole ? Math.max(0, hole.i1 - hole.i0) * Math.max(0, hole.j1 - hole.j0) : 0;
+  const out = new Uint32Array(((nx - 1) * (ny - 1) - holeCells) * 6);
   let k = 0;
   for (let j = 0; j < ny - 1; j++) {
     for (let i = 0; i < nx - 1; i++) {
+      if (hole && i >= hole.i0 && i < hole.i1 && j >= hole.j0 && j < hole.j1) continue;
       const a = j * nx + i;
       const b = a + 1;
       const c = a + nx;
@@ -174,6 +194,50 @@ export function heightOnMesh(t: Heightmap, x: number, y: number): number {
   const zd = z(i0 + 1, j0 + 1);
   if (u + v <= 1) return za + u * (zb - za) + v * (zc - za); // triangle a, b, c
   return zd + (1 - u) * (zc - zd) + (1 - v) * (zb - zd); // triangle b, d, c
+}
+
+/**
+ * The coarse cells covered by a detail patch, or null if the patch's edges
+ * don't fall on the coarse grid lines (then the patch can't be stitched in).
+ */
+export function patchHole(coarse: Heightmap, patch: Heightmap): Hole | null {
+  const xMax = patch.x0 + (patch.nx - 1) * patch.spacing;
+  const yMax = patch.y0 + (patch.ny - 1) * patch.spacing;
+  const fi0 = (patch.x0 - coarse.x0) / coarse.spacing;
+  const fi1 = (xMax - coarse.x0) / coarse.spacing;
+  const fj0 = (patch.y0 - coarse.y0) / coarse.spacing;
+  const fj1 = (yMax - coarse.y0) / coarse.spacing;
+  const whole = (f: number) => Math.abs(f - Math.round(f)) < 1e-6;
+  if (![fi0, fi1, fj0, fj1].every(whole)) return null;
+  const hole = { i0: Math.round(fi0), i1: Math.round(fi1), j0: Math.round(fj0), j1: Math.round(fj1) };
+  if (hole.i0 < 0 || hole.j0 < 0 || hole.i1 > coarse.nx - 1 || hole.j1 > coarse.ny - 1) return null;
+  return hole;
+}
+
+/**
+ * Fit a detail patch into the coarse mesh around it. The patch's outer ring
+ * of vertices is put exactly on the coarse triangles' edges (so there are no
+ * cracks), and the outer `featherM` blends from the coarse surface to the
+ * patch's own heights (so there is no step). Returns a new heightmap.
+ */
+export function stitchToCoarse(patch: Heightmap, coarse: Heightmap, featherM = 200): Heightmap {
+  const xMax = patch.x0 + (patch.nx - 1) * patch.spacing;
+  const yMax = patch.y0 + (patch.ny - 1) * patch.spacing;
+  const z = new Float32Array(patch.z);
+  for (let j = 0; j < patch.ny; j++) {
+    const y = patch.y0 + j * patch.spacing;
+    for (let i = 0; i < patch.nx; i++) {
+      const x = patch.x0 + i * patch.spacing;
+      const edge = Math.min(x - patch.x0, xMax - x, y - patch.y0, yMax - y);
+      if (edge >= featherM) continue;
+      const zc = heightOnMesh(coarse, x, y);
+      if (!Number.isFinite(zc)) continue;
+      const w = Math.max(0, edge / featherM);
+      const v = j * patch.nx + i;
+      z[v] = w * patch.z[v] + (1 - w) * zc;
+    }
+  }
+  return { ...patch, z };
 }
 
 /** Planar texture coordinates: one texture repeat every `repeatM` metres. */

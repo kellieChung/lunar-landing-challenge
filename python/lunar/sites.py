@@ -43,7 +43,9 @@ SITES: list[Site] = [
     Site("mons-mouton", "Mons Mouton", -85.423, 31.586, "south-pole", BLURB_TODO, CITE_TODO),
     Site("nobile-rim-1", "Nobile Rim 1", -85.54419, 37.62660, "south-pole", BLURB_TODO, PAPER2),
     Site("nobile-rim-2", "Nobile Rim 2", -84.20156, 60.69989, "south-pole", BLURB_TODO, PAPER1),
-    Site("de-gerlache-rim-2", "de Gerlache Rim 2", -88.51566, 61.16732, "south-pole", BLURB_TODO, PAPER1),
+    # Paper 1 gives 298.832680556 deg E; the same longitude in -180..180 is -61.167319444.
+    # (An earlier copy of the spec had +61.16732, which lands on a crater floor.)
+    Site("de-gerlache-rim-2", "de Gerlache Rim 2", -88.51566, -61.167319444, "south-pole", BLURB_TODO, PAPER1),
     Site("slater-plain", "Slater Plain", -87.149, 126.134, "south-pole", BLURB_TODO, CITE_TODO),
 ]
 

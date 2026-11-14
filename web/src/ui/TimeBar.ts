@@ -5,6 +5,7 @@
 
 import type { SiteSeries } from '../physics/metrics';
 import { sampleDate } from '../physics/time';
+import { timelineSprites } from '../skin';
 
 export const PAGE_SAMPLES = 720; // 30 days of hourly samples
 const SPEEDS = [
@@ -29,6 +30,34 @@ export interface TimeBarHooks {
 }
 
 /** Color names per state; CSS variables give the actual colors. */
+const SPRITE_W = 28; // timeline bar sprites: 28 x 14, 4 px end caps
+const SPRITE_H = 14;
+const SPRITE_CAP = 4;
+let spriteImgs: HTMLImageElement[] | null = null;
+let spritesReady = false;
+const spriteWaiters = new Set<() => void>();
+
+/** Loads the bar sprites once; `onReady` fires when they can be drawn. */
+function loadSprites(onReady: () => void): HTMLImageElement[] | null {
+  if (!timelineSprites) return null;
+  if (!spriteImgs) {
+    let left = timelineSprites.length;
+    spriteImgs = timelineSprites.map((url) => {
+      const img = new Image();
+      img.onload = () => {
+        if (--left === 0) {
+          spritesReady = true;
+          spriteWaiters.forEach((f) => f());
+        }
+      };
+      img.src = url;
+      return img;
+    });
+  }
+  if (!spritesReady) spriteWaiters.add(onReady);
+  return spritesReady ? spriteImgs : null;
+}
+
 const STATE_VARS = ['--none', '--sun', '--earth', '--both'];
 
 function stateIndex(s: SiteSeries, i: number): number {
@@ -236,6 +265,12 @@ export class TimeBar {
 
   // ---- Drawing ----------------------------------------------------------
 
+  /** New lit / visible series (another grid spot, same time axis): repaint the bars. */
+  setSeries(series: SiteSeries): void {
+    this.series = series;
+    this.drawAll();
+  }
+
   private drawAll(): void {
     this.drawYear();
     this.drawTrack();
@@ -256,14 +291,44 @@ export class TimeBar {
     const css = getComputedStyle(this.root);
     const colors = STATE_VARS.map((v) => css.getPropertyValue(v).trim() || '#222');
     const x = (i: number) => ((i - from) / (to - from)) * w;
+    const sprites = loadSprites(() => this.drawAll());
+    // Sprite art scale: whole pixels, so the bar fills the canvas height crisply.
+    const k = Math.max(1, Math.round(h / SPRITE_H));
+    const sh = SPRITE_H * k;
+    const y = Math.round((h - sh) / 2);
+    ctx.imageSmoothingEnabled = false;
     let runStart = from;
     for (let i = from + 1; i <= to; i++) {
       if (i === to || stateIndex(this.series, i) !== stateIndex(this.series, runStart)) {
-        ctx.fillStyle = colors[stateIndex(this.series, runStart)];
-        ctx.fillRect(x(runStart), 0, x(i) - x(runStart) + 0.5, h); // +0.5 px closes hairline gaps
+        const state = stateIndex(this.series, runStart);
+        const x0 = x(runStart);
+        const rw = x(i) - x0;
+        if (sprites) {
+          this.drawRun(ctx, sprites[state], x0, y, rw, k, sh, runStart === from, i === to);
+        } else {
+          ctx.fillStyle = colors[state];
+          ctx.fillRect(x0, 0, rw + 0.5, h); // +0.5 px closes hairline gaps
+        }
         runStart = i;
       }
     }
+  }
+
+  /** One run as a 3-slice of the bar sprite; the ends overlap the neighbour so outlines don't double. */
+  private drawRun(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x0: number, y: number, rw: number, k: number, sh: number, first: boolean, last: boolean): void {
+    const cap = SPRITE_CAP * k;
+    const left = first ? x0 : x0 - cap / 2; // half a cap into the previous run
+    const width = rw + (first ? 0 : cap / 2) + (last ? 0 : cap / 2);
+    const lx = Math.round(left);
+    const w = Math.max(Math.round(left + width) - lx, 1);
+    if (w < cap * 2) {
+      // Too narrow for two caps: just the face, squeezed.
+      ctx.drawImage(img, SPRITE_CAP, 0, SPRITE_W - 2 * SPRITE_CAP, SPRITE_H, lx, y, w, sh);
+      return;
+    }
+    ctx.drawImage(img, 0, 0, SPRITE_CAP, SPRITE_H, lx, y, cap, sh);
+    ctx.drawImage(img, SPRITE_CAP, 0, SPRITE_W - 2 * SPRITE_CAP, SPRITE_H, lx + cap, y, w - 2 * cap, sh);
+    ctx.drawImage(img, SPRITE_W - SPRITE_CAP, 0, SPRITE_CAP, SPRITE_H, lx + w - cap, y, cap, sh);
   }
 
   private drawYear(): void {

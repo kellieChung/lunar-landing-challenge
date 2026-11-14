@@ -1,0 +1,351 @@
+/* ==========================================================================
+   Pixel UI skin: Sprout Lands UI Basic pack by Cup Nooble
+   (https://cupnooble.itch.io), recoloured to space grey with blue / purple
+   accents by scripts/build-sprout-skin.mjs.
+
+   The sprites are not in the repo (the pack licence forbids redistribution).
+   `npm run skin` generates them into assets/ui-sprout/, together with an
+   index.css that @imports this file; main.ts loads that with an eager glob,
+   so without the pack this whole file is skipped and the plain look stays.
+
+   Only DOM chrome (buttons, panels, cards, labels) is styled here. Canvases
+   and the Sun/Earth colour tokens are left alone.
+
+   Sprites are 9-sliced with border-image. Slice values are in sprite pixels,
+   border widths are 2x, and image-rendering stays pixelated.
+   Accents: blue = selected / on, purple = hover and headings.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Sprout";
+  src: url(./assets/ui-sprout/pixel.ttf) format("truetype");
+  font-display: swap;
+}
+
+:root {
+  --ink: #e4e7ef;          /* text on the grey sprites */
+  --ink-muted: #a9afc2;
+  --ink-shadow: #1c1f2a;
+  --accent-blue: #5aa9ff;
+  --accent-purple: #b49bff;
+  --pixel: "Sprout", var(--mono);
+}
+
+/* ---------- Buttons ----------
+   btn.png is 26 x 28 with a 2 px drop at the bottom; btn-pressed.png is the
+   same button 2 px lower. Top + bottom borders stay 20 px in every state, so
+   the button keeps its height and the label sinks when pressed. */
+
+.pano-controls button,
+.timebar button,
+.gf-back,
+#back-link,
+.go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-style: solid;
+  border-width: 8px 8px 12px;
+  border-image: url(./assets/ui-sprout/btn.png) 4 4 6 4 fill;
+  border-radius: 0;
+  padding: 0 6px;
+  background: none;
+  color: var(--ink);
+  font: 16px var(--pixel);
+  line-height: 16px;
+  text-shadow: 1px 1px 0 var(--ink-shadow);
+  text-decoration: none;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+
+.pano-controls button:hover:not(:disabled):not([aria-pressed="true"]),
+.timebar button:hover:not(:disabled):not([aria-pressed="true"]),
+.gf-back:hover, .gf-back:focus-visible,
+#back-link:hover, #back-link:focus-visible,
+.go:not(.disabled):hover, .go:not(.disabled):focus-visible {
+  border-image-source: url(./assets/ui-sprout/btn-hover.png);
+  background: none;
+  color: #fff;
+}
+
+.pano-controls button:active:not(:disabled):not([aria-pressed="true"]),
+.timebar button:active:not(:disabled):not([aria-pressed="true"]),
+.gf-back:active,
+#back-link:active,
+.go:not(.disabled):active {
+  border-width: 12px 8px 8px;
+  border-image: url(./assets/ui-sprout/btn-pressed.png) 6 4 4 4 fill;
+}
+
+/* Selected toggle (3D / 2D, True scale, playback speed): pushed-in blue. */
+.pano-controls button[aria-pressed="true"],
+.timebar .seg button[aria-pressed="true"] {
+  border-width: 12px 8px 8px;
+  border-image: url(./assets/ui-sprout/btn-on.png) 6 4 4 4 fill;
+  background: none;
+  color: #fff;
+  text-shadow: 1px 1px 0 #1a2f5a;
+}
+
+.pano-controls button:disabled,
+.timebar button:disabled,
+.go.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.seg { gap: 2px; }
+.seg button + button { border-left-width: 8px; }
+
+/* Play / pause: grey at rest, pushed-in blue while playing. */
+.timebar .tb-play,
+.timebar .tb-play.on {
+  width: 44px;
+  color: var(--ink) !important;
+  background: none !important;
+  font-family: var(--mono);
+}
+.timebar .tb-play.on:not(:hover):not(:active) {
+  border-width: 12px 8px 8px;
+  border-image: url(./assets/ui-sprout/btn-on.png) 6 4 4 4 fill;
+}
+
+.go.disabled { border-color: transparent; }
+button.go { background: none; }
+
+:is(.pano-controls button, .timebar button, .gf-back, #back-link, .go):focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
+}
+
+/* ---------- Topbar: long grey bar ---------- */
+
+.topbar {
+  margin: 8px 8px 0;
+  padding: 0 8px 2px;
+  border-style: solid;
+  border-width: 8px 10px 12px;
+  border-image: url(./assets/ui-sprout/bar.png) 4 5 6 5 fill;
+  border-bottom-color: transparent;
+  image-rendering: pixelated;
+  align-items: center;
+  color: var(--ink);
+  text-shadow: 1px 1px 0 var(--ink-shadow);
+}
+.topbar h1 { font: 20px var(--pixel); letter-spacing: 0.5px; }
+.topbar .hook { color: #ffe08a; }
+
+.badge {
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/slot-purple.png) 4 fill;
+  image-rendering: pixelated;
+  padding: 0 4px;
+  color: #fff;
+  font: 14px var(--pixel);
+}
+
+.credit {
+  display: inline;
+  margin-left: auto;
+  color: var(--ink-muted);
+  font: 11px var(--mono);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.credit:hover, .credit:focus-visible { color: #fff; text-decoration: underline; }
+.badge:not([hidden]) + .credit { margin-left: 12px; }
+
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; row-gap: 4px; }
+  .topbar h1 { font-size: 16px; }
+  .hook, .credit { font-size: 11px; }
+}
+
+/* ---------- Panels: grey frame with posts, translucent interior ---------- */
+
+.picker-panel,
+.stats,
+.timebar,
+.readout {
+  border-style: solid;
+  border-width: 16px;
+  border-image: url(./assets/ui-sprout/panel.png) 8 fill;
+  border-radius: 0;
+  background: none;
+  image-rendering: pixelated;
+}
+.gf-legend,
+.gf-tip {
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/slot.png) 4 fill;
+  border-radius: 0;
+  background: none;
+  image-rendering: pixelated;
+}
+
+.picker-panel, .stats { margin: 8px; }
+.timebar { margin: 8px 0 0 8px; }
+.readout { margin: 6px 0 8px 8px; }
+
+.pano-nav { border-bottom: 0; padding: 8px 16px 0; }
+
+@media (max-width: 900px) {
+  .stats { margin: 8px; }
+  .timebar, .readout { margin-right: 8px; }
+}
+
+/* Panel headings sit on a purple ribbon. */
+.picker-panel h2,
+.stats .st-h {
+  display: inline-block;
+  border-style: solid;
+  border-width: 8px 10px 12px;
+  border-image: url(./assets/ui-sprout/ribbon.png) 4 5 6 5 fill;
+  image-rendering: pixelated;
+  padding: 0 4px;
+  color: #fff;
+  font: 16px var(--pixel);
+  text-shadow: 1px 1px 0 #2a2050;
+}
+.stats .st-h span { color: #e3dbff; }
+
+/* ---------- Site card: plain grey panel ---------- */
+
+.site-card {
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/card.png) 3 fill;
+  image-rendering: pixelated;
+  padding: 8px 10px 10px;
+  color: var(--ink);
+}
+.site-card .card-name { font: 20px var(--pixel); text-shadow: 1px 1px 0 var(--ink-shadow); }
+.site-card .card-name,
+.site-card .card-blurb,
+.site-card .gp-where,
+.site-card .gp-v { color: var(--ink); }
+.site-card .card-kind,
+.site-card .card-coords,
+.site-card .gp-k,
+.site-card .gp-hint { color: var(--ink-muted); }
+
+.site-card .card-kind {
+  display: inline-block;
+  border-style: solid;
+  border-width: 4px 5px 6px;
+  border-image: url(./assets/ui-sprout/ribbon.png) 4 5 6 5 fill;
+  padding: 0 2px;
+  color: #fff;
+  font: 14px var(--pixel);
+}
+
+/* ---------- Site list: corner brackets on hover (purple) / selected (blue) ---------- */
+
+.site-item { border-top: 0; }
+.site-item + .site-item { margin-top: 2px; }
+
+.site-item-body { position: relative; }
+.site-item-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 12px solid transparent;
+  border-image: url(./assets/ui-sprout/select.png) 9;
+  image-rendering: pixelated;
+  opacity: 0;
+  pointer-events: none;
+}
+button.site-item-body:hover { background: rgba(155, 123, 255, 0.08); }
+button.site-item-body:hover::after { opacity: 0.9; }
+.site-item.selected .site-item-body { background: rgba(90, 169, 255, 0.1); }
+.site-item.selected .site-item-body::after {
+  border-image-source: url(./assets/ui-sprout/select-on.png);
+  opacity: 1;
+}
+.site-item.selected .site-name::before { content: none; }
+
+/* ---------- Globe pin labels ---------- */
+
+.globe-label {
+  border-style: solid;
+  border-width: 4px;
+  border-image: url(./assets/ui-sprout/slot.png) 4 fill;
+  image-rendering: pixelated;
+  background: none;
+  color: var(--ink);
+}
+.globe-label.selected {
+  border-image-source: url(./assets/ui-sprout/btn-on.png);
+  border-image-slice: 6 4 4 4 fill;
+  color: #fff;
+}
+
+/* ---------- Stats panel tiles ---------- */
+
+.st-countdowns div {
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/slot.png) 4 fill;
+  image-rendering: pixelated;
+  padding: 0 2px;
+}
+.st-countdowns dt { color: var(--ink-muted); }
+.st-countdowns dd { color: var(--ink); white-space: nowrap; }
+
+/* ---------- Time slider thumb: blue pill ---------- */
+
+.tb-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 40px;
+  border-style: solid;
+  border-width: 6px 6px;
+  border-image: url(./assets/ui-sprout/thumb.png) 3 fill;
+  background: none;
+  box-shadow: none;
+  image-rendering: pixelated;
+}
+.tb-range::-moz-range-thumb {
+  width: 2px;
+  height: 28px;
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/thumb.png) 3 fill;
+  background: none;
+  image-rendering: pixelated;
+}
+
+/* ---------- Timeline: bars are drawn from the tl-* sprites in TimeBar.ts ---------- */
+
+.tb-legend i {
+  width: 28px;
+  height: 14px;
+  border: 0;
+  background-size: 100% 100% !important;
+  image-rendering: pixelated;
+}
+.tb-legend li:nth-child(1) i { background-image: url(./assets/ui-sprout/tl-both.png) !important; }
+.tb-legend li:nth-child(2) i { background-image: url(./assets/ui-sprout/tl-sun.png) !important; }
+.tb-legend li:nth-child(3) i { background-image: url(./assets/ui-sprout/tl-earth.png) !important; }
+.tb-legend li:nth-child(4) i { background-image: url(./assets/ui-sprout/tl-none.png) !important; }
+
+.tb-page {
+  top: -2px;
+  bottom: -2px;
+  border: 2px solid var(--accent-blue);
+  box-shadow: 0 0 0 2px var(--ink-shadow);
+}
+.tb-year-head {
+  top: -4px;
+  bottom: -4px;
+  width: 4px;
+  margin-left: -2px;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--ink-shadow);
+}
+
+/* ---------- 3D overlay: Sun / Earth buttons keep their colour ---------- */
+
+.ov-arrow { box-shadow: 2px 2px 0 #000; }

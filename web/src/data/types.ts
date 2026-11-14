@@ -24,7 +24,9 @@ export interface GridPoint {
 /** Header of <site_id>_terrain.bin, the near-field heightmap (rendering only). */
 export interface TerrainHeader {
   file: string;
-  format: string; // "float32-le"
+  format: string; // "float32-le", or "int16-le" (value * scale_m metres)
+  scale_m?: number; // int16-le only
+  sources?: string[]; // detail heightmap: the elevation maps it was made from, finest first
   nx: number;
   ny: number;
   spacing_m: number;
@@ -54,6 +56,7 @@ export interface SiteData {
   earth: Vectors & { r_km?: number[] };
   grid: { spacing_km: number; size: number; mask_bands_km?: number[][]; points: GridPoint[] };
   terrain?: TerrainHeader;
+  terrain_detail?: TerrainHeader; // 10 m heightmap around the grid, cropped to a patch around the chosen point
   precomputed: Record<string, unknown>;
 }
 

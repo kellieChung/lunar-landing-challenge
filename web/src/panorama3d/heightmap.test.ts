@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { TerrainHeader } from '../data/types';
 import {
-  clampToMask, crop, heightAt, heightOnMesh, parseTerrain, recenter, terrainColors, terrainIndex, terrainPositions, terrainUVs,
-  type Heightmap,
+  clampToMask, crop, heightAt, heightOnMesh, parseTerrain, patchHole, recenter, stitchToCoarse, terrainColors,
+  terrainIndex, terrainPositions, terrainUVs, type Heightmap,
 } from './heightmap';
 
 const header = (nx: number, ny: number): TerrainHeader => ({
@@ -169,5 +169,82 @@ describe('recenter and crop (grid points)', () => {
     const edge = crop(recenter(t, 0, 300), 200); // the map ends 100 m north of this point
     expect([edge.nx, edge.ny, edge.x0, edge.y0]).toEqual([5, 4, -200, -200]);
     expect(heightAt(c, 0, 0)).toBe(0);
+  });
+});
+
+describe('int16 terrain', () => {
+  it('reads little-endian int16 times scale_m', () => {
+    const buf = new ArrayBuffer(4 * 2);
+    const view = new DataView(buf);
+    [-32768, -1, 0, 32767].forEach((v, i) => view.setInt16(i * 2, v, true));
+    const t = parseTerrain(buf, { ...header(2, 2), format: 'int16-le', scale_m: 0.1 });
+    expect(Array.from(t.z).map((v) => Math.round(v * 10) / 10)).toEqual([-3276.8, -0.1, 0, 3276.7]);
+  });
+  it('rejects a wrong size or a missing scale', () => {
+    expect(() => parseTerrain(new ArrayBuffer(6), { ...header(2, 2), format: 'int16-le', scale_m: 0.1 }))
+      .toThrow(/expected 8/);
+    expect(() => parseTerrain(new ArrayBuffer(8), { ...header(2, 2), format: 'int16-le' })).toThrow(/scale_m/);
+  });
+});
+
+describe('detail patch in the coarse mesh', () => {
+  // Coarse: 9 x 9 at 100 m (+-400 m), a tilted plane plus a bump. Patch: +-200 m at 10 m.
+  const coarseZ = (x: number, y: number) => 0.05 * x - 0.02 * y + (x === 0 && y === 0 ? 7 : 0);
+  const coarse: Heightmap = {
+    nx: 9, ny: 9, spacing: 100, x0: -400, y0: -400,
+    z: Float32Array.from({ length: 81 }, (_, v) => coarseZ(-400 + (v % 9) * 100, -400 + Math.floor(v / 9) * 100)),
+  };
+  const bumpy = (x: number, y: number) => 3 * Math.sin(x / 13) * Math.cos(y / 17);
+  const patch: Heightmap = {
+    nx: 41, ny: 41, spacing: 10, x0: -200, y0: -200,
+    z: Float32Array.from({ length: 41 * 41 }, (_, v) => bumpy(-200 + (v % 41) * 10, -200 + Math.floor(v / 41) * 10)),
+  };
+
+  it('finds the coarse cells under the patch', () => {
+    expect(patchHole(coarse, patch)).toEqual({ i0: 2, i1: 6, j0: 2, j1: 6 });
+    expect(patchHole(coarse, { ...patch, x0: -195 })).toBeNull(); // off the 100 m lines
+    expect(patchHole(coarse, { ...patch, nx: 101, x0: -500 })).toBeNull(); // sticks out
+  });
+
+  it('leaves the hole cells out of the index', () => {
+    const hole = patchHole(coarse, patch)!;
+    const idx = terrainIndex(9, 9, hole);
+    expect(idx.length).toBe((64 - 16) * 6);
+    // No triangle uses a vertex strictly inside the hole.
+    const inside = (v: number) => {
+      const i = v % 9;
+      const j = Math.floor(v / 9);
+      return i > 2 && i < 6 && j > 2 && j < 6;
+    };
+    expect(Array.from(idx).some(inside)).toBe(false);
+  });
+
+  it('puts the patch edge exactly on the coarse triangles and blends inward', () => {
+    const s = stitchToCoarse(patch, coarse, 50);
+    for (let k = 0; k < 41; k++) {
+      const x = -200 + k * 10;
+      for (const [i, j, y] of [[k, 0, -200], [k, 40, 200], [0, k, x], [40, k, x]] as const) {
+        const xx = -200 + i * 10;
+        expect(s.z[j * 41 + i]).toBeCloseTo(heightOnMesh(coarse, xx, y), 5);
+      }
+    }
+    // Past the feather band the patch keeps its own heights; inside, it's a blend.
+    expect(s.z[20 * 41 + 20]).toBe(patch.z[20 * 41 + 20]);
+    expect(s.z[20 * 41 + 5]).toBe(patch.z[20 * 41 + 5]); // 50 m in
+    const w = 0.4; // 20 m in, out of 50
+    expect(s.z[20 * 41 + 2]).toBeCloseTo(w * patch.z[20 * 41 + 2] + (1 - w) * heightOnMesh(coarse, -180, 0), 5);
+  });
+
+  it('crop-then-recenter equals recenter-then-crop', () => {
+    const big: Heightmap = {
+      nx: 61, ny: 61, spacing: 10, x0: -300, y0: -300,
+      z: Float32Array.from({ length: 61 * 61 }, (_, v) => bumpy(-300 + (v % 61) * 10, -300 + Math.floor(v / 61) * 10)),
+    };
+    const [px, py] = [100, -50];
+    const a = crop(recenter(big, px, py, 500), 120);
+    const around = crop({ ...big, x0: big.x0 - px, y0: big.y0 - py }, 120);
+    const b = recenter({ ...around, x0: around.x0 + px, y0: around.y0 + py }, px, py, 500);
+    expect([b.nx, b.ny, b.x0, b.y0]).toEqual([a.nx, a.ny, a.x0, a.y0]);
+    for (let v = 0; v < a.z.length; v++) expect(b.z[v]).toBeCloseTo(a.z[v], 4);
   });
 });

@@ -35,11 +35,11 @@ class Terrain:
     spacing_m: float
     ground_m: float  # observer ground height relative to the DEM datum sphere
 
-    def header(self, file_name: str) -> dict:
+    def header(self, file_name: str, fmt: str = "float32-le") -> dict:
         ny, nx = self.heights_m.shape
         return {
             "file": file_name,
-            "format": "float32-le",
+            "format": fmt,
             "nx": nx,
             "ny": ny,
             "spacing_m": self.spacing_m,
@@ -51,6 +51,25 @@ class Terrain:
             "z": "metres along the site-center up vector, relative to the observer's ground "
                  "(0 at the center); includes the Moon's curvature",
         }
+
+
+INT16_SCALE_M = 0.1  # detail heightmap: int16 in units of 0.1 m
+
+
+def int16_scale(heights_m: np.ndarray, base_m: float = INT16_SCALE_M) -> float:
+    """base_m, or the smallest multiple of it that fits the heights in int16 (very tall relief)."""
+    need = float(np.abs(heights_m).max()) / np.iinfo(np.int16).max
+    return base_m * max(1, int(np.ceil(need / base_m - 1e-12)))
+
+
+def to_int16(heights_m: np.ndarray, scale_m: float = INT16_SCALE_M) -> np.ndarray:
+    """Quantize heights to little-endian int16 steps of scale_m. Raises if any value doesn't fit."""
+    q = np.round(np.asarray(heights_m, float) / scale_m)
+    lim = np.iinfo(np.int16)
+    if q.min() < lim.min or q.max() > lim.max:
+        raise ValueError(f"Heights {heights_m.min():.0f}..{heights_m.max():.0f} m don't fit int16 "
+                         f"at {scale_m} m per step (max +/-{lim.max * scale_m:.0f} m).")
+    return q.astype("<i2")
 
 
 def terrain_grid(lat_deg: float, lon_deg: float, height_fn, frame=None,

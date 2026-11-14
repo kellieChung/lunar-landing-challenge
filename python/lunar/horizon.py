@@ -1,7 +1,8 @@
 """Horizon masks: how high the surrounding terrain reaches in each direction.
 
 For one observer point and each of 360 azimuths (1 deg steps, in the site
-frame), walk outward along the surface from 0.1 km to 150 km, look up the
+frame), walk outward along the surface from 0.1 km to 150 km (10 m steps to
+2 km, 50 m steps to 5 km, then 1% of the distance), look up the
 terrain height, and keep the largest elevation angle. That angle is the
 horizon in that direction: the Sun or Earth is hidden when it is lower.
 
@@ -21,7 +22,9 @@ from lunar.dem import R_MOON_M
 from lunar.ephemeris import site_frame
 
 NEAR_START_KM = 0.1
-NEAR_STEP_KM = 0.05  # fine steps close to the observer
+FINE_STEP_KM = 0.01  # 10 m: resolves the 5 m site maps close to the observer
+FINE_LIMIT_KM = 2.0
+NEAR_STEP_KM = 0.05
 NEAR_LIMIT_KM = 5.0
 FAR_GROWTH = 0.01  # beyond 5 km each step is 1% of the distance
 MAX_KM = 150.0
@@ -34,14 +37,16 @@ NO_TERRAIN_DEG = -90.0  # band value when a band has no samples with data
 
 def sample_distances_km(max_km: float = MAX_KM) -> np.ndarray:
     """Distances along each azimuth where terrain is sampled."""
-    n_near = int(round((NEAR_LIMIT_KM - NEAR_START_KM) / NEAR_STEP_KM)) + 1
-    near = NEAR_START_KM + NEAR_STEP_KM * np.arange(n_near)  # 0.10, 0.15, ... 5.00
+    n_fine = int(round((FINE_LIMIT_KM - NEAR_START_KM) / FINE_STEP_KM)) + 1
+    fine = NEAR_START_KM + FINE_STEP_KM * np.arange(n_fine)  # 0.10, 0.11, ... 2.00
+    n_near = int(round((NEAR_LIMIT_KM - FINE_LIMIT_KM) / NEAR_STEP_KM))
+    near = FINE_LIMIT_KM + NEAR_STEP_KM * np.arange(1, n_near + 1)  # 2.05, 2.10, ... 5.00
     far = []
     d = NEAR_LIMIT_KM
     while d < max_km:
         d = min(d * (1 + FAR_GROWTH), max_km)
         far.append(d)
-    return np.concatenate([near, far])
+    return np.concatenate([fine, near, far])
 
 
 def unit_vector(lat_deg, lon_deg) -> np.ndarray:

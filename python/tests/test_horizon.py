@@ -94,14 +94,14 @@ def test_far_map_used_where_near_map_has_no_data():
 
     far_tip = peak_direction(90.0, nearest_sample_km(60.0))
     far = cone(far_tip, 3000.0, 5000.0)
-    hz = horizon_mask(LAT, LON, D.TwoLevelDEM(near, far), observer_height_m=MAST)
+    hz = horizon_mask(LAT, LON, D.LayeredDEM([near, far]), observer_height_m=MAST)
     assert int(np.argmax(hz.mask_deg)) == 90
     assert hz.mask_deg[90] == pytest.approx(exact_elevation(far_tip, 3000.0), abs=1e-6)
 
 
 def test_near_map_wins_over_far_map():
     near_tip = peak_direction(45.0, nearest_sample_km(2.0))
-    hz = horizon_mask(LAT, LON, D.TwoLevelDEM(cone(near_tip, 300.0, 800.0), flat),
+    hz = horizon_mask(LAT, LON, D.LayeredDEM([cone(near_tip, 300.0, 800.0), flat]),
                       observer_height_m=MAST)
     assert int(np.argmax(hz.mask_deg)) == 45
 

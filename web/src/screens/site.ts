@@ -2,12 +2,12 @@
 // current time (moved by the time bar), and shows it in the 3D scene or the
 // 2D strip plus the stats panel.
 
-import { loadSite, loadTerrain } from '../data/load';
-import type { SiteData } from '../data/types';
+import { loadSite, loadSiteIndex, loadTerrain } from '../data/load';
+import type { GridPoint, SiteData } from '../data/types';
 import { Panorama } from '../panorama/Panorama';
 import { maskAt, vecToAzEl } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
-import { crop, recenter, type Heightmap } from '../panorama3d/heightmap';
+import { crop, recenter, stitchToCoarse, type Heightmap } from '../panorama3d/heightmap';
 import type { Vec3 } from '../panorama3d/mapping';
 import { Scene3D } from '../panorama3d/Scene3D';
 import { earthRadiusDeg, sunRadiusDeg } from '../physics/constants';
@@ -17,6 +17,7 @@ import { fluxWm2, siteSeries, windowMetrics } from '../physics/metrics';
 import { batteryState, signalBars } from '../physics/status';
 import { sampleDate, valueAt, vectorAt, type VectorSeries } from '../physics/time';
 import { LIT_THRESHOLD, marginDeg, sunlitFraction } from '../physics/visibility';
+import { spotGrid } from '../ui/SpotGrid';
 import { StatsPanel } from '../ui/StatsPanel';
 import { formatUtc, PAGE_SAMPLES, TimeBar } from '../ui/TimeBar';
 
@@ -26,6 +27,8 @@ const TRACK_HOURS = 709; // ~29.5 days: one trip of the Sun around the horizon
 const EARTH_RADIUS_FALLBACK_DEG = 0.95; // only for files without earth.r_km (fake data)
 const MARGIN_DEG = 0.5;
 const NEAR_TERRAIN_HALF_M = 5000; // the 3D view draws 10 x 10 km of ground around the observer
+const DETAIL_PATCH_HALF_M = 1500; // and the 3 x 3 km nearest it from the 10 m heightmap
+const MOVE_FADE_MS = 140; // dip to black when moving to another grid spot
 
 /** ?hour=N (sample index, fractions allowed) opens at that time; kept up to date when time settles. */
 function hourFromUrl(count: number): number {
@@ -76,67 +79,84 @@ function showBadge(data: SiteData): void {
 }
 
 export async function openSite(id: string): Promise<void> {
+  // sites.json holds the full-year numbers for every grid point (the sidebar grid's colors).
+  const summaries = loadSiteIndex()
+    .then((all) => all.find((s) => s.id === id)?.grid ?? null)
+    .catch((err) => { console.error(err); return null; });
   const data = await loadSite(id);
+  showBadge(data);
 
-  // The grid point we stand on (?pt=i,j; default the site center).
-  const point = findPoint(data.grid.points, new URLSearchParams(window.location.search).get('pt'));
-  const atCenter = point.dx_km === 0 && point.dy_km === 0;
-  if (!atCenter) setUrlParam('pt', `${point.i},${point.j}`);
-  else if (new URLSearchParams(window.location.search).has('pt')) setUrlParam('pt', '0,0');
-
-  let terrain: Heightmap | null = null;
+  // Whole heightmaps, loaded once; each spot crops and re-levels its own piece
+  // (rendering only). The 10 m one arrives later (3.4 MB); the view opens with
+  // the 100 m ground and adds it. A failure only loses that layer.
+  const wholeDetail: Promise<Heightmap | null> = data.terrain && data.terrain_detail
+    ? loadTerrain(data.terrain_detail).catch((err) => { console.error(err); return null; })
+    : Promise.resolve(null);
+  let whole: Heightmap | null = null;
   if (data.terrain) {
     try {
-      const whole = await loadTerrain(data.terrain);
-      // Rendering only: the ground around this point, levelled for it.
-      terrain = crop(recenter(whole, point.dx_km * 1000, point.dy_km * 1000, data.terrain.ground_m), NEAR_TERRAIN_HALF_M);
+      whole = await loadTerrain(data.terrain);
     } catch (err) {
       console.error(err); // the 3D view still works with rings only
     }
   }
-  showBadge(data);
-  const spot = describeOffset(point.dx_km, point.dy_km);
-  document.title = `${data.site.name}${atCenter ? '' : ` (${spot.replace(' of the site center', '')})`} · Lunar Landing Site Navigator`;
-  const back = document.getElementById('back-link') as HTMLAnchorElement | null;
-  if (back) back.href = `./?focus=${data.site.id}&pt=${point.i},${point.j}`;
-  const spotLabel = document.getElementById('spot-label');
-  if (spotLabel) {
-    const dz = point.ground_m !== undefined && data.site.ground_height_m !== undefined
-      ? point.ground_m - data.site.ground_height_m : null;
-    spotLabel.textContent = atCenter ? `${data.site.name} · site center`
-      : `${data.site.name} · ${spot}${dz === null ? '' : ` · ground ${dz >= 0 ? '+' : '−'}${Math.abs(dz).toFixed(0)} m`}`;
-  }
+  /** The 10 x 10 km of 100 m ground around a grid point, levelled for it. */
+  const terrainAround = (p: GridPoint): Heightmap | null =>
+    whole && data.terrain ? crop(recenter(whole, p.dx_km * 1000, p.dy_km * 1000, data.terrain.ground_m), NEAR_TERRAIN_HALF_M) : null;
+  /** The 3 x 3 km of 10 m ground around a grid point, stitched into its coarse ground. */
+  const detailAround = (fine: Heightmap, p: GridPoint, coarse: Heightmap): Heightmap => {
+    const pxM = p.dx_km * 1000;
+    const pyM = p.dy_km * 1000;
+    // Crop first (around the point, in the file's own coordinates), then
+    // re-level: only the patch's vertices get processed.
+    const around = crop({ ...fine, x0: fine.x0 - pxM, y0: fine.y0 - pyM }, DETAIL_PATCH_HALF_M);
+    const patch = recenter({ ...around, x0: around.x0 + pxM, y0: around.y0 + pyM }, pxM, pyM,
+      data.terrain_detail!.ground_m);
+    return stitchToCoarse(patch, coarse);
+  };
 
-  const mask = point.mask_deg;
-  const bands = point.mask_bands_deg ?? null;
   const mastM = data.site.mast_height_m ?? 3;
-  // Sun/Earth as seen from this point (the file holds them for the site center).
-  const sunV = pointVectors(data.sun, point.up_tilt);
-  const earthV = pointVectors(data.earth, point.up_tilt);
-
-  // ---- Physics (the only source of lit / visible) ----
   const count = data.time.count;
   const step = data.time.step_hours;
-  const series = siteSeries(sunV, earthV, mask);
-  const year = windowMetrics(series, 0, count, step);
-  const litAt = (t: number) => sunLitAt(sunV, mask, t);
-  const earthAt = (t: number) => earthVisibleAt(earthV, mask, t);
-  const earthRAt = (t: number) => (data.earth.r_km ? earthRadiusDeg(valueAt(data.earth.r_km, t)) : EARTH_RADIUS_FALLBACK_DEG);
-
   const sunRMax = sunRadiusDeg(Math.min(...data.sun.r_au));
   const earthRMax = data.earth.r_km ? earthRadiusDeg(Math.min(...data.earth.r_km)) : EARTH_RADIUS_FALLBACK_DEG;
-  const elRange = elevationRange(sunV.u, earthV.u, mask, sunRMax, earthRMax);
+  const earthRAt = (t: number) => (data.earth.r_km ? earthRadiusDeg(valueAt(data.earth.r_km, t)) : EARTH_RADIUS_FALLBACK_DEG);
 
-  /** Everything about one moment t (fractional sample index). */
+  /** Everything that depends on which grid point we stand on. */
+  const spotAt = (point: GridPoint) => {
+    const mask = point.mask_deg;
+    // Sun/Earth as seen from this point (the file holds them for the site center).
+    const sunV = pointVectors(data.sun, point.up_tilt);
+    const earthV = pointVectors(data.earth, point.up_tilt);
+    // ---- Physics (the only source of lit / visible) ----
+    const series = siteSeries(sunV, earthV, mask);
+    return {
+      point, mask, sunV, earthV, series,
+      bands: point.mask_bands_deg ?? null,
+      atCenter: point.dx_km === 0 && point.dy_km === 0,
+      label: describeOffset(point.dx_km, point.dy_km),
+      year: windowMetrics(series, 0, count, step),
+      litAt: (t: number) => sunLitAt(sunV, mask, t),
+      earthAt: (t: number) => earthVisibleAt(earthV, mask, t),
+      elRange: elevationRange(sunV.u, earthV.u, mask, sunRMax, earthRMax),
+      // Faint background path: where Earth goes over the whole year.
+      earthYear: Array.from({ length: count }, (_, i) => vec(earthV, i)) as Vec3[],
+    };
+  };
+
+  // The grid point we stand on (?pt=i,j; default the site center).
+  let cur = spotAt(findPoint(data.grid.points, new URLSearchParams(window.location.search).get('pt')));
+
+  /** Everything about one moment t (fractional sample index), at the current spot. */
   const physicsAt = (t: number) => {
-    const sunEnu = vectorAt(sunV, t);
-    const earthEnu = vectorAt(earthV, t);
+    const sunEnu = vectorAt(cur.sunV, t);
+    const earthEnu = vectorAt(cur.earthV, t);
     const rAu = valueAt(data.sun.r_au, t);
     const sun = vecToAzEl(...sunEnu);
     const earth = vecToAzEl(...earthEnu);
-    const sunFraction = sunlitFraction(...sunEnu, rAu, mask);
+    const sunFraction = sunlitFraction(...sunEnu, rAu, cur.mask);
     const sunLit = sunFraction >= LIT_THRESHOLD; // same rule as litAt(t)
-    const earthMargin = marginDeg(...earthEnu, mask);
+    const earthMargin = marginDeg(...earthEnu, cur.mask);
     return {
       sunEnu, earthEnu, sun, earth, sunFraction, sunLit, earthMargin,
       earthVisible: earthMargin > 0,
@@ -145,9 +165,6 @@ export async function openSite(id: string): Promise<void> {
       flux: fluxWm2(rAu, sunFraction, sun.el),
     };
   };
-
-  // Faint background path: where Earth goes over the whole year.
-  const earthYear: Vec3[] = Array.from({ length: count }, (_, i) => vec(earthV, i));
 
   let trackFrom = -1;
   let sunTrack: Vec3[] = [];
@@ -158,16 +175,18 @@ export async function openSite(id: string): Promise<void> {
       trackFrom = k;
       const end = Math.min(k + TRACK_HOURS, count);
       const track = (v: VectorSeries) => Array.from({ length: end - k }, (_, i) => vec(v, k + i));
-      sunTrack = track(sunV);
-      earthTrack = track(earthV);
+      sunTrack = track(cur.sunV);
+      earthTrack = track(cur.earthV);
     }
     return { sunTrack, earthTrack };
   };
 
   let t = hourFromUrl(count);
   let now = physicsAt(t);
+  const landerAz = now.sun.az - 30; // kept when moving between spots
 
   // ---- Views ----
+  const stage = document.querySelector('#pano-screen .pano-stage') as HTMLElement;
   const canvas2d = document.getElementById('panorama') as HTMLCanvasElement;
   const canvas3d = document.getElementById('pano3d') as HTMLCanvasElement;
   const fallback = document.getElementById('pano3d-fallback')!;
@@ -175,22 +194,53 @@ export async function openSite(id: string): Promise<void> {
   const btn2d = document.getElementById('mode-2d') as HTMLButtonElement;
   const btnTrue = document.getElementById('true-scale') as HTMLButtonElement;
   const readout = document.getElementById('readout')!;
-  const stats = new StatsPanel(document.getElementById('stats')!);
+  const statsRoot = document.getElementById('stats')!;
+  const stats = new StatsPanel(statsRoot);
+  const back = document.getElementById('back-link') as HTMLAnchorElement | null;
+  if (back) back.href = `./?focus=${data.site.id}`;
+  const spotLabel = document.getElementById('spot-label');
 
   const flat = new Panorama(canvas2d);
-  flat.setMask(mask, bands);
-  flat.fitElevations(...elRange);
-  flat.setBodies(now.sun, now.earth);
-
   let scene: Scene3D | null = null;
   try {
     scene = new Scene3D(canvas3d);
-    scene.setSite({ mask, bands, terrain, mastM, elRange, earthYear, landerAz: now.sun.az - 30 });
   } catch (err) {
     console.error(err);
     scene = null;
     canvas3d.hidden = true;
   }
+
+  let detailToken = 0;
+  /** Point the views, labels and URL at the current spot (cur). */
+  const showSpot = () => {
+    const { point, atCenter, label } = cur;
+    if (atCenter) {
+      if (new URLSearchParams(window.location.search).has('pt')) setUrlParam('pt', '0,0');
+    } else setUrlParam('pt', `${point.i},${point.j}`);
+    document.title = `${data.site.name}${atCenter ? '' : ` (${label.replace(' of the site center', '')})`} · Lunar Landing Site Navigator`;
+    if (spotLabel) {
+      const dz = point.ground_m !== undefined && data.site.ground_height_m !== undefined
+        ? point.ground_m - data.site.ground_height_m : null;
+      spotLabel.textContent = atCenter ? `${data.site.name} · site center`
+        : `${data.site.name} · ${label}${dz === null ? '' : ` · ground ${dz >= 0 ? '+' : '−'}${Math.abs(dz).toFixed(0)} m`}`;
+    }
+
+    flat.setMask(cur.mask, cur.bands);
+    flat.fitElevations(...cur.elRange);
+    if (scene) {
+      const terrain = terrainAround(point);
+      scene.setSite({ mask: cur.mask, bands: cur.bands, terrain, mastM, elRange: cur.elRange, earthYear: cur.earthYear, landerAz });
+      const token = ++detailToken;
+      const s3 = scene;
+      if (terrain) {
+        void wholeDetail.then((fine) => {
+          if (fine && token === detailToken) s3.setDetail(detailAround(fine, point, terrain));
+        }).catch((err) => console.error(err));
+      }
+    }
+  };
+  showSpot();
+  flat.setBodies(now.sun, now.earth);
 
   let mode: Mode = scene ? modeFromUrl() : '2d';
   let active: PanoramaView = flat;
@@ -200,15 +250,16 @@ export async function openSite(id: string): Promise<void> {
   const state = (yes: boolean, on: string, off: string) => (yes ? on : off);
   const update = () => {
     const { sun, earth } = now;
+    const mask = cur.mask;
     readout.textContent =
-      `${data.site.name} · ${spot}   ${formatUtc(sampleDate(data.time.start, step, t))} (hour ${t.toFixed(2)})   view ${fmt(active.yaw)}°   ${mode.toUpperCase()}   vertical ×${active.exaggeration.toFixed(1)}\n` +
+      `${data.site.name} · ${cur.label}   ${formatUtc(sampleDate(data.time.start, step, t))} (hour ${t.toFixed(2)})   view ${fmt(active.yaw)}°   ${mode.toUpperCase()}   vertical ×${active.exaggeration.toFixed(1)}\n` +
       `sun   az ${fmt(sun.az)}° el ${fmt(sun.el)}°  (horizon there ${fmt(maskAt(mask, sun.az))}°)  ${state(now.sunLit, 'LIT', 'behind terrain')}  disk ${Math.round(now.sunFraction * 100)}%\n` +
       `earth az ${fmt(earth.az)}° el ${fmt(earth.el)}°  (horizon there ${fmt(maskAt(mask, earth.az))}°)  ${state(now.earthVisible, 'VISIBLE', 'behind terrain')}`;
   };
 
   // ---- Time: everything that changes when t moves ----
   let monthFrom = -1;
-  let month = year;
+  let month = cur.year;
   const showTime = (next: number) => {
     t = next;
     now = physicsAt(t);
@@ -221,17 +272,17 @@ export async function openSite(id: string): Promise<void> {
     const page = timebar.pageFirst;
     if (page !== monthFrom) {
       monthFrom = page;
-      month = windowMetrics(series, page, PAGE_SAMPLES, step);
+      month = windowMetrics(cur.series, page, PAGE_SAMPLES, step);
     }
     const last = sampleDate(data.time.start, step, Math.min(page + PAGE_SAMPLES, count) - 1);
     stats.setWindows({
-      month, year,
+      month, year: cur.year,
       monthLabel: `${shortDate(sampleDate(data.time.start, step, page))} – ${shortDate(last)}`,
       yearLabel: String(sampleDate(data.time.start, step, 0).getUTCFullYear()),
     });
 
     const hoursUntil = (e: number | null) => (e === null ? null : (e - t) * step);
-    const darkSince = now.sunLit ? t : stateSince(litAt, series.lit, t);
+    const darkSince = now.sunLit ? t : stateSince(cur.litAt, cur.series.lit, t);
     stats.setNow({
       sunFraction: now.sunFraction,
       sunLit: now.sunLit,
@@ -239,20 +290,41 @@ export async function openSite(id: string): Promise<void> {
       earthMarginDeg: now.earthMargin,
       bars: signalBars(now.earthMargin, now.earthR),
       battery: batteryState(now.sunLit, (t - darkSince) * step, !now.sunLit && darkSince === 0),
-      sunEventH: hoursUntil(nextChange(litAt, series.lit, t, !now.sunLit)),
-      earthEventH: hoursUntil(nextChange(earthAt, series.earth, t, !now.earthVisible)),
+      sunEventH: hoursUntil(nextChange(cur.litAt, cur.series.lit, t, !now.sunLit)),
+      earthEventH: hoursUntil(nextChange(cur.earthAt, cur.series.earth, t, !now.earthVisible)),
       fluxNow: now.flux,
     });
     update();
   };
 
-  const timebar = new TimeBar(document.getElementById('timebar')!, series, data.time.start, step, {
+  const timebar = new TimeBar(document.getElementById('timebar')!, cur.series, data.time.start, step, {
     onTime: showTime,
     onSettle: (s) => setUrlParam('hour', String(Math.round(s * 100) / 100)),
     nextEvent: (kind, from) =>
-      kind === 'sunrise' ? nextChange(litAt, series.lit, from, true) : nextChange(earthAt, series.earth, from, true),
+      kind === 'sunrise' ? nextChange(cur.litAt, cur.series.lit, from, true) : nextChange(cur.earthAt, cur.series.earth, from, true),
     onJump: (kind) => active.setYaw(kind === 'sunrise' ? now.sun.az : now.earth.az),
   });
+
+  // ---- Moving to another grid spot: same time, same view direction; a quick
+  // dip to black so the jump reads as a move, not a glitch.
+  let moveTimer = 0;
+  const moveTo = (point: GridPoint) => {
+    window.clearTimeout(moveTimer);
+    stage.classList.add('moving');
+    moveTimer = window.setTimeout(() => {
+      cur = spotAt(point);
+      trackFrom = -1;
+      monthFrom = -1;
+      showSpot();
+      timebar.setSeries(cur.series);
+      showTime(t);
+      requestAnimationFrame(() => stage.classList.remove('moving'));
+    }, MOVE_FADE_MS);
+    grid.setCurrent(point);
+  };
+
+  const grid = spotGrid({ points: data.grid.points, current: cur.point, summaries: await summaries, onPick: moveTo });
+  statsRoot.prepend(grid.el);
 
   const setMode = (next: Mode) => {
     if (next === '3d' && !scene) next = '2d';

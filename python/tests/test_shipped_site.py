@@ -20,8 +20,10 @@ def site(request):
     return json.loads(path.read_text(), parse_constant=_reject_nan)
 
 
-def test_the_four_paper_sites_are_shipped():
-    assert {"nobile-rim-1", "nobile-rim-2", "de-gerlache-rim-2", "haworth"} <= set(SHIPPED)
+def test_the_built_sites_are_shipped():
+    assert {"nobile-rim-1", "nobile-rim-2", "de-gerlache-rim-2", "haworth",
+            "malapert-massif", "mons-mouton", "mons-mouton-plateau",
+            "cabeus-b-peak", "slater-plain"} <= set(SHIPPED)
 
 
 def test_grid_is_11_by_11_with_one_center(site):
@@ -93,6 +95,28 @@ def test_terrain_file_matches_header(site):
         assert z[row, col] == pytest.approx(want, abs=0.15), (p["i"], p["j"])
     assert z[h["ny"] // 2, h["nx"] // 2] == pytest.approx(0.0, abs=1e-3)  # observer's ground
     assert h["x0_m"] + (h["nx"] - 1) * h["spacing_m"] == -h["x0_m"]  # centered
+
+
+def test_detail_file_matches_coarse(site):
+    """The 10 m detail heightmap (sites built since the 5 m tiles) agrees with the 100 m one."""
+    h = site.get("terrain_detail")
+    if h is None:
+        pytest.skip("built before the detail heightmap")
+    raw = (WEB_DATA / h["file"]).read_bytes()
+    assert h["format"] == "int16-le" and h["scale_m"] >= 0.1
+    assert len(raw) == h["nx"] * h["ny"] * 2
+    z = np.frombuffer(raw, dtype="<i2").reshape(h["ny"], h["nx"]) * h["scale_m"]
+    assert (h["nx"], h["ny"], h["spacing_m"]) == (1301, 1301, 10.0)  # 13 x 13 km
+    assert h["x0_m"] == -6500 and h["y0_m"] == -6500
+    assert h["ground_m"] == site["terrain"]["ground_m"]
+    assert z[650, 650] == pytest.approx(0.0, abs=0.05)
+    # Every 10th detail vertex is a coarse vertex: same terrain, same place.
+    c = site["terrain"]
+    zc = np.frombuffer((WEB_DATA / c["file"]).read_bytes(), dtype="<f4").reshape(c["ny"], c["nx"])
+    off = round((h["x0_m"] - c["x0_m"]) / c["spacing_m"])  # 35
+    shared = zc[off:off + 131, off:off + 131]
+    np.testing.assert_allclose(z[::10, ::10], shared, atol=h["scale_m"] / 2 + 0.01)
+    assert h["sources"][-1].startswith("LDEM_80S_20MPP")
 
 
 def test_earth_distance(site):

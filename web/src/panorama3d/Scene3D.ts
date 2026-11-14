@@ -19,7 +19,9 @@ import { maskAt } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
 import { attachLookControls } from './controls';
 import { regolithTexture } from './ground';
-import { clampToMask, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap } from './heightmap';
+import {
+  clampToMask, patchHole, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap, type Hole,
+} from './heightmap';
 import { buildLander, landerPlacement, type Lander } from './lander';
 import {
   cameraEuler, defaultPitch, defaultVfov, enuToThree, exaggerateEnu, fitExaggeration3D, lensShiftPx, type Vec3,
@@ -64,7 +66,8 @@ const RING_STYLE = [
 export interface SiteInput {
   mask: number[]; // physics horizon (deg)
   bands: number[][] | null; // near, mid, far (deg), rendering only
-  terrain: Heightmap | null;
+  terrain: Heightmap | null; // 100 m ground, about 10 x 10 km
+  detail?: Heightmap | null; // 10 m patch around the observer, already stitched to `terrain`
   mastM: number;
   elRange: [number, number]; // whole year: lowest horizon .. highest Sun/Earth/ridge (deg)
   earthYear: Vec3[]; // Earth's direction at every sample of the year (true unit vectors)
@@ -98,7 +101,7 @@ export class Scene3D implements PanoramaView {
   private sky = new Sky(BACKDROP_R);
   private rings: Ring[] = [];
   private terrainGroup = new THREE.Group();
-  private terrainMesh: THREE.Mesh | null = null;
+  private terrainMeshes: THREE.Mesh[] = [];
   private lander: Lander = buildLander();
   private sunLight = new THREE.DirectionalLight(0xffffff, SUN_INTENSITY);
   private earthLight = new THREE.DirectionalLight(EARTHSHINE_COLOR, 0);
@@ -126,6 +129,9 @@ export class Scene3D implements PanoramaView {
     this.renderer.setClearColor(0x000000, 1);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Shadows only change with the Sun or the stretch, not when looking around:
+    // redraw the shadow map only then (applyTime), not every frame.
+    this.renderer.shadowMap.autoUpdate = false;
 
     this.camera.rotation.order = 'YXZ';
     this.skyScene.add(this.sky.group);
@@ -135,9 +141,12 @@ export class Scene3D implements PanoramaView {
     this.groundTexture = regolithTexture(this.renderer.capabilities.getMaxAnisotropy());
     this.overlay = new Overlay(canvas.parentElement ?? document.body, (az) => this.setYaw(az));
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
+    // About 3.5 m per texel over the 10 x 10 km ground at 4096, so the 10 m
+    // patch keeps its small shadows; 2048 on GPUs that can't do 4096.
+    const shadowSize = Math.min(4096, this.renderer.capabilities.maxTextureSize);
+    this.sunLight.shadow.mapSize.set(shadowSize, shadowSize);
     this.sunLight.shadow.bias = -0.0005;
-    this.sunLight.shadow.normalBias = 15;
+    this.sunLight.shadow.normalBias = shadowSize >= 4096 ? 4 : 8;
     this.near.add(this.sunLight, this.sunLight.target, this.terrainGroup, this.lander.group);
 
     canvas.addEventListener('webglcontextlost', (ev) => {
@@ -209,31 +218,54 @@ export class Scene3D implements PanoramaView {
       return ring;
     });
 
-    if (this.terrainMesh) {
-      this.terrainGroup.remove(this.terrainMesh);
-      this.terrainMesh.geometry.dispose();
-      (this.terrainMesh.material as THREE.Material).dispose();
-      this.terrainMesh = null;
-    }
-    if (site.terrain) {
-      const pos = terrainPositions(site.terrain, site.mastM);
-      const moved = clampToMask(pos, site.bands?.[0] ?? site.mask, site.mask);
-      if (moved > 0) console.info(`terrain: lowered ${moved} vertices onto the physics horizon`);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geo.setAttribute('uv', new THREE.BufferAttribute(terrainUVs(site.terrain), 2));
-      geo.setAttribute('color', new THREE.BufferAttribute(terrainColors(site.terrain), 3));
-      geo.setIndex(new THREE.BufferAttribute(terrainIndex(site.terrain.nx, site.terrain.ny), 1));
-      geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x9a9a9a, map: this.groundTexture, vertexColors: true, roughness: 1, metalness: 0,
-      });
-      this.terrainMesh = new THREE.Mesh(geo, mat);
-      this.terrainMesh.castShadow = true;
-      this.terrainMesh.receiveShadow = true;
-      this.terrainGroup.add(this.terrainMesh);
-    }
+    this.buildTerrain();
     this.rebuild();
+  }
+
+  private terrainMaterial: THREE.MeshStandardMaterial | null = null;
+
+  /** Add the 10 m patch once it has loaded, keeping the current view (no pitch reset). */
+  setDetail(detail: Heightmap): void {
+    if (!this.site) return;
+    this.site = { ...this.site, detail };
+    this.buildTerrain();
+    this.rebuild(false);
+  }
+
+  private buildTerrain(): void {
+    const site = this.site;
+    for (const m of this.terrainMeshes) {
+      this.terrainGroup.remove(m);
+      m.geometry.dispose();
+    }
+    this.terrainMeshes = [];
+    if (!site?.terrain) return;
+    // The 10 m patch replaces the coarse cells under it (same material, so
+    // texture and mottling run on across the seam).
+    const hole = site.detail ? patchHole(site.terrain, site.detail) : null;
+    if (site.detail && !hole) console.warn('terrain: detail patch is not aligned with the 100 m grid; not drawn');
+    this.addTerrainMesh(site.terrain, site, hole, 'terrain');
+    if (site.detail && hole) this.addTerrainMesh(site.detail, site, null, 'detail patch');
+  }
+
+  private addTerrainMesh(t: Heightmap, site: SiteInput, hole: Hole | null, label: string): void {
+    const pos = terrainPositions(t, site.mastM);
+    const moved = clampToMask(pos, site.bands?.[0] ?? site.mask, site.mask);
+    if (moved > 0) console.info(`${label}: lowered ${moved} of ${t.nx * t.ny} vertices onto the physics horizon`);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(terrainUVs(t), 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(terrainColors(t), 3));
+    geo.setIndex(new THREE.BufferAttribute(terrainIndex(t.nx, t.ny, hole), 1));
+    geo.computeVertexNormals();
+    this.terrainMaterial ??= new THREE.MeshStandardMaterial({
+      color: 0x9a9a9a, map: this.groundTexture, vertexColors: true, roughness: 1, metalness: 0,
+    });
+    const mesh = new THREE.Mesh(geo, this.terrainMaterial);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.terrainGroup.add(mesh);
+    this.terrainMeshes.push(mesh);
   }
 
   setTime(time: TimeInput): void {
@@ -253,7 +285,7 @@ export class Scene3D implements PanoramaView {
     this.terrainGroup.scale.set(1, this.k, 1);
     this.terrainGroup.updateMatrixWorld(true);
 
-    const place = landerPlacement(this.site.terrain, this.site.mastM, this.k, this.site.landerAz);
+    const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, this.site.landerAz);
     this.lander.group.position.set(...place.pos);
     this.lander.group.scale.setScalar(place.scale);
 
@@ -312,6 +344,7 @@ export class Scene3D implements PanoramaView {
     const dir = new THREE.Vector3(...enuToThree(exaggerateEnu(t.sunEnu, this.k)));
     this.sunLight.position.copy(this.lightCenter).addScaledVector(dir, LIGHT_DIST);
     this.sunLight.target.updateMatrixWorld();
+    this.renderer.shadowMap.needsUpdate = true;
 
     this.sky.update({ ...t, sunGlow: t.sunLit ? 1 : 0 }, this.k);
     this.lander.setPanelLit(t.sunLit);

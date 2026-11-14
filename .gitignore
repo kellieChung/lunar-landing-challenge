@@ -8,6 +8,8 @@ __pycache__/
 # Web
 web/node_modules/
 web/dist/
+# Generated from the Sprout Lands pack (licence forbids redistribution): npm run skin
+web/src/assets/ui-sprout/
 
 # OS
 .DS_Store

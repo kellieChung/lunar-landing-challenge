@@ -26,15 +26,22 @@ TODO
 
 ## Horizon masks from LOLA
 - **Data:** LOLA south-pole elevation maps from NASA GSFC PGDA (Barker et al.
-  2023, *Planetary Science Journal* 4, 183, doi:10.3847/PSJ/acf3e1). The
-  20 m/pixel map (80–90°S) is used wherever it has data, the 240 m/pixel map
-  (60–90°S) elsewhere. Heights are relative to a 1737.4 km sphere, in the
+  2023, *Planetary Science Journal* 4, 183, doi:10.3847/PSJ/acf3e1). Maps are
+  stacked finest first: LOLA 5 m/pixel site tiles (about 20 × 20 km each,
+  `*_5mpp_surf.tif`, used when one comes within 20 km of the site), or for
+  sites with no 5 m tile (Peak near Cabeus B, Slater Plain) a 30 × 30 km window
+  of the 10 m/pixel 83–90°S map (`LDEM_83S_10MPP_ADJ`, cut by
+  `scripts/fetch_10mpp_crops.py` as `*_10mpp_crop.tif`), then the
+  20 m/pixel map (80–90°S), then the 240 m/pixel map (60–90°S) where neither
+  has data. Within 200 m of a site tile's edge its heights blend linearly into
+  the 20 m map, so there is no step at the seam. Heights are relative to a 1737.4 km sphere, in the
   MOON_ME frame (DE421), which matches the `MOON_ME` frame we use for the Sun
   and Earth.
 - **Method:** from the observer (ground height + 3 m mast), for each of 360
   azimuths (1° steps, measured from the site's grid north), we walk outward
-  along the surface from 0.1 km to 150 km: every 50 m up to 5 km, then in steps
-  of 1% of the distance. At each step we look up the terrain height and compute
+  along the surface from 0.1 km to 150 km: every 10 m up to 2 km (fine enough
+  for the 5 m tiles), every 50 m up to 5 km, then in steps of 1% of the
+  distance. At each step we look up the terrain height and compute
   the exact 3D elevation angle
 
   `elevation = asin( dot(P − O, up_O) / |P − O| )`
@@ -86,6 +93,14 @@ the picture and the numbers ever disagree, the numbers are right.
   5 km away sits about 7 m lower). Any point drawn above the physics horizon
   is lowered onto it (a handful of points, because the mesh is coarser than
   the ray walk), so the mesh can never hide a Sun the physics says is up.
+- **Detail patch:** the 3 × 3 km nearest the observer is drawn from a second
+  heightmap at 10 m spacing (Python exports 13 × 13 km covering the whole
+  grid, as int16 in 0.1 m steps, about 3.4 MB). The 100 m cells under it are
+  left out; the patch's edge sits exactly on the 100 m triangles and blends
+  into them over 200 m, so there are no cracks or steps. Only about 0.1% of
+  its points need lowering onto the physics horizon. Shadows use one 4096²
+  shadow map (2048² on GPUs that can't) and are redrawn only when the Sun or
+  the stretch changes, not while you look around.
 - **Vertical exaggeration:** every height is stretched by the same factor k
   around the viewer's eye. An elevation angle *el* is then shown at
   `atan(k · tan el)`. This keeps the order of things at every azimuth (a Sun

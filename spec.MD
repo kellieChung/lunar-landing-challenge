@@ -44,7 +44,7 @@ python/
   lunar/metrics.py        # windows, % sunlit, longest dark, flux, score
   lunar/sites.py          # curated site list
   scripts/fetch_data.sh   # downloads kernels + DEM tiles (not committed)
-  scripts/build_site.py   # writes web/public/data/<site_id>.json
+  scripts/build_site.py   # writes web/public/data/<site_id>.json and <site_id>_terrain.bin
   tests/
 web/
   (Vite + TypeScript; React for panels is fine, panorama is a raw <canvas>)
@@ -142,7 +142,7 @@ The weights are a design choice, not physics. Say so in METHODS.md.
 
 ```jsonc
 {
-  "site": { "id": "shackleton-ridge", "name": "...", "lat": 0, "lon": 0, "kind": "south-pole|equator|far-side", "blurb": "one line on why it matters" },
+  "site": { "id": "malapert-massif", "name": "Malapert Massif", "lat": -85.995, "lon": -0.236, "kind": "south-pole|reference", "blurb": "one line on why it matters" },
   "frame": { "description": "site-center ENU, azimuth from grid north" },
   "time": { "start": "2027-01-01T00:00:00Z", "step_hours": 1, "count": 8760 },  // calendar year 2027
   "sun":   { "e": [...], "n": [...], "u": [...], "r_au": [...] },   // float32-ish, 5 decimals
@@ -157,35 +157,52 @@ The weights are a design choice, not physics. Say so in METHODS.md.
 
 Keep each file under ~3 MB. If it's larger, quantize (elevations as int16 hundredths of a degree) before considering a binary format.
 
+**Extra outputs for the 3D view (rendering only, not physics):**
+- `mask_bands_deg`, per grid point: three 360-value masks for distance bands 0–5 km, 5–30 km and 30–150 km, from the same ray walk (keep the max within each band). The overall `mask_deg` is the max of the three and stays the only input to physics.
+- `web/public/data/<site_id>_terrain.bin`: a near-field heightmap around the site center, 20 × 20 km at 100 m per vertex (so every grid point has at least 5 km of ground around it; the browser re-centers on the chosen point and draws the 10 × 10 km around it), as little-endian float32 heights in metres relative to the observer's ground. A small JSON header in the site file gives size, spacing and orientation in the site frame (x = east, y = north).
+
 ## Curated sites
 
-Coordinates are `TODO(astronomer)`: fill from NASA/LROC/mission sources and cite each one in `docs/VALIDATION.md`. Each site teaches something:
+Nine south-pole sites (these match NASA's Artemis III candidate landing regions). Latitude negative = south; longitude in degrees **east**, −180 to 180. Use these exact values; don't round them.
 
-| id | name | why it's here |
-| --- | --- | --- |
-| apollo-11 | Apollo 11 | Equator baseline: Sun climbs high, Earth parked in the sky |
-| chandrayaan-3 | Chandrayaan-3 | High-latitude landing that worked |
-| im-1 | Intuitive Machines IM-1 (Malapert area) | Real CLPS pole lander that lost power early |
-| shackleton-ridge | Shackleton connecting ridge | Among the most-lit terrain on the Moon |
-| shackleton-floor | Inside Shackleton crater | Permanently shadowed: never lit |
-| artemis-candidate | One Artemis III candidate region | "Where would you land?" |
-| change-4 | Chang'e-4 (far side) | Earth never rises: why it needed a relay satellite |
+| id | name | lat (°) | lon (°E) | source |
+| --- | --- | --- | --- | --- |
+| cabeus-b-peak | Peak near Cabeus B | -83.661 | -69.014 | `TODO(astronomer)`: cite |
+| haworth | Haworth | -86.80402 | -21.66710 | paper 2 (given as 338.33290°E), `TODO(astronomer)`: full citation |
+| malapert-massif | Malapert Massif | -85.995 | -0.236 | `TODO(astronomer)`: cite |
+| mons-mouton-plateau | Mons Mouton Plateau | -84.232 | 29.926 | `TODO(astronomer)`: cite |
+| mons-mouton | Mons Mouton | -85.423 | 31.586 | `TODO(astronomer)`: cite |
+| nobile-rim-1 | Nobile Rim 1 | -85.54419 | 37.62660 | paper 2, `TODO(astronomer)`: full citation |
+| nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper 1, `TODO(astronomer)`: full citation |
+| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | -61.167319444 | paper 1 (given as 298.832680556°E), `TODO(astronomer)`: full citation |
+| slater-plain | Slater Plain | -87.149 | 126.134 | `TODO(astronomer)`: cite |
+
+Notes:
+- Store each site's one-line `blurb` as `TODO(astronomer)`. Don't invent descriptions.
+- All sites lie between 83.6°S and 88.6°S. A 150 km horizon ray from Peak near Cabeus B reaches about 79°S, so the far-field DEM must extend a few degrees beyond the 80°S–90°S polar tile.
+- Optional, only if time allows after milestone 8: one or two **reference** sites outside the region (e.g. an equatorial Apollo site) for an "equator vs pole" contrast in Learn mode. They're excluded from the main site list and Site Score ranking.
 
 ## Frontend
 
-Stack: Vite + TypeScript. The panorama is a raw `<canvas>` (2D context), not WebGL. React (or plain DOM) for panels. Static build deployable to GitHub Pages.
+Stack: Vite + TypeScript + **three.js** (a library on top of WebGL; never write raw WebGL). Both the site picker and the panorama are 3D scenes. React (or plain DOM) for panels. Static build deployable to GitHub Pages.
+
+**Rule: rendering never decides visibility.** Lit, Earth-visible and every metric come from the horizon-mask math in `src/physics/` (matching Python). The 3D scene only shows it. If the picture and the numbers disagree, the numbers win, and that's a rendering bug.
 
 ### Screens
 
-1. **Site picker:** a south-pole map image (or a simple globe if time allows) with pins. Clicking a pin opens the panorama. Start with a static image and pins; a rotating globe is a stretch goal.
-2. **Panorama view** (the core):
-   - Full-width canvas showing 360° of horizon, draggable left/right with wraparound (draw the strip twice). Vertical scale is exaggerated (default 10×) with a **"True scale" toggle**; at true scale the Sun becomes a sliver on a flat line, which is a key demo moment.
-   - Black sky with stars even when the Sun is up (no air). Terrain from the mask as layered silhouettes; ridge edges glow when the Sun is just behind them.
-   - Sun and Earth drawn at **true angular size** (Earth ~4× wider than the Sun), with Earth showing the correct phase from the Sun–Earth angle.
-   - Faint 29.5-day Sun track and Earth libration loop.
-   - **Compass strip** across the top with arrows pointing to the Sun or Earth when they're off-screen.
-   - A lander silhouette in the foreground whose solar panel lights up or goes dark.
+1. **Site picker (built by Jack, not Claude Code):** a three.js Moon (the team's low-poly model) with the south pole facing the camera, drag to rotate, and pins for the 9 sites. Clicking a pin navigates to the panorama with `?site=<id>`. Claude Code: don't build the picker. Just make the panorama read `?site=` from the URL, and keep a plain list of site links as a fallback.
+2. **Panorama view** (the core, a first-person 3D scene in three.js):
+   - **Camera** at the observer (3 m up), fixed in place. Drag to look around (yaw 360°, limited pitch), scroll or pinch to zoom the field of view. No walking.
+   - **Far terrain, the "skyline ring":** a cylinder-like ring mesh built from the 360-value horizon mask, placed at a large fixed radius around the camera. Its top edge at each azimuth sits exactly at the mask elevation, so it matches the physics exactly. Use 2–3 ring layers (e.g. masks computed from 0–5 km, 5–30 km and 30–150 km ranges) to give depth with parallax-free layered ridges.
+   - **Near terrain mesh (the 2.5D/3D edge):** a real heightmap mesh of the ground around the site (about 10 × 10 km, about 100 m per vertex, ~100 × 100 vertices) built from the LOLA DEM. A **directional light from the Sun vector** casts real long shadows across it that sweep as time plays. Python exports the heightmap per site (see Output).
+   - **Sky:** a black sky sphere with stars (bright-star list), the Sun as a glowing sprite and Earth as a textured sprite with the correct phase, each placed along its direction vector. Shown at **true angular size** (Earth ~4× wider than the Sun).
+   - **Vertical exaggeration** (default 10×) applied consistently to the terrain, the rings and the Sun/Earth elevations, with a **"True scale" toggle** for the demo moment where the Sun becomes a sliver on a flat line.
+   - Faint 29.5-day Sun track and Earth libration loop drawn as lines on the sky sphere.
+   - **Compass strip** (HTML overlay) across the top with arrows pointing to the Sun or Earth when they're off-screen.
+   - A simple low-poly **lander** in the foreground whose solar panel lights up or goes dark.
    - Contextual tips pinned to objects (Sun, Earth, a peak), one at a time, plus a 4-step first-visit tour.
+   - Performance target: 60 fps on a laptop with integrated graphics. One shadow-casting light, a modest shadow map.
+   - Fallback: if WebGL is unavailable, show a message and the stats panel.
 3. **Time slider** under the panorama: the track itself is colored by state (gold = sunlit, blue = Earth visible, green = both). Play/pause, speed (1 day/s, 1 week/s), "next sunrise" and "next Earthrise" jump buttons. Pressing play fast-forwards a month in ~20 s.
 4. **Stats panel:**
    - Headline answer card: **"Can my lander survive here?"** with days survived and % time in contact.
@@ -208,23 +225,23 @@ Write results into `docs/VALIDATION.md` as tables the project page can reuse.
    - perfectly smooth sphere → horizon equals the geometric dip for the mast height (≈ `−acos(R/(R+h))`)
    - a single cone mountain at known distance → matches the analytic angle
 2. **Ephemeris vs JPL Horizons:** for 3 sites × 5 times, Sun and Earth az/el from our code vs Horizons (topocentric on body 301). Expect agreement well under 0.1°.
-3. **Sanity checks:** pole site Sun elevation stays within about ±1.6°; far-side site Earth is never visible; equator site Earth moves only a few degrees.
+3. **Sanity checks:** at every site, Sun elevation (ignoring terrain) stays within ±(90° − |lat| + 1.6°), e.g. about ±8° at Peak near Cabeus B and ±3° at de Gerlache Rim 2. As test-only points (not shipped), a far-side point (e.g. 0°, 180°E) never sees Earth, and an equatorial near-side point (0°, 0°) keeps Earth within a few degrees of overhead.
 4. **Published illumination:** compare our % sunlit at well-known south-pole points against values in published LOLA illumination studies. `TODO(astronomer)`: pick the papers and points, then fill in the table: site, published %, ours, difference, likely reasons.
 5. **Python ↔ TypeScript parity:** a fixture JSON with expected metrics, tested in both languages.
 6. A short **"Limits"** section: DEM resolution, 1-hour sampling, mast height, fixed 150 km range, and Score weights as a design choice.
 
 ## Milestones (build in this order)
 
-1. **Skeleton:** repo layout, Python env, Vite app, one hand-written fake `site.json`, and a panorama that draws a fake mask with a Sun dot. Drag and wraparound work.
+1. **Skeleton:** repo layout, Python env, Vite + three.js app, one hand-written fake `site.json`, and a first-person scene with a skyline ring from a fake mask and a Sun sprite. Drag-to-look works.
 2. **Real ephemeris:** `ephemeris.py` + Horizons check + tests. Real Sun/Earth vectors for one site in the JSON.
 3. **Real horizon:** `horizon.py` + synthetic tests. Real mask for one site center.
 4. **Time + metrics:** slider, play, colored track, countdowns, % stats, battery and signal icons. Python and TS metrics match.
-5. **All sites + grid:** 7 curated sites, 11 × 11 grids, mini-map location picker, site picker screen.
+5. **All sites + grid:** 9 curated sites, 11 × 11 grids, mini-map location picker, site picker screen.
 6. **Approachability layer:** Site Score + factors, forecast line, Simple/Planner toggle, true-scale toggle, tips and tour.
-7. **Polish:** stars, Earth phase, glowing ridges, lander silhouette, HUD styling. Deploy to GitHub Pages.
+7. **Polish:** near-terrain heightmap mesh with Sun shadows, stars, Earth phase, layered ridge rings, lander model, HUD styling. Deploy to GitHub Pages.
 8. **Docs:** METHODS.md and VALIDATION.md filled in; README with a GIF and the team name only.
 
-Stretch goals, in order, only after milestone 8: optional "Raise the mast" control (3–30 m, site center only; see Horizon mask), "Land and survive" game mode, a shareable site trading card PNG, a rotating 3D globe picker.
+Stretch goals, in order, only after milestone 8: optional "Raise the mast" control (3–30 m, site center only; see Horizon mask), "Land and survive" game mode, a shareable site trading card PNG.
 
 ## Demo video notes
 

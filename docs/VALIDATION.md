@@ -13,21 +13,35 @@ Filled in as each milestone lands.
 | mons-mouton | Mons Mouton | -85.423 | 31.586 | TODO(astronomer): cite |
 | nobile-rim-1 | Nobile Rim 1 | -85.54419 | 37.62660 | paper 2, TODO(astronomer): full citation |
 | nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper 1, TODO(astronomer): full citation |
-| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | 61.16732 | paper 1, TODO(astronomer): full citation |
+| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | -61.167319444 | paper 1 (given as 298.832680556° E), TODO(astronomer): full citation |
 | slater-plain | Slater Plain | -87.149 | 126.134 | TODO(astronomer): cite |
 
-Data is built for the four paper sites (Nobile Rim 1, Nobile Rim 2,
-de Gerlache Rim 2, Haworth). The other five still use the brief's uncited
-values and have no data yet.
+Data is built for all nine sites: the four paper sites (Nobile Rim 1, Nobile
+Rim 2, de Gerlache Rim 2, Haworth) plus Malapert Massif, Mons Mouton, Mons
+Mouton Plateau, Peak near Cabeus B and Slater Plain (the brief's values, still
+uncited). Peak near Cabeus B and Slater Plain have no 5 m tile; they are built
+on 30 × 30 km, 10 m/pixel crops of `LDEM_83S_10MPP_ADJ` (`fetch_10mpp_crops.py`).
 
-**Check flagged for the astronomer: de Gerlache Rim 2.** At the coordinate
-above, the site center is a deep low spot: ground −3,193 m, terrain 2.2° to
-22° high all around, **0% sunlit in 2027**. That does not look like a crater
-rim; it may be inside a nearby permanently shadowed crater
-(`TODO(astronomer)`: confirm which, and the longitude sign). With the
-longitude sign flipped (−61.16732°, i.e. 298.83° E) the ground is +580 m and
-the horizon drops to −2.1° on one side, which looks like a rim. The data
-stays at the paper's value until the coordinate is confirmed.
+**Check flagged for the astronomer: Peak near Cabeus B.** The brief's
+coordinate (−83.661°, −69.014°) is on the peak's flank, not its top: a 17.5°
+slope at 4259 m, with the summit (about 4600 m) 2–3 km to the northeast.
+That ridge rises 10–12° above the center's horizon in Earth's direction, so
+Earth is never visible from the center (0.0%); grid spot (2, 2), near the
+summit, sees Earth 82.6% of the time and is sunlit 58.0%. The 20 m map alone
+gives the same result (0.0% Earth, 30.0% sunlit), so this comes from the
+coordinate, not the 10 m data (`TODO(astronomer)`: confirm the intended point).
+
+**Check flagged for the astronomer: Mons Mouton Plateau.** The team's list
+pairs it with the Mons Mouton tile (`Site20v2_final_adj_5mpp_surf.tif`), but
+its coordinate (−84.232°, 29.926°) lies about 21 km outside that tile, which
+is centered on Mons Mouton itself. It is built on the 20 m map
+(`TODO(astronomer)`: confirm the coordinate, or the tile that covers it).
+
+**Resolved: de Gerlache Rim 2 longitude.** An earlier copy of the brief had
++61.16732°, where the site center is a deep low spot (ground −3,193 m, 0%
+sunlit in 2027). Paper 1 gives 298.832680556° E, i.e. −61.167319444°: a rim
+at +580 m, 19.0% sunlit, inside the team's 5 m tile for this site
+(`SL2_final_adj_5mpp_surf.tif`). The data now uses the paper's value.
 
 ## 1. Horizon tests (synthetic terrain)
 
@@ -47,6 +61,31 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
 
 ### Elevation maps and their agreement
 
+- **Site tiles:** LOLA 5 m/pixel tiles (`*_5mpp_surf.tif`), used where one
+  reaches the site. de Gerlache Rim 2 uses `SL2_final_adj_5mpp_surf.tif`;
+  its center is 0.9 km inside the tile's edge, so 72 of the 121 grid points
+  and about half the terrain fall on it. **Seam check** along that edge
+  (1 km band inside the tile, 37,972 points): 5 m − 20 m mean 0.09 m, median
+  0.06 m, 95% of |differences| under 0.9 m, max 41 m (steep spots); the two
+  maps share a datum. At the site center the 5 m map and finer near-field
+  steps move the horizon by up to 0.9° (mean 0.1°) compared with the 20 m map.
+  Nobile Rim 1 uses `Site06_final_adj_5mpp_surf.tif` (and the overlapping
+  Mons Mouton tile `Site20v2` where Site06 ends; the site's own tile, nearest
+  center first, always wins); Nobile Rim 2 uses `DM2_final_adj_5mpp_surf.tif`;
+  Haworth uses `Haworth_final_adj_5mpp_surf.tif`; Malapert Massif uses
+  `Site23_final_adj_5mpp_surf.tif`; Mons Mouton uses `Site20v2` (then Site06);
+  Mons Mouton Plateau has no tile (see the flag above). Edge checks, 5 m − 20 m
+  in the 1 km band: Site06 mean −0.08 m (95% under 1.0 m), Site20v2 mean
+  0.00 m (95% under 0.8 m), DM2 mean 0.05 m (95% under 1.2 m), Site23 mean
+  0.02 m (95% under 0.9 m), Haworth mean 0.05 m (95% under 0.8 m).
+  Peak near Cabeus B and Slater Plain use 10 m/pixel crops
+  (`cabeus-b-peak_10mpp_crop.tif`, `slater-plain_10mpp_crop.tif`), layered and
+  feathered like the 5 m tiles; 10 m − 20 m in the 1 km band: Cabeus B mean
+  0.04 m (95% under 0.5 m), Slater Plain mean 0.06 m (95% under 0.6 m). At
+  their centers the crops move the horizon by at most 0.27° (Cabeus B) and
+  0.10° (Slater Plain) and % sunlit by under 0.03 points versus the 20 m map.
+  Switching to the 5 m tiles and 10 m steps moved the site centers' % sunlit by
+  −0.6 (Nobile Rim 1), −0.8 (Nobile Rim 2) and −0.1 (Haworth) points.
 - **Near map:** `LDEM_80S_20MPP_ADJ` (20 m/pixel). **Far map:** `LDEM_60S_240MPP_ADJ`
   (240 m/pixel). Both from NASA GSFC PGDA (Barker et al. 2023, *PSJ* 4, 183,
   doi:10.3847/PSJ/acf3e1). Heights in metres relative to a 1737.4 km sphere
@@ -88,10 +127,15 @@ Full year 2027, 3 m mast. "Best spot" gives grid (i, j): i km east, j km north o
 
 | site | center ground | center sunlit | grid min | grid max (best spot) | center Earth visible | grid Earth visible | grid ground |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| nobile-rim-1 | 6120 m | 78.9% | 0.0% | 78.9% (0, 0) | 60.4% | 0.0–63.3% | 3833 to 6175 m |
-| nobile-rim-2 | 1122 m | 32.9% | 0.0% | 51.9% (−3, 2) | 24.7% | 0.0–75.2% | −605 to 1454 m |
-| de-gerlache-rim-2 | −3193 m | 0.0% | 0.0% | 18.5% (5, −5) | 38.5% | 0.0–51.2% | −4220 to −854 m |
-| haworth | 1819 m | 48.8% | 0.0% | 51.7% (2, 1) | 60.6% | 0.0–65.1% | 1124 to 1929 m |
+| nobile-rim-1 | 6119 m | 78.3% | 0.0% | 78.3% (0, 0) | 60.0% | 0.0–63.3% | 3833 to 6175 m |
+| nobile-rim-2 | 1121 m | 32.1% | 0.0% | 51.9% (−3, 2) | 24.5% | 0.0–75.2% | −605 to 1453 m |
+| de-gerlache-rim-2 | 580 m | 19.0% | 0.0% | 83.0% (−5, −5) | 49.9% | 0.0–55.0% | −219 to 1812 m |
+| haworth | 1819 m | 48.7% | 0.0% | 50.4% (2, 1) | 60.5% | 0.0–65.1% | 1124 to 1929 m |
+| malapert-massif | 4784 m | 28.1% | 22.5% | 65.8% (1, 0) | 46.9% | 0.0–100.0% | 3110 to 5169 m |
+| mons-mouton | 6400 m | 40.3% | 0.0% | 76.5% (−5, −2) | 67.5% | 0.0–99.4% | 4997 to 6422 m |
+| mons-mouton-plateau | 5077 m | 36.6% | 0.0% | 51.3% (−3, 2) | 100.0% | 0.0–100.0% | 4566 to 5536 m |
+| cabeus-b-peak | 4259 m | 30.0% | 3.3% | 58.0% (2, 2) | 0.0% | 0.0–82.6% | 2098 to 4579 m |
+| slater-plain | 23 m | 3.7% | 0.0% | 58.3% (2, −3) | 36.7% | 0.0–43.7% | −527 to 525 m |
 
 Each site has spots that never see the Sun within 5 km of its center: small
 craters and pits next to the high ground. Moving a lander 1 km can change
@@ -199,11 +243,12 @@ Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
 
 | sunlit | mean fraction | Earth visible | both | longest night | longest blackout | mean flux: tracking / vertical / flat |
 | --- | --- | --- | --- | --- | --- | --- |
-| 32.9% | 0.33 | 24.7% | 7.8% | 510 h (21.3 d) | 495 h (20.6 d) | 448 / 446 / 33 W/m² |
+| 32.1% | 0.32 | 24.5% | 7.5% | 540 h (22.5 d) | 496 h (20.7 d) | 437 / 436 / 33 W/m² |
 
 ## Limits
 
-- **Map resolution:** 20 m/pixel near field, 240 m far field. Features
+- **Map resolution:** 5 m/pixel inside site tiles, 20 m/pixel near field
+  elsewhere, 240 m far field. Features
   smaller than that (boulders, small craters) are not in the horizon.
 - **Distant sampling:** beyond 5 km, samples are spaced at 1% of the distance
   (about 1 km apart at 100 km), so a narrow distant peak can fall between

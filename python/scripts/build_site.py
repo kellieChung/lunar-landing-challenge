@@ -8,7 +8,11 @@ real horizon masks from the LOLA elevation maps for an 11 x 11 grid of points
 "up" tilt so the browser can measure Sun/Earth elevations against it.
 For the 3D view it also writes each point's horizon split into distance bands
 and <site_id>_terrain.bin, a 20 x 20 km heightmap around the center, so every
-grid point has at least 5 km of ground around it (rendering only, never physics).
+grid point has at least 5 km of ground around it, plus <site_id>_detail.bin, a
+13 x 13 km heightmap at 10 m (int16, 0.1 m steps) that the browser crops to a
+3 x 3 km patch around the chosen point (rendering only, never physics).
+Heights come from the same map stack as the horizons: any 5 m site tiles in
+python/data/dem, then the 20 m and 240 m maps (lunar/dem.py).
 precomputed.points[k].year holds the full-year metrics at each point (and
 precomputed.center.year at the center), computed from the rounded numbers in
 the file exactly as the browser does, so both get the same answers.
@@ -27,7 +31,7 @@ from lunar.grid import GRID_SIZE, GRID_SPACING_KM, grid_offsets, point_latlon, p
 from lunar.horizon import BAND_EDGES_KM, horizon_mask
 from lunar.metrics import rounded_metrics, site_series, window_metrics
 from lunar.sites import get_site
-from lunar.terrain import terrain_grid
+from lunar.terrain import int16_scale, terrain_grid, to_int16
 
 from build_sites_index import write_index
 
@@ -37,6 +41,8 @@ COUNT = 8760  # hours in 2027
 STEP_HOURS = 1
 MAST_HEIGHT_M = 3.0
 TERRAIN_HALF_M = 10_000.0  # 20 x 20 km: >= 5 km of ground around every grid point
+DETAIL_HALF_M = 6_500.0  # the grid (+/-5 km) plus a 1.5 km patch radius
+DETAIL_SPACING_M = 10.0
 TILT_DIGITS = 8
 
 
@@ -64,7 +70,9 @@ def grid_points(site, frame, dem, ground_c: float) -> list[dict]:
         if hz.skipped:
             print(f"warning: point ({i},{j}): {hz.skipped} terrain samples had no data (ignored)")
         points.append({"i": i, "j": j, "dx_km": dx_km, "dy_km": dy_km,
-                       "lat": round(lat, 6), "lon": round(lon, 6),
+                       # The center keeps the site's exact coordinates; others are rounded.
+                       "lat": lat if (i, j) == (0, 0) else round(lat, 6),
+                       "lon": lon if (i, j) == (0, 0) else round(lon, 6),
                        "ground_m": round(hz.ground_m, 1),
                        "up_tilt": [round(float(x), TILT_DIGITS) for x in tilt],
                        "mask_deg": r2(hz.mask_deg),
@@ -93,6 +101,11 @@ def build(site_id: str) -> Path:
 
     terrain = terrain_grid(site.lat, site.lon, dem, frame=frame, ground_m=ground_c, half_m=TERRAIN_HALF_M)
     terrain_name = f"{site.id}_terrain.bin"
+    detail = terrain_grid(site.lat, site.lon, dem, frame=frame, ground_m=ground_c,
+                          half_m=DETAIL_HALF_M, spacing_m=DETAIL_SPACING_M)
+    detail_name = f"{site.id}_detail.bin"
+    detail_scale = int16_scale(detail.heights_m)  # 0.1 m unless the relief is very tall
+    detail_q = to_int16(detail.heights_m, detail_scale)
 
     E.load_kernels()
     eph = E.site_ephemeris(site.lat, site.lon, START, COUNT, STEP_HOURS, MAST_HEIGHT_M,
@@ -115,6 +128,8 @@ def build(site_id: str) -> Path:
             "points": points,
         },
         "terrain": terrain.header(terrain_name),
+        "terrain_detail": {**detail.header(detail_name, fmt="int16-le"), "scale_m": detail_scale,
+                           "sources": [d.path.name for d in dem.detail] + [dem.near.path.name]},
     }
     # Metrics from exactly what the browser will read (rounded vectors, masks and tilts).
     years = [point_year(data, p) for p in points]
@@ -126,6 +141,9 @@ def build(site_id: str) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, separators=(",", ":"), allow_nan=False))
     terrain.heights_m.astype("<f4").tofile(WEB_DATA / terrain_name)
+    detail_q.tofile(WEB_DATA / detail_name)
+    print(f"wrote {WEB_DATA / detail_name} ({detail.heights_m.shape[1]} x {detail.heights_m.shape[0]} "
+          f"at {DETAIL_SPACING_M:.0f} m, {(WEB_DATA / detail_name).stat().st_size / 1e6:.1f} MB)")
     print(f"wrote {WEB_DATA / terrain_name} ({terrain.heights_m.shape[1]} x {terrain.heights_m.shape[0]}, "
           f"heights {terrain.heights_m.min():.0f} to {terrain.heights_m.max():.0f} m)")
     sunlit = [y["sunlit_pct"] for y in years]
