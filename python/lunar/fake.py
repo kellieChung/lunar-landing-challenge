@@ -1,4 +1,4 @@
-"""Made-up horizon mask used until the real one exists (milestone 3).
+"""Made-up horizon mask, used only for the web/public/data/fake.json test file.
 
 This is NOT terrain data. Any JSON using it must say so ("fake" or "mask_fake").
 """

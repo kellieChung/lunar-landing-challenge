@@ -50,15 +50,15 @@ def load_kernels(kernel_dir: Path = DEFAULT_KERNEL_DIR) -> None:
         spice.furnsh(str(kernel_dir / name))
 
 
-def site_position_km(lat_deg: float, lon_deg: float, height_m: float = 3.0) -> np.ndarray:
+def site_position_km(lat_deg: float, lon_deg: float, height_m: float = 3.0,
+                     ground_m: float = 0.0) -> np.ndarray:
     """Site position from the Moon's center, in MOON_ME, in km.
 
-    height_m is the mast height above the reference sphere.
-    TODO(milestone 3): add the LOLA ground height at the site. Leaving it out
-    shifts the Sun/Earth directions by less than 0.001 degrees.
+    ground_m: LOLA terrain height at the site (relative to the 1737.4 km sphere).
+    height_m: mast height above the ground.
     """
     lat, lon = np.radians(lat_deg), np.radians(lon_deg)
-    r = MOON_RADIUS_KM + height_m / 1000.0
+    r = MOON_RADIUS_KM + (ground_m + height_m) / 1000.0
     return r * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
 
 
@@ -111,10 +111,11 @@ def az_el(e, n, u):
 
 
 def site_ephemeris(lat_deg: float, lon_deg: float, start_utc: str, count: int,
-                   step_hours: float = 1.0, height_m: float = 3.0) -> dict:
+                   step_hours: float = 1.0, height_m: float = 3.0,
+                   ground_m: float = 0.0) -> dict:
     """Sun and Earth unit vectors (site frame) plus Sun distance in AU."""
     ets = hourly_ets(start_utc, count, step_hours)
-    pos = site_position_km(lat_deg, lon_deg, height_m)
+    pos = site_position_km(lat_deg, lon_deg, height_m, ground_m)
     frame = site_frame(lat_deg, lon_deg)
     sun, sun_dist = body_enu("SUN", ets, pos, frame)
     earth, _ = body_enu("EARTH", ets, pos, frame)

@@ -14,8 +14,46 @@ Filled in as each milestone lands.
 | shackleton-floor | TODO | TODO | TODO(astronomer) |
 | change-4 | TODO | TODO | TODO(astronomer) |
 
-## 1. Horizon unit tests (synthetic terrain)
-TODO (milestone 3)
+## 1. Horizon tests (synthetic terrain)
+
+Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
+1737.4 km sphere. All pass.
+
+| test | what it checks | expected | result |
+| --- | --- | --- | --- |
+| Smooth sphere | every azimuth shows the geometric dip `−acos(R/(R+h))` | −0.0586° | within 0.001° at all 360 azimuths |
+| Cone mountain (1 km high, 4 km due north) | north value equals the exact 3D angle to the tip | exact 3D angle | within 1e-6°; spec's small-angle formula agrees within 0.05° |
+| Cone, looking away | south shows only the sphere dip | −0.0586° | within 0.001° |
+| Orientation | a peak placed at 0°, 90°, 180°, 270° shows up at that same azimuth | same index | pass (guards against a mirrored panorama) |
+| Near/far maps | a peak only in the far map is seen where the near map has no data; a near-map peak wins over a flat far map | peak visible | pass |
+| Missing data | samples with no data in either map are skipped, never treated as 0 m | skipped | pass |
+| Map projection | our polar stereographic formula vs. GDAL/PROJ using each file's own CRS, 4 latitudes × 4 longitudes | same x, y | within 1 cm |
+| Pixel lookup | sampling at a pixel center returns that pixel's raw value | raw value | within 1 mm |
+
+### Elevation maps and their agreement
+
+- **Near map:** `LDEM_80S_20MPP_ADJ` (20 m/pixel). **Far map:** `LDEM_60S_240MPP_ADJ`
+  (240 m/pixel). Both from NASA GSFC PGDA (Barker et al. 2023, *PSJ* 4, 183,
+  doi:10.3847/PSJ/acf3e1). Heights in metres relative to a 1737.4 km sphere
+  (the files' own datum), south polar stereographic.
+- The near map is square, so its corners reach beyond 80°S. Around Nobile Rim
+  2 it covers essentially the whole 150 km radius; the far map only fills the
+  few spots at the window edge.
+- **Seam check** (`python/scripts/check_dem_seam.py`): 199,990 random points
+  within 150 km of Nobile Rim 2 where both maps have data. Near − far: mean
+  −0.01 m, median 0.15 m, 95% of |differences| under 6.5 m, max 51 m (rough
+  terrain the 240 m map smooths). No systematic offset, so both maps share
+  the same reference and projection.
+
+### Nobile Rim 2 horizon (site center, 3 m mast)
+
+- Ground height: 1,122 m above the 1737.4 km sphere.
+- Horizon from −1.82° (azimuth 170°) to +7.09° (azimuth 303°).
+- The highest ridge (northwest, around 300°) is in the same direction as
+  Earth (azimuth about 291°–307° over 2027), so terrain hides Earth much of
+  the time. Detailed percentages come with the metrics in milestone 4.
+- Computing one 360° mask takes about 0.02 s (spec target: under 2 s);
+  loading the two map windows takes about 3.5 s per site.
 
 ## 2. Ephemeris vs JPL Horizons
 
@@ -100,4 +138,13 @@ TODO(astronomer): papers and points.
 TODO (milestone 4)
 
 ## Limits
-TODO
+
+- **Map resolution:** 20 m/pixel near field, 240 m far field. Features
+  smaller than that (boulders, small craters) are not in the horizon.
+- **Distant sampling:** beyond 5 km, samples are spaced at 1% of the distance
+  (about 1 km apart at 100 km), so a narrow distant peak can fall between
+  samples. This follows the spec's design.
+- **Fixed 150 km range:** terrain further away is ignored.
+- **Mast height:** one fixed 3 m observer height for both solar panel and
+  antenna.
+- TODO: 1-hour time sampling and Site Score weights (milestones 4 and 6).

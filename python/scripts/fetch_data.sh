@@ -5,7 +5,7 @@
 #
 # Usage: fetch_data.sh [kernels|dem|all]   (default: all)
 #   kernels  SPICE kernels only (~60 MB), needed from milestone 2
-#   dem      LOLA elevation maps (~2 GB), needed from milestone 3
+#   dem      LOLA elevation maps (~2.8 GB), needed from milestone 3
 set -euo pipefail
 
 MODE="${1:-all}"
@@ -37,12 +37,18 @@ fetch "$NAIF/spk/planets/de440s.bsp"              "$DATA/kernels/de440s.bsp"
 fi
 
 if [[ "$MODE" == dem || "$MODE" == all ]]; then
-# LOLA gridded DEMs, south polar stereographic. Heights relative to 1737.4 km.
-LOLA=https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/img
-for name in ldem_80s_20m ldem_75s_120m; do   # near field 80-90S, far field 75-90S
-  fetch "$LOLA/$name.lbl" "$DATA/dem/$name.lbl"
-  fetch "$LOLA/$name.img" "$DATA/dem/$name.img"
-done
+# LOLA south-pole elevation maps from NASA GSFC PGDA (Barker et al. 2023,
+# PSJ 4, 183). Heights in metres relative to a 1737.4 km sphere,
+# south polar stereographic, MOON_ME (DE421).
+PGDA=https://pgda.gsfc.nasa.gov/data/LOLA_20mpp
+# Near field: 80-90 S at 20 m/pixel (2.6 GB). Accept a copy saved as .tiff.
+if [[ -f "$DATA/dem/LDEM_80S_20MPP_ADJ.tiff" ]]; then
+  echo "have  $DATA/dem/LDEM_80S_20MPP_ADJ.tiff"
+else
+  fetch "$PGDA/LDEM_80S_20MPP_ADJ.TIF" "$DATA/dem/LDEM_80S_20MPP_ADJ.TIF"
+fi
+# Far field: 60-90 S at 240 m/pixel (210 MB), used where the near map has no data.
+fetch "$PGDA/LDEM_60S_240MPP_ADJ.TIF" "$DATA/dem/LDEM_60S_240MPP_ADJ.TIF"
 fi
 
 # TODO: equator (Apollo 11) and far-side (Chang'e-4) sites need a global or

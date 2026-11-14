@@ -2,9 +2,9 @@
 
     python/.venv/bin/python python/scripts/build_site.py --site artemis-candidate
 
-Milestone 2: real Sun/Earth vectors for calendar year 2027 (hourly).
-The horizon mask is still the made-up one (marked "mask_fake": true) until
-the real horizon arrives in milestone 3.
+Real Sun/Earth vectors for calendar year 2027 (hourly) and the real horizon
+mask at the site center from the LOLA elevation maps.
+TODO(milestone 5): 11 x 11 grid of points around the center.
 """
 
 import argparse
@@ -12,7 +12,8 @@ import json
 from pathlib import Path
 
 from lunar import ephemeris as E
-from lunar.fake import fake_mask
+from lunar.dem import load_site_dem
+from lunar.horizon import horizon_mask
 from lunar.sites import get_site
 
 from build_sites_index import write_index
@@ -30,13 +31,20 @@ def r5(values) -> list[float]:
 
 def build(site_id: str) -> Path:
     site = get_site(site_id)
+    frame = E.site_frame(site.lat, site.lon)
+    dem = load_site_dem(site.lat, site.lon)
+    hz = horizon_mask(site.lat, site.lon, dem, frame=frame, observer_height_m=MAST_HEIGHT_M)
+    if hz.skipped:
+        print(f"warning: {hz.skipped} terrain samples had no data in either map (ignored)")
+
     E.load_kernels()
-    eph = E.site_ephemeris(site.lat, site.lon, START, COUNT, STEP_HOURS, MAST_HEIGHT_M)
+    eph = E.site_ephemeris(site.lat, site.lon, START, COUNT, STEP_HOURS, MAST_HEIGHT_M,
+                           ground_m=hz.ground_m)
 
     data = {
-        "mask_fake": True,  # TODO(milestone 3): real horizon mask
         "site": {"id": site.id, "name": site.name, "lat": site.lat, "lon": site.lon,
-                 "kind": site.kind, "blurb": site.blurb},
+                 "kind": site.kind, "blurb": site.blurb,
+                 "ground_height_m": round(hz.ground_m, 1), "mast_height_m": MAST_HEIGHT_M},
         "frame": {"description": "site-center ENU, azimuth from grid north"},
         "time": {"start": START, "step_hours": STEP_HOURS, "count": COUNT},
         "sun": {k: r5(v) for k, v in eph["sun"].items()},
@@ -44,7 +52,8 @@ def build(site_id: str) -> Path:
         "grid": {
             "spacing_km": 1, "size": 1,
             "points": [{"i": 0, "j": 0, "dx_km": 0, "dy_km": 0,
-                        "up_tilt": [0.0, 0.0], "mask_deg": fake_mask()}],
+                        "up_tilt": [0.0, 0.0],
+                        "mask_deg": [round(float(v), 2) for v in hz.mask_deg]}],
         },
         "precomputed": {},
     }
