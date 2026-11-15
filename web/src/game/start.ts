@@ -185,6 +185,30 @@ export async function startGame(x: GameSession): Promise<void> {
   let plant: Plant | null = null;
   let rocket: Rocket | null = null;
   let power: PowerReport = { solarKw: 0, plantKw: 0, roverKw: 0, earth: false };
+  // ---- The run-up to launch: fuel tiers, a pace estimate, a banner ----
+  const fillOf = () => (run ? Math.min(1, run.game.h2Kg / TARGET.h2Kg, run.game.o2Kg / TARGET.o2Kg) : 0);
+  const TIERS = [0.5, 0.75, 0.9, 0.99];
+  const tierOf = (f: number) => TIERS.filter((t) => f >= t).length;
+  let fuelTier = 0;
+  let fills: [number, number][] = []; // [hour, fill] over the last few days
+  const PACE_SPAN_H = 72;
+  /** Hours until full at the recent pace, or null if the tanks are not filling. */
+  function fuelEta(): number | null {
+    if (fills.length < 2) return null;
+    const [h0, f0] = fills[0];
+    const [h1, f1] = fills[fills.length - 1];
+    if (h1 - h0 < 6 || f1 <= f0) return null;
+    return ((1 - f1) * (h1 - h0) * stepH) / (f1 - f0);
+  }
+  const banner = (text: string) => {
+    const b = el('div', 'g-banner', text);
+    x.stage.append(b);
+    window.setTimeout(() => b.remove(), 2700);
+  };
+  const etaWords = () => {
+    const e = fuelEta();
+    return e === null ? '' : e >= 36 ? `${Math.round(e / 24)} days` : `${Math.max(1, Math.round(e))} hours`;
+  };
   const refreshProps = () => {
     if (!x.scene || !run) return;
     const s = run.game;
@@ -253,6 +277,18 @@ export async function startGame(x: GameSession): Promise<void> {
     plant.vent.getWorldPosition(ventAt);
     x.scene!.fx.steam(ventAt);
   }, { lowRate: true, idle: () => !(plant?.working && clock.isPlaying && run?.game.base === here()) });
+
+  // Near full (90%+) the rocket vents boil-off: the pad comes alive before launch.
+  const padAt = new THREE.Vector3();
+  let padT = 0;
+  x.scene?.addTicker((dt) => {
+    padT -= dt;
+    if (padT > 0 || !rocket) return;
+    padT = fuelTier >= 4 ? 0.18 : 0.35;
+    rocket.group.getWorldPosition(padAt);
+    padAt.y += 4 * x.scene!.exaggeration;
+    x.scene!.fx.steam(padAt);
+  }, { lowRate: true, idle: () => !(rocket && fuelTier >= 3 && !launching && run?.game.base === here()) });
 
   /** "+N kg ice" over the hopper when a load comes home (or by the fuel gauge when elsewhere). */
   let lastPop = -Infinity;
@@ -434,6 +470,7 @@ export async function startGame(x: GameSession): Promise<void> {
         .map((item) => buildCost(s, env, item))
         .reduce<number | null>((m, c) => (c === null ? m : m === null ? c : Math.min(m, c)), null),
       deliveries: s.deliveries ?? 0, towers: s.towers.length,
+      fuelEtaH: fuelEta(),
       sunFlipH: flipIn(world.series(at).lit, h), earthFlipH: flipIn(world.series(at).earth, h),
     };
   };
@@ -769,8 +806,21 @@ export async function startGame(x: GameSession): Promise<void> {
 
   // 5. Launch and the end of a run
   const doLaunch = () => {
+    comms.drop(); // nothing stale over the go call, the cinematic or the report card
+    busy = true;
+    want = false;
+    sync();
     const r = run!;
-    comms.drop(); // nothing stale over the cinematic or the report card
+    if (r.game.base) goTo(r.game.base);
+    banner('GO FOR LAUNCH');
+    sfx.tick(true);
+    void comms.hold('Tanks FULL! All stations report GO. Commander, the button is yours…', 'love', undefined, { loud: true, next: 'Launch!' })
+      .then(() => launchNow());
+  };
+  const launchNow = () => {
+    const r = run!;
+    if (r.game.launchedHour !== null) return;
+    comms.drop();
     launch(r.game);
     busy = true;
     launching = true;
@@ -842,7 +892,6 @@ export async function startGame(x: GameSession): Promise<void> {
   // ---- Events from the rules ----
   let lastKind: WindowKind | null = null;
   let firstHaul = true;
-  let half = false;
   const onEvents = (events: GameEvent[]) => {
     for (const ev of events) {
       if (ev.type === 'sleep') { comms.say('Battery empty. The base is asleep until the Sun comes back.', 'zzz'); }
@@ -871,12 +920,31 @@ export async function startGame(x: GameSession): Promise<void> {
       }
       lastKind = kind;
     }
-    if (!half && s.h2Kg >= TARGET.h2Kg / 2 && s.o2Kg >= TARGET.o2Kg / 2) {
-      half = true;
-      comms.say('The tank is half full. Halfway home!', 'cheer');
+    const f = fillOf();
+    fills.push([s.hour, f]);
+    while (fills.length > 2 && s.hour - fills[0][0] > PACE_SPAN_H) fills.shift();
+    const t = tierOf(f);
+    if (t > fuelTier) {
+      fuelTier = t;
+      const eta = etaWords();
       const fuel = hud.el.querySelector('.g-fuel');
-      if (fuel) burst(fuel);
+      if (fuel) burst(fuel, t >= 3 ? 40 : 26);
       sfx.sparkle();
+      if (t >= 3) {
+        slowUntil = Infinity; // no fast-forward past the last stretch
+        sfx.tick(true);
+      }
+      if (f < 1) {
+        if (t === 1) comms.say('The tank is half full. Halfway home!', 'cheer');
+        else if (t === 2) comms.say(`Three quarters full! The pad crew is waking up the rocket.${eta ? ` At this pace, launch in about ${eta}.` : ''}`, 'cheer');
+        else if (t === 3) {
+          banner('90% FUELED');
+          comms.say(`90% FUELED! The rocket is venting and ready to wake.${eta ? ` About ${eta} to launch.` : ''} Keep the ice coming!`, 'love', undefined, { loud: true, next: 'Go!' });
+        } else {
+          banner('STAND BY FOR LAUNCH');
+          comms.say('99%! Topping off the tanks… all stations, STAND BY FOR LAUNCH!', 'love', undefined, { loud: true, next: 'Standing by!' });
+        }
+      }
     }
   };
 
@@ -912,7 +980,7 @@ export async function startGame(x: GameSession): Promise<void> {
   };
   x.onMove = () => render();
   // Dev builds only: a handle for poking at the game from the console.
-  if (import.meta.env.DEV) (window as unknown as { moonbase: unknown }).moonbase = { get run() { return run; }, scene: x.scene, landerAz: x.landerAz, launch: () => doLaunch(), render };
+  if (import.meta.env.DEV) (window as unknown as { moonbase: unknown }).moonbase = { get run() { return run; }, scene: x.scene, landerAz: x.landerAz, launch: () => launchNow(), render };
 
   // ---- Menu ----
   const openMenu = () => {
@@ -969,7 +1037,9 @@ export async function startGame(x: GameSession): Promise<void> {
     x.timebar.seek(Math.min(r.game.hour, lastHour), false);
     if (r.game.base) {
       lastKind = currentWindow(world, r.game.base, Math.min(r.game.hour, lastHour)).win.kind;
-      half = r.game.h2Kg >= TARGET.h2Kg / 2 && r.game.o2Kg >= TARGET.o2Kg / 2;
+      fuelTier = tierOf(fillOf());
+      fills = [];
+      if (fuelTier >= 3) slowUntil = Infinity;
       firstHaul = r.game.trips === 0;
       goTo(r.game.base);
       power = { solarKw: 0, plantKw: 0, roverKw: 0, earth: env.earthVisible(r.game.base, r.game.hour) };

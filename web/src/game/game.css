@@ -149,6 +149,17 @@
 .g-link.off .spr { filter: grayscale(1) brightness(0.45); }
 .g-alert .g-v { color: var(--g-red); }
 .g-fuel-pct { min-width: 2.6em; }
+/* The run-up to launch: the gauge warms up as the tanks near full (start.ts fuel tiers). */
+.g-fuel-eta { font-size: 11px; color: var(--g-sun); letter-spacing: 1px; white-space: nowrap; }
+.g-fuel-eta:empty { display: none; }
+.g-fuel[data-tier="near"] .g-meter { filter: drop-shadow(0 0 3px rgba(120, 190, 255, 0.8)); }
+.g-fuel[data-tier="close"] .g-meter, .g-fuel[data-tier="final"] .g-meter, .g-fuel[data-tier="ready"] .g-meter { filter: drop-shadow(0 0 5px var(--g-sun)); }
+.g-fuel[data-tier="close"] .g-fuel-pct, .g-fuel[data-tier="final"] .g-fuel-pct, .g-fuel[data-tier="ready"] .g-fuel-pct { color: var(--g-sun); }
+@media (prefers-reduced-motion: no-preference) {
+  .g-fuel[data-tier="close"] { animation: g-fuel-pulse 1.6s ease-in-out infinite; }
+  .g-fuel[data-tier="final"], .g-fuel[data-tier="ready"] { animation: g-fuel-pulse 0.6s ease-in-out infinite; }
+}
+@keyframes g-fuel-pulse { 50% { filter: brightness(1.4) drop-shadow(0 0 6px var(--g-sun)); } }
 .g-day-n { min-width: 5.5em; text-align: right; }
 .g-bar .g-b-sq { min-height: 32px; font-size: 12px; }
 .g-sprites .g-bar .g-b-sq { border-width: 6px 6px 9px; }
@@ -237,6 +248,19 @@ body:has(#pano-screen.game-ready) .topbar,
 .g-comms-box { position: relative; flex: 1; min-height: 56px; padding: 6px 64px 6px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; }
 .g-comms-name { font-size: 11px; color: var(--g-purple); text-transform: uppercase; letter-spacing: 1px; }
 .g-comms-line { margin: 0; font-size: 15px; line-height: 1.3; }
+/* A big moment (near launch): bigger words, a gold glow, a pulse. */
+.g-comms.loud .g-comms-box { box-shadow: 0 0 0 3px var(--g-sun), 0 0 24px 4px rgba(255, 211, 107, 0.55); }
+.g-comms.loud .g-comms-line { font-size: 19px !important; font-weight: 700; }
+.g-comms.loud .g-comms-next { font-size: 14px; }
+@media (prefers-reduced-motion: no-preference) {
+  .g-comms.loud .g-comms-box { animation: g-loud 1.2s ease-in-out infinite; }
+}
+@keyframes g-loud { 50% { box-shadow: 0 0 0 3px var(--g-sun), 0 0 36px 10px rgba(255, 211, 107, 0.8); } }
+/* A short banner across the view (fuel milestones). */
+.g-banner { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); z-index: 34; pointer-events: none; padding: 8px 22px; font: 26px var(--g-font); letter-spacing: 3px; color: var(--g-sun); background: rgba(10, 8, 24, 0.72); border: 2px solid var(--g-sun); text-shadow: 0 0 10px rgba(255, 211, 107, 0.8); white-space: nowrap; animation: g-banner 2.6s ease-out forwards; }
+@keyframes g-banner { 0% { opacity: 0; transform: translateX(-50%) scale(1.4); } 12% { opacity: 1; transform: translateX(-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .g-banner { animation: g-banner-fade 2.6s linear forwards; } }
+@keyframes g-banner-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 .g-comms-next { position: absolute; right: 6px; bottom: 4px; display: inline-flex; align-items: center; gap: 2px; margin: 0; padding: 0 2px; border: 0; background: none; font: 11px var(--g-font); color: var(--g-sun); text-transform: uppercase; letter-spacing: 1px; text-shadow: inherit; cursor: inherit; }
 .g-comms-next:focus-visible { outline: none; }
 .g-comms-next:hover .g-comms-next-word, .g-comms-next:focus-visible .g-comms-next-word { text-decoration: underline; text-underline-offset: 3px; }

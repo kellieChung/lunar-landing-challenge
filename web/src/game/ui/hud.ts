@@ -46,6 +46,7 @@ export interface HudView {
   sun: boolean;
   asleep: boolean;
   earth: boolean;
+  fuelEtaH: number | null; // hours until the tanks are full at the recent fill rate
   sunFlipH: number | null; // hours until the Sun rises / sets at the base
   earthFlipH: number | null; // hours until Earth rises / sets
   rovers: RoverView[];
@@ -105,7 +106,7 @@ export class Hud {
     const menu = btn('Menu', on.menu, 'sq', 'i-gear');
 
     this.fuel = meter(10, 'blue', 'Fuel to fly home');
-    const fuel = stat('g-fuel', el('span', 'g-k', 'Fuel'), this.fuel.el, el('b', 'g-fuel-pct'));
+    const fuel = stat('g-fuel', el('span', 'g-k', 'Fuel'), this.fuel.el, el('b', 'g-fuel-pct'), el('span', 'g-fuel-eta'));
 
     this.batt = meter(6, 'green', 'Base battery');
     const sunG = el('span', 'g-sun-glyph');
@@ -201,8 +202,12 @@ export class Hud {
     this.el.classList.toggle('landed', v.landed);
     const fill = Math.min(1, v.h2, v.o2);
     this.fuel.set(fill);
-    this.q('.g-fuel-pct').textContent = `${Math.floor(fill * 100)}%`;
-    this.q('.g-fuel').title = `Fuel to fly home: ${kg(v.h2Kg)} of 19 kg hydrogen, ${kg(v.o2Kg)} of 114 kg oxygen`;
+    const tier = fill >= 1 ? 'ready' : fill >= 0.99 ? 'final' : fill >= 0.9 ? 'close' : fill >= 0.75 ? 'near' : '';
+    const fuelEl = this.q('.g-fuel');
+    if (fuelEl.dataset.tier !== tier) fuelEl.dataset.tier = tier;
+    this.q('.g-fuel-pct').textContent = tier === 'ready' ? 'READY' : `${Math.floor(fill * 100)}%`;
+    this.q('.g-fuel-eta').textContent = tier && tier !== 'ready' && v.fuelEtaH !== null ? `T-${inWords(v.fuelEtaH)}` : '';
+    fuelEl.title = `Fuel to fly home: ${kg(v.h2Kg)} of 19 kg hydrogen, ${kg(v.o2Kg)} of 114 kg oxygen${v.fuelEtaH !== null && tier !== 'ready' ? ` · full in about ${inWords(v.fuelEtaH)} at this pace` : ''}`;
 
     // Power and Earth: icons only; the words live in the tooltips.
     this.batt.set(v.battery, v.asleep ? 'red' : v.battery < 0.25 ? 'sun' : 'green');

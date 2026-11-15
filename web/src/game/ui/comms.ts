@@ -33,10 +33,17 @@ export function setMetFrog(): void {
   }
 }
 
+/** `loud`: a big moment (bigger text, gold pulse). `next`: the button word instead of "Next". */
+export interface LineOpts {
+  loud?: boolean;
+  next?: string;
+}
+
 interface Line {
   text: string;
   mood?: Mood;
   tag?: string;
+  opts?: LineOpts;
   done: () => void;
 }
 
@@ -88,16 +95,16 @@ export class Comms {
   }
 
   /** Say a line; it waits for the player. Resolves when they press Next (or the line is dropped). */
-  say(text: string, mood?: Mood, tag?: string): Promise<void> {
+  say(text: string, mood?: Mood, tag?: string, opts?: LineOpts): Promise<void> {
     return new Promise((done) => {
-      this.queue.push({ text, mood, tag, done });
+      this.queue.push({ text, mood, tag, opts, done });
       if (!this.current) this.showNext();
     });
   }
 
   /** Same as say(): kept for the call sites that read as "hold here". */
-  hold(text: string, mood?: Mood, tag?: string): Promise<void> {
-    return this.say(text, mood, tag);
+  hold(text: string, mood?: Mood, tag?: string, opts?: LineOpts): Promise<void> {
+    return this.say(text, mood, tag, opts);
   }
 
   /** Resolves once every queued line has been read (at once if none). */
@@ -187,6 +194,8 @@ export class Comms {
     this.current = line;
     this.started = false;
     if (line.mood) this.resting = line.mood;
+    this.el.classList.toggle('loud', !!line.opts?.loud);
+    this.next.querySelector('.g-comms-next-word')!.textContent = line.opts?.next ?? 'Next';
     if (!this.suspended) this.type(line.text);
     if (!was) this.onBlock?.(true);
   }
