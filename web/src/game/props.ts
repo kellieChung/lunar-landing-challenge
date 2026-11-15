@@ -1,10 +1,10 @@
 // Base buildings and rovers for the first-person view, in the style of
 // panorama3d/lander.ts: true size in metres, standing on y = 0. Rendering
 // only. NASA's official models are used throughout: Perseverance for the
-// rovers, the Apollo LM for the return rocket, the Habitat Demonstration Unit
-// for the plant, an InSight solar array for the solar tower and Perseverance's
-// MMRTG for the power bank; the rest (tanks, gauges, hopper) are illustrations. Whether a solar
-// panel glows comes from the physics, never from the renderer.
+// rovers, the Apollo LM for the return rocket, both Habitat Demonstration
+// Unit parts and the Space Shuttle External Tank for the plant, an InSight
+// solar array for the solar tower and Perseverance's MMRTG for the power bank.
+// Whether a solar panel glows comes from the physics, never from the renderer.
 
 import * as THREE from 'three';
 import { addFooting, ring, tiltWithGround } from '../panorama3d/footing';
@@ -18,6 +18,16 @@ const paint = (color: number, roughness = 0.7) => new THREE.MeshStandardMaterial
 /** Real heights / lengths (m) the NASA models are scaled to. */
 const LM_HEIGHT_M = 7.0;
 const HDU_HEIGHT_M = 6.0;
+/** The HDU's second unit, the ice processor (its fins reach this high). */
+const PROCESSOR_HEIGHT_M = 3.0;
+/** The Shuttle External Tank, scaled down from 47 m to a base store. */
+const TANK_LENGTH_M = 7.0;
+/** Height of the saddles the tank lies on. */
+const SADDLE_M = 0.35;
+/** Walkway gap between the plant's parts. */
+const PLANT_GAP_M = 0.8;
+/** The fenced bin at the processor's far end (fractions of its footprint), where rovers tip their loads. */
+const HOPPER_AT: [number, number] = [0.85, 0.4];
 const ROVER_LENGTH_M = 3.0;
 const TOWER_HUB_M = 3.2;
 /** The MMRTG, scaled up from its real ~0.7 m to read as the base's power bank. */
@@ -40,15 +50,6 @@ function at<T extends THREE.Object3D>(o: T, x: number, y: number, z: number): T 
   return o;
 }
 
-/** A thin strut from a to b. */
-function strut(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Material): THREE.Mesh {
-  const d = new THREE.Vector3().subVectors(b, a);
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 6), mat);
-  m.position.copy(a).addScaledVector(d, 0.5);
-  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-  return m;
-}
-
 export interface SolarTower {
   group: THREE.Group;
   setLit(lit: boolean): void; // from the physics
@@ -68,78 +69,134 @@ export interface Plant {
   setWorking(on: boolean): void;
   /** Fill gauges beside the tanks, 0..1 of the rocket's needs. */
   setLevels(h2: number, o2: number): void;
+  readonly working: boolean;
+  vent: THREE.Object3D; // top of the processing column (steam comes out here)
+  hopper: THREE.Object3D; // where rovers tip their loads
 }
 
 /**
- * Processing plant: NASA's Habitat Demonstration Unit as the building, with a
- * processing column and hopper, and two tanks with fill gauges beside it
- * (hydrogen is the big one).
+ * The ice plant, all from NASA parts: the Habitat Demonstration Unit as the
+ * building, the HDU's second unit (a finned module on a deck with ramps) as
+ * the processor rovers tip their ice into, and the Space Shuttle External
+ * Tank, which really held liquid oxygen (forward) and hydrogen (aft), as the
+ * store, lying on two saddles. A glow band along each side of the tank fills
+ * as the products build up. NASA has no model of an ice plant; these are the
+ * closest real hardware.
  */
 export function buildPlant(): Plant {
   const g = new THREE.Group();
+  const body = new THREE.Group(); // laid out from the building's centre; recentred below
   const hdu = nasaModel('hdu');
-  // Layout: the building at the origin, the processing gear to its +x side.
-  const ox = hdu ? 6.4 : 0;
-  const building = hdu ? fitTo([hdu], { height: HDU_HEIGHT_M })
-    : at(new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 1.8), paint(0xd4a038, 0.3)), 0, 1.0, 0);
-  g.add(building);
+  const proc = nasaModel('hdu-processor');
+  const et = nasaModel('fuel-tank');
+  const nasa = hdu && proc && et;
+  const building = nasa ? fitTo([hdu], { height: HDU_HEIGHT_M }) : fallbackBox(2.4, 1.6, 1.8, 0xd4a038);
+  const processor = nasa ? fitTo([proc], { height: PROCESSOR_HEIGHT_M }) : fallbackBox(2.0, 1.6, 1.6, 0x8a8f98);
+  const tank = nasa ? fitTo([et], { length: TANK_LENGTH_M }) : fallbackTank();
 
-  // Processing column with a glowing vent ring, and the hopper rovers tip regolith into.
-  const glow = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.4, emissive: 0xff7a1a, emissiveIntensity: 0 });
-  g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 2.6, 16), white()), ox - 0.7, 1.3, -1.6));
-  g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.18, 16), glow), ox - 0.7, 2.2, -1.6));
-  g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.3, 12), glow), ox - 0.7, 2.75, -1.6));
-  g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.35, 0.9, 4), metal()), ox + 0.6, 2.25, -1.6));
-  for (const x of [0.25, 0.95]) {
-    for (const z of [-1.25, -1.95]) g.add(strut(new THREE.Vector3(ox + x, 0, z), new THREE.Vector3(ox + x, 1.85, z), 0.04, metal()));
+  // Layout: the processor beside the building (+x), and the low tank in
+  // front of the tall building (+z, the side turned to the viewer), with a
+  // walkway gap between each.
+  body.add(building);
+  const bb = box(building);
+  processor.position.x = bb.max.x + PLANT_GAP_M - box(processor).min.x;
+  body.add(processor);
+  const pb = box(processor);
+  const tb0 = box(tank);
+  const r = (tb0.max.y - tb0.min.y) / 2;
+  const tankLen = tb0.max.x - tb0.min.x;
+  const tankX = (bb.min.x + bb.max.x) / 2;
+  const tankZ = bb.max.z + PLANT_GAP_M + r;
+  tank.position.set(tankX, SADDLE_M, tankZ);
+  body.add(tank);
+  const tankY = SADDLE_M + r; // the tank's axis
+  for (const f of [-0.3, 0.3]) {
+    body.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.45, tankY, r * 1.5), paint(0x8d939c, 0.8)), tankX + f * tankLen, tankY / 2, tankZ));
   }
-  // Tanks: hydrogen is very light, so the same mass needs a much bigger tank.
-  g.add(at(new THREE.Mesh(new THREE.SphereGeometry(1.1, 24, 16), white()), ox + 2.8, 1.3, 0));
-  g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 16), paint(0x8fb7e8, 0.45)), ox + 4.4, 0.9, 0.4));
-  for (const x of [2.8, 4.4]) g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.3, 16), metal()), ox + x, 0.15, x === 4.4 ? 0.4 : 0));
-  // Fill gauges: a glass tube with a glowing column that rises as the tank fills.
-  const gauge = (x: number, color: number) => {
-    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.4, 16),
-      new THREE.MeshStandardMaterial({ color: 0x9fb0c8, transparent: true, opacity: 0.25, roughness: 0.1 }));
-    g.add(at(glass, ox + x, 1.2, 1.3));
-    const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1, 16),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8 }));
-    fill.position.set(ox + x, 0, 1.3);
-    g.add(fill);
-    return fill;
-  };
-  const h2Fill = gauge(2.8, 0xf2f3f5);
-  const o2Fill = gauge(4.4, 0x5aa9ff);
-  const setFill = (m: THREE.Mesh, f: number) => {
-    const h = Math.max(0.02, Math.min(1, f)) * 2.3;
-    m.scale.y = h;
-    m.position.y = 0.05 + h / 2;
+
+  // Fill bands, on both sides of the tank at its widest: a dark track with a
+  // glowing fill that grows from the tank's aft end (hydrogen) and from its
+  // intertank (oxygen), where the real tanks were.
+  const track = new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.6 });
+  const fills: { mesh: THREE.Mesh; x0: number; len: number }[][] = [[], []]; // [h2, o2]
+  BANDS.forEach(([a, b, color], k) => {
+    const x0 = tankX + a * tankLen;
+    const len = (b - a) * tankLen;
+    const glow = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9 });
+    for (const side of [-1, 1]) {
+      const z = tankZ + side * (r + 0.02);
+      body.add(at(new THREE.Mesh(new THREE.BoxGeometry(len, 0.16, 0.03), track), x0 + len / 2, tankY, z));
+      const mesh = at(new THREE.Mesh(new THREE.BoxGeometry(1, 0.12, 0.04), glow), 0, tankY, z + side * 0.005);
+      body.add(mesh);
+      fills[k].push({ mesh, x0, len });
+    }
+  });
+  const setFill = (k: number, f: number) => {
+    for (const { mesh, x0, len } of fills[k]) {
+      const l = Math.max(0.02, Math.min(1, f)) * len;
+      mesh.scale.x = l;
+      mesh.position.x = x0 + l / 2;
+    }
   };
 
-  // On a slope, the building and the processing gear each stand level on a
-  // foundation slab with leveling jacks (the slab sits just below ground on the flat).
-  const gear = new THREE.Group();
-  gear.position.x = ox;
-  for (const o of g.children.filter((c) => c !== building)) {
-    o.position.x -= ox;
-    gear.add(o);
-  }
-  g.add(gear);
-  const bb = new THREE.Box3().setFromObject(building);
-  const b = { x0: bb.min.x - 0.3, x1: bb.max.x + 0.3, z0: bb.min.z - 0.3, z1: bb.max.z + 0.3 };
+  // A status lamp on the processor's top, lit while the plant works; steam
+  // comes out of the vent there, and rovers tip their loads into its fenced bin.
+  const pc = pb.getCenter(new THREE.Vector3());
+  const lamp = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.4, emissive: 0xff9a3a, emissiveIntensity: 0 });
+  body.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.16, 12), lamp), pc.x, pb.max.y + 0.08, pc.z));
+  const vent = at(new THREE.Object3D(), pc.x, pb.max.y + 0.2, pc.z);
+  const hopper = at(new THREE.Object3D(), pb.min.x + HOPPER_AT[0] * (pb.max.x - pb.min.x), 0.9,
+    pb.min.z + HOPPER_AT[1] * (pb.max.z - pb.min.z));
+  body.add(vent, hopper);
+
+  // On a slope, the whole plant stands level on one foundation slab with
+  // leveling jacks (the slab sits just below ground on the flat).
+  const c = box(body).getCenter(new THREE.Vector3());
+  body.position.set(-c.x, 0, -c.z); // stand (and turn) about the middle of the plant
+  g.add(body);
+  const all = box(g);
+  const b = { x0: all.min.x - 0.3, x1: all.max.x + 0.3, z0: all.min.z - 0.3, z1: all.max.z + 0.3 };
   g.add(slab(b));
-  addFooting(g, { feet: rectFeet(b), probes: [[0, 0]], width: 0.22, maxRise: 5 });
-  const gb = { x0: -1.4, x1: 5.3, z0: -2.4, z1: 1.8 };
-  gear.add(slab(gb));
-  addFooting(g, { node: gear, feet: rectFeet(gb), probes: [[2.8, 0]], width: 0.16 });
+  const probes: [number, number][] = [[-c.x, -c.z], [pc.x - c.x, pc.z - c.z], [tankX - c.x, tankZ - c.z], [0, 0]];
+  addFooting(g, { feet: rectFeet(b), probes, width: 0.22, maxRise: 8 });
+  g.userData.faceViewer = true; // its +z side (the tank in front of the processor) toward the eye
   finish(g);
-  setFill(h2Fill, 0);
-  setFill(o2Fill, 0);
+  setFill(0, 0);
+  setFill(1, 0);
+  let working = false;
   return {
     group: g,
-    setWorking(on) { glow.emissiveIntensity = on ? 1.2 : 0; },
-    setLevels(h2, o2) { setFill(h2Fill, h2); setFill(o2Fill, o2); },
+    setWorking(on) { working = on; lamp.emissiveIntensity = on ? 1.4 : 0; },
+    setLevels(h2, o2) { setFill(0, h2); setFill(1, o2); },
+    get working() { return working; },
+    vent,
+    hopper,
   };
+}
+
+/** Where along the tank (fractions of its length from its centre; the nose is +x) each band runs, and its colour. */
+const BANDS: [number, number, number][] = [
+  [-0.457, 0.074, 0xf2f3f5], // hydrogen: the big aft tank
+  [0.138, 0.319, 0x5aa9ff], // oxygen: the forward tank
+];
+
+function box(o: THREE.Object3D): THREE.Box3 {
+  o.updateMatrixWorld(true);
+  return new THREE.Box3().setFromObject(o);
+}
+
+function fallbackBox(x: number, y: number, z: number, color: number): THREE.Group {
+  const g = new THREE.Group();
+  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(x, y, z), paint(color, 0.4)), 0, y / 2, 0));
+  return g;
+}
+
+function fallbackTank(): THREE.Group {
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.7, 5.6, 6, 20), paint(0xb5651d, 0.7));
+  m.rotation.z = Math.PI / 2;
+  g.add(at(m, 0, 0.7, 0));
+  return g;
 }
 
 /**
@@ -176,18 +233,22 @@ function slab(b: { x0: number; x1: number; z0: number; z1: number }): THREE.Mesh
   return at(m, (b.x0 + b.x1) / 2, -0.12, (b.z0 + b.z1) / 2);
 }
 
-/** Jack positions round a rectangle: the corners, plus mid-points on sides longer than 4 m. */
-function rectFeet(b: { x0: number; x1: number; z0: number; z1: number }): [number, number][] {
-  const xs = b.x1 - b.x0 > 4 ? [b.x0, (b.x0 + b.x1) / 2, b.x1] : [b.x0, b.x1];
-  const zs = b.z1 - b.z0 > 4 ? [b.z0, (b.z0 + b.z1) / 2, b.z1] : [b.z0, b.z1];
-  const cx = (b.x0 + b.x1) / 2;
-  const cz = (b.z0 + b.z1) / 2;
+/** Jack positions round a rectangle, just inside its edge, no more than maxGap apart. */
+function rectFeet(b: { x0: number; x1: number; z0: number; z1: number }, maxGap = 4): [number, number][] {
+  const x0 = b.x0 + 0.2;
+  const x1 = b.x1 - 0.2;
+  const z0 = b.z0 + 0.2;
+  const z1 = b.z1 - 0.2;
+  const nx = Math.max(1, Math.ceil((x1 - x0) / maxGap));
+  const nz = Math.max(1, Math.ceil((z1 - z0) / maxGap));
   const feet: [number, number][] = [];
-  for (const x of xs) {
-    for (const z of zs) {
-      if (x === cx && z === cz) continue; // only round the edge
-      feet.push([x + Math.sign(cx - x) * 0.2, z + Math.sign(cz - z) * 0.2]); // just inside the slab
-    }
+  for (let i = 0; i <= nx; i++) {
+    const x = x0 + ((x1 - x0) * i) / nx;
+    feet.push([x, z0], [x, z1]);
+  }
+  for (let j = 1; j < nz; j++) {
+    const z = z0 + ((z1 - z0) * j) / nz;
+    feet.push([x0, z], [x1, z]);
   }
   return feet;
 }

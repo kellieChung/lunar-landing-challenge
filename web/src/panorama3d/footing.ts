@@ -76,7 +76,17 @@ export function addFooting(root: THREE.Object3D, opts: FootingOptions): void {
   const w = opts.width ?? 0.16;
   const cx = opts.feet.reduce((s, f) => s + f[0], 0) / opts.feet.length;
   const cz = opts.feet.reduce((s, f) => s + f[1], 0) / opts.feet.length;
-  const jacks = opts.feet.map(([x, z]): Jack => {
+  // Never put a jack on top of (or crowding) one an earlier unit already has.
+  const ox = opts.node?.position.x ?? 0;
+  const oz = opts.node?.position.z ?? 0;
+  const taken = jackSpots(root);
+  const clear = Math.max(0.6, 4 * w);
+  const feet = opts.feet.filter(([x, z]) => {
+    const ok = taken.every(([tx, tz]) => Math.hypot(x + ox - tx, z + oz - tz) >= clear);
+    if (ok) taken.push([x + ox, z + oz]);
+    return ok;
+  });
+  const jacks = feet.map(([x, z]): Jack => {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
     const column = new THREE.Mesh(unitBox, jackMetal);
@@ -93,6 +103,12 @@ export function addFooting(root: THREE.Object3D, opts: FootingOptions): void {
   });
   const unit: Unit = { node: opts.node ?? null, jacks, probes: opts.probes ?? [], hideWhenRaised: opts.hideWhenRaised ?? [], maxRise: opts.maxRise ?? MAX_RISE_M, sink: opts.sink ?? false };
   (root.userData.footing ??= []).push(unit);
+}
+
+/** Where a prop's jacks stand, in its root's x/z. */
+export function jackSpots(root: THREE.Object3D): [number, number][] {
+  const units = (root.userData.footing ?? []) as Unit[];
+  return units.flatMap((u) => u.jacks.map((j): [number, number] => [j.x + (u.node?.position.x ?? 0), j.z + (u.node?.position.z ?? 0)]));
 }
 
 /** Let a vehicle tilt to the ground under it; wheels at ±halfX, ±halfZ. Its rotation order becomes YXZ. */
@@ -124,7 +140,8 @@ export function settle(root: THREE.Object3D, ground: GroundSampler): number {
     const at = (x: number, z: number) => ground(x + ox, z + oz) - rootLift;
     const feet = unit.jacks.map((j) => at(j.x, j.z));
     const all = feet.concat(unit.probes.map(([x, z]) => at(x, z)));
-    const low = Math.min(...feet);
+    if (all.length === 0) continue; // every foot was already covered by another unit's jacks
+    const low = feet.length ? Math.min(...feet) : Math.min(...all);
     const base = unit.sink ? low : Math.min(Math.max(...all), low + unit.maxRise);
     if (unit.node) unit.node.position.y = base;
     else rootLift = base;

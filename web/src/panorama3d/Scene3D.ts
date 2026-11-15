@@ -324,6 +324,8 @@ export class Scene3D implements PanoramaView {
       const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, p.azDeg, p.distM);
       p.object.position.set(...place.pos);
       p.object.scale.setScalar(place.scale);
+      // Laid out to be seen from +z: turn that side toward the eye.
+      if (p.object.userData.faceViewer) p.object.rotation.y = Math.atan2(-place.pos[0], -place.pos[2]);
       this.settle(p.object);
     }
   }

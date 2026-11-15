@@ -34,6 +34,8 @@ const SOURCES = {
   perseverance: 'Mars%202020%20Perseverance%20Rover/Mars%202020%20Perseverance%20Rover.glb',
   hdu: 'Habitat%20Demonstration%20Unit/Habitat%20Demonstration%20Unit%20(part%201).glb',
   insight: 'InSight%20Cruise%20Lander/InSight%20Cruise%20Lander%20(panels%20deployed).glb',
+  hdu2: 'Habitat%20Demonstration%20Unit/Habitat%20Demonstration%20Unit%20(part%202).glb',
+  tank: 'Space%20Shuttle%20Parts/External%20tank.glb',
 };
 
 await MeshoptEncoder.ready;
@@ -169,6 +171,26 @@ console.log('Habitat Demonstration Unit');
   const doc = await io.read(await download('hdu'));
   await optimise(doc, { textureSize: 1024 });
   total += await emit(doc, 'hdu.glb');
+}
+
+// Stand-ins for the ice plant, which NASA has no model of: the HDU's second
+// unit (a finned module on a deck with ramps) processes the ice, and the
+// Space Shuttle External Tank, which really held liquid oxygen and hydrogen,
+// stores the products.
+console.log('Processor (Habitat Demonstration Unit part 2)');
+{
+  const doc = await io.read(await download('hdu2'));
+  console.log(`  source: ${triangles(doc)} tris`);
+  await optimise(doc, { textureSize: 1024 });
+  total += await emit(doc, 'hdu-processor.glb');
+}
+
+console.log('Fuel tank (Space Shuttle External Tank)');
+{
+  const doc = await io.read(await download('tank'));
+  console.log(`  source: ${triangles(doc)} tris`);
+  await optimise(doc, { textureSize: 1024 });
+  total += await emit(doc, 'fuel-tank.glb');
 }
 
 console.log(`Total ${(total / 1024 / 1024).toFixed(2)} MB`);

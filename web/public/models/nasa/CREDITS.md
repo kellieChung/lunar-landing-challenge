@@ -9,6 +9,8 @@ NASA Images and Media Usage Guidelines; NASA does not endorse this project.
 | lm-descent.glb, lm-ascent.glb | Apollo Lunar Module (split into its two stages) | NASA/Michael D. Carbajal |
 | perseverance.glb | Mars 2020 Perseverance Rover | NASA/JPL-Caltech |
 | hdu.glb | Habitat Demonstration Unit (part 1) | NASA |
+| hdu-processor.glb | Habitat Demonstration Unit (part 2), used as the ice processor | NASA |
+| fuel-tank.glb | Space Shuttle External Tank, from Space Shuttle Parts, used as the hydrogen/oxygen store | NASA |
 | solar-array.glb | one deployed solar array wing from InSight Cruise Lander (panels deployed) | NASA/JPL-Caltech |
 | rtg.glb | the MMRTG power unit from Mars 2020 Perseverance Rover | NASA/JPL-Caltech |
 

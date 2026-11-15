@@ -12,8 +12,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export type NasaModelName = 'lm-descent' | 'lm-ascent' | 'perseverance' | 'hdu' | 'solar-array' | 'rtg';
-const NAMES: NasaModelName[] = ['lm-descent', 'lm-ascent', 'perseverance', 'hdu', 'solar-array', 'rtg'];
+export type NasaModelName =
+  'lm-descent' | 'lm-ascent' | 'perseverance' | 'hdu' | 'hdu-processor' | 'fuel-tank' | 'solar-array' | 'rtg';
+const NAMES: NasaModelName[] = ['lm-descent', 'lm-ascent', 'perseverance', 'hdu', 'hdu-processor', 'fuel-tank', 'solar-array', 'rtg'];
 
 /** Highest metalness kept: with no envMap, metal shows only its (dark) specular. */
 const MAX_METALNESS = 0.35;
