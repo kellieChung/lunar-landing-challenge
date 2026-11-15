@@ -66,7 +66,7 @@ export function nearMiss(run: Run, w: World): string {
   if (!worst) {
     if (launched(run)) return 'Every pick was the best of what was offered. Faster still needs more rovers, and more rovers need more power.';
     if (fuelReady(run.game)) return 'The tanks were full.';
-    return `Your picks matched the best projections, but the capsule was only ${pct(100 * fill(run.game))} full at the deadline. This start date is a hard one.`;
+    return `Your picks matched the best projections, but your tank was only ${pct(100 * fill(run.game))} full at the deadline. This start date is a hard one.`;
   }
   const { c, gap, best } = worst;
   const p = c.options[c.picked].key;

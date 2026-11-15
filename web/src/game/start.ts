@@ -9,7 +9,7 @@ import './game.css';
 import * as THREE from 'three';
 import type { GridPoint, GridSummary, SiteData } from '../data/types';
 import type { Scene3D, SceneProp } from '../panorama3d/Scene3D';
-import { SHORT, SHORT_GAME, TUTORIAL } from '../tips';
+import { SHORT, SHORT_GAME, STORY, TUTORIAL } from '../tips';
 import type { SpotGridHandle, SpotMark } from '../ui/SpotGrid';
 import type { TimeBar } from '../ui/TimeBar';
 import { craterNames, currentWindow, groundLabel, siteHasMission, spotMetrics, towerGainHours, tripFacts } from './cards';
@@ -872,7 +872,7 @@ export async function startGame(x: GameSession): Promise<void> {
     }
     if (!half && s.h2Kg >= TARGET.h2Kg / 2 && s.o2Kg >= TARGET.o2Kg / 2) {
       half = true;
-      comms.say('The capsule is half full.', 'cheer');
+      comms.say('The tank is half full. Halfway home!', 'cheer');
       const fuel = hud.el.querySelector('.g-fuel');
       if (fuel) burst(fuel);
       sfx.sparkle();
@@ -947,7 +947,7 @@ export async function startGame(x: GameSession): Promise<void> {
     modal.show([
       el('h2', 'g-h', traces ? `${siteName}: only traces of ice` : `${siteName}: no cold trap in reach`),
       el('p', 'g-lede', traces
-        ? 'Every crater floor in rover reach sees a little Sun during the year, so only traces of ice survive: too little to fill the capsule within the deadline. That comes from the real 2027 sunlight. Great for power, no good for an ice run.'
+        ? 'Every crater floor in rover reach sees a little Sun during the year, so only traces of ice survive: too little to fill your tank before the deadline. That comes from the real 2027 sunlight. Great for power, no good for an ice run.'
         : 'Every floor near here sees the Sun more than 5% of the year, so ice can\'t last. That is real: it is one of the sunniest ridges at the pole. Great for power, no good for an ice run.'),
       Object.assign(el('a', 'g-b g-b-go', 'Moon map'), { href: sitesUrl }),
       Object.assign(el('a', 'g-b g-b-plate', 'Explore this site'), { href: exploreUrl() }),
@@ -976,8 +976,11 @@ export async function startGame(x: GameSession): Promise<void> {
     modal.close();
     render();
     const go = async () => {
-      if (resumed && r.game.base) await comms.say(`Welcome back. Day ${runDay(r)} at ${siteName}.`, 'happy');
-      else await comms.say(`${siteName}. Three places to land. Let's go and look.`, 'talk');
+      if (resumed && r.game.base) await comms.say(STORY.resume(runDay(r), siteName), 'happy');
+      else {
+        sfx.rumble(1.2);
+        for (const line of STORY.crash) await comms.say(line, 'angry');
+      }
       if (coach.active && !r.game.base) for (const line of TUTORIAL.intro) await comms.say(line, 'talk');
       if (!nextDecision()) {
         want = true;

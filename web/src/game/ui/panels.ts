@@ -56,7 +56,7 @@ const HOW: [string, string][] = [
   ['i-remote', 'Rovers dig by themselves, but only while Earth is in view: people drive them by radio.'],
   ['i-plant', 'The plant turns ice into hydrogen and oxygen, but only with spare sunlight.'],
   ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and upgrades that need nothing from Earth: a dirt cover (less night power), packed roads (faster rovers) and a dirt-lined oven (cheaper baking). Press Build in the dock whenever you have enough: no need to wait to be asked.'],
-  ['star-on', 'Fill the capsule before the deadline. Keep the lights on. Pick well for the third star.'],
+  ['star-on', 'Fill your tank before the deadline. Keep the lights on. Pick well for the third star.'],
 ];
 
 export function howTo(): HTMLElement {
@@ -95,10 +95,10 @@ export function briefPanel(b: BriefInfo, start: (mods: Mods) => void, extra: Nod
   const head = el('div', 'g-brief-head');
   head.append(mascot('cheer'));
   const t = el('div');
-  t.append(el('p', 'g-kicker', b.daily ? 'Daily mission' : 'Mission brief'), el('h2', 'g-h', b.siteName));
+  t.append(el('p', 'g-kicker', b.daily ? 'Daily mission' : 'Emergency landing'), el('h2', 'g-h', b.siteName));
   head.append(t);
   out.push(head);
-  out.push(el('p', 'g-lede', `Make rocket fuel from Moon ice and fill the sample capsule within ${b.days} days of landing.`));
+  out.push(el('p', 'g-lede', `Your lander is leaking fuel over the Moon! Land, make rocket fuel from Moon ice, and fill your tank within ${b.days} days to fly home.`));
   const mods = { ...b.mods };
   const box = el('fieldset', 'g-mods');
   const sw = (key: keyof Mods, name: string, help: string) => {
@@ -151,7 +151,7 @@ export function reportPanel(r: ReportInfo, again: () => void, retry: () => void,
   const head = el('div', 'g-report-head');
   head.append(sprite(PATCH[r.stars], { scale: 4, label: `${r.siteName} patch` }));
   const t = el('div');
-  t.append(el('p', 'g-kicker', r.launched ? 'Capsule launched' : 'Deadline reached'), el('h2', 'g-h', r.siteName));
+  t.append(el('p', 'g-kicker', r.launched ? 'Lift-off: heading home' : 'Deadline reached'), el('h2', 'g-h', r.siteName));
   const stars = el('div', 'g-stars');
   stars.setAttribute('aria-label', `${r.stars} of 3 stars`);
   for (let i = 0; i < 3; i++) stars.append(sprite(i < r.stars ? 'star-on' : 'star-off', { scale: 3, label: i < r.stars ? 'star' : 'no star' }));
@@ -166,7 +166,7 @@ export function reportPanel(r: ReportInfo, again: () => void, retry: () => void,
     li.append(sprite(ok ? 'i-check' : 'i-cross', { label: ok ? 'earned' : 'not earned' }), el('b', '', title), el('span', '', detail));
     list.append(li);
   };
-  line(r.launched, 'Launch', r.launched ? `Tanks full on day ${Math.ceil(r.days ?? 0)}.` : `The capsule was ${r.fillPct}% full at the deadline.`);
+  line(r.launched, 'Launch', r.launched ? `Tanks full on day ${Math.ceil(r.days ?? 0)}.` : `Your tank was ${r.fillPct}% full at the deadline.`);
   line(r.stars >= 2, 'Lights on', `The base slept ${Math.round(r.sleepHours)} h (2 days or less earns it).`);
   line(r.stars >= 3, 'Sky Sense', r.skySense === null ? 'No choices scored.' : `Your picks scored ${r.skySense} (80 earns it).`);
   out.push(list);

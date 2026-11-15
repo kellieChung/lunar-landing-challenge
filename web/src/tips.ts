@@ -55,6 +55,16 @@ export const SHORT_GAME = {
   oven: 'Oven wrapped in dirt. Baking ice out now takes less power.',
 } as const;
 
+/** The story: a leaking tank forces an emergency landing; ice makes the fuel home. */
+export const STORY = {
+  crash: [
+    'Mayday, mayday! Your fuel tank is leaking. There is not enough left to fly home!',
+    'You have to land right now, astronaut! Pick one of these three spots, fast!',
+    'Once you are down, we will dig up ice from a dark crater and turn it into rocket fuel. Fill the tank and you can fly home.',
+  ],
+  resume: (day: number, site: string) => `Welcome back, astronaut. Day ${day} at ${site}. The tank still needs fuel to get you home.`,
+} as const;
+
 /**
  * The Moon Base tutorial (first run only; game/ui/coach.ts). It says what to
  * look for, never which option is best: the reveal is where the data decides.
@@ -63,7 +73,7 @@ export const SHORT_GAME = {
 export const TUTORIAL = {
   /** Astrofrog, before the first landing choice. */
   intro: [
-    'Before we land, here is what makes a good base. You will check four things at each spot.',
+    'Before you put it down, here is what makes a good spot. You will check four things at each spot.',
     'One: Sun. Our fuel plant runs on sunlight, so more Sun means fuel sooner.',
     'Two: Earth. People on Earth drive the rovers by radio, and they can only drive while Earth is in view.',
     'Three: a short longest night. When the Sun is hidden, the base lives on its battery. A long night can drain it and put the base to sleep.',
@@ -76,7 +86,7 @@ export const TUTORIAL = {
   map: 'The map shows where you are and the ice craters nearby. The closer the ice, the shorter every rover trip.',
   compare: 'Now look at the other spots and compare their timelines and their skies. When you are ready, land on the one you think is best.',
   revealRows: 'Here are the real numbers behind what you just looked at. A tick marks the spot that won each row. Often no spot wins them all.',
-  revealProj: 'This row is what counts. The game replayed the run from each spot on the real 2027 sky to see which one would fill the capsule first.',
+  revealProj: 'This row is what counts. The game replayed the run from each spot on the real 2027 sky to see which one would fill your tank first.',
   revealWhy: 'And this is why your spot went dark at its worst moment. The view is turned to show it.',
   crater: 'Now pick where to dig. Ice only lasts on a crater floor the Sun never reaches: a cold trap. A floor that sees even a little Sun keeps only traces.',
   craterTimeline: 'At a crater, the timeline shows the floor. For rich ice you want no gold on it at all.',

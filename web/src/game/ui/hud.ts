@@ -104,7 +104,7 @@ export class Hud {
 
     const menu = btn('Menu', on.menu, 'sq', 'i-gear');
 
-    this.fuel = meter(10, 'blue', 'Capsule fuel');
+    this.fuel = meter(10, 'blue', 'Fuel to fly home');
     const fuel = stat('g-fuel', el('span', 'g-k', 'Fuel'), this.fuel.el, el('b', 'g-fuel-pct'));
 
     this.batt = meter(6, 'green', 'Base battery');
@@ -202,7 +202,7 @@ export class Hud {
     const fill = Math.min(1, v.h2, v.o2);
     this.fuel.set(fill);
     this.q('.g-fuel-pct').textContent = `${Math.floor(fill * 100)}%`;
-    this.q('.g-fuel').title = `Capsule fuel: ${kg(v.h2Kg)} of 19 kg hydrogen, ${kg(v.o2Kg)} of 114 kg oxygen`;
+    this.q('.g-fuel').title = `Fuel to fly home: ${kg(v.h2Kg)} of 19 kg hydrogen, ${kg(v.o2Kg)} of 114 kg oxygen`;
 
     // Power and Earth: icons only; the words live in the tooltips.
     this.batt.set(v.battery, v.asleep ? 'red' : v.battery < 0.25 ? 'sun' : 'green');

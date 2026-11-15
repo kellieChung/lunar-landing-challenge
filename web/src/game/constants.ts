@@ -87,6 +87,7 @@ export const UNLOAD_HOURS = 1;
 
 // ---- Return rocket --------------------------------------------------------
 /**
+ * (In the story this is the astronaut's leaking tank's top-up; the numbers stay.)
  * Empty mass of the return vehicle: a small robotic sample capsule with its
  * engine (HYPOTHETICAL vehicle; real robotic sample-return stages are of this order).
  */
