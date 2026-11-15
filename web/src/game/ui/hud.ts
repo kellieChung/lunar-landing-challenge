@@ -1,8 +1,8 @@
 // The instruments (game.MD v3 §7): ONE compact dock along the bottom, beside
 // mission control and the timeline, so the 3D view keeps the rest of the
 // screen. Readings are glyphs and short meters; details live in tooltips, and
-// at most one warning shows at a time. The build tray and the map open as
-// small pop-overs above the dock only when asked for.
+// at most one warning shows at a time. The build tray pops up above the dock
+// when asked for; the map always sits in the top-right corner.
 
 import { btn, el, kg, meter, type Meter } from './dom';
 import { sprite } from './sprites';
@@ -46,7 +46,6 @@ export interface HudView {
 
 export interface HudHandlers {
   menu(): void;
-  map(): void;
   build(item: 'pad' | 'shelter'): void;
   togglePlay(): void;
   speed(hoursPerSec: number): void;
@@ -111,17 +110,15 @@ export class Hud {
     }, 'sq');
     this.speedBtn.classList.add('g-speed');
 
-    const buildBtn = btn('Build', () => { this.tray.hidden = !this.tray.hidden; this.mapSlot.hidden = true; }, 'sq', 'stone');
+    const buildBtn = btn('Build', () => { this.tray.hidden = !this.tray.hidden; }, 'sq', 'stone');
     buildBtn.classList.add('g-build-btn');
-    const map = btn('Map', () => { this.tray.hidden = true; on.map(); }, 'sq', 'i-home');
-    map.classList.add('g-map-btn');
 
     bar.append(
       group(menu),
       group(fuel),
       group(power, earth, alert),
       group(day, this.playBtn, this.speedBtn),
-      group(buildBtn, map),
+      group(buildBtn),
     );
 
     // Pop-overs above the dock, shown on request.
@@ -135,8 +132,9 @@ export class Hud {
       b.append(el('span', 'g-slot-cost'));
       this.tray.append(b);
     }
-    this.mapSlot = el('div', 'g-pop g-mapbox g-dlg');
-    this.mapSlot.hidden = true;
+    // The map stays in the top-right corner the whole time.
+    this.mapSlot = el('div', 'g-mapbox g-dlg');
+    this.mapSlot.setAttribute('aria-label', 'Map');
 
     root.append(bar, this.tray, this.mapSlot);
   }

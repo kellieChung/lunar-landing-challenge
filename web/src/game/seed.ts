@@ -1,6 +1,6 @@
-// What makes each run different: a seeded random source, the start hour (near
-// a sunrise or sunset at the site, so the first hours have something
-// happening), and the Daily Mission seed (same for everyone on a date, no
+// What makes each run different: a seeded random source, the start hour (a
+// midnight shortly before a sunrise or sunset at the site, so the first hours
+// have something happening), and the Daily Mission seed (same for everyone on a date, no
 // server).
 
 import type { World } from './env';
@@ -29,19 +29,24 @@ export function dailySeed(d = new Date()): string {
 }
 
 /**
- * Hours at which a run may start: 12 h before the Sun rises or sets at the
- * site center (REAL), early enough that the whole deadline fits in the data.
+ * Hours at which a run may start: always at midnight (UTC, the data's clock),
+ * so Day 1 is a whole calendar day, and on a day when the Sun rises or sets at
+ * the site center (REAL) at least 6 h after the start, so the first hours have
+ * something happening. Early enough that the whole deadline fits in the data.
  */
 export function startHours(w: World, deadlineH: number, at = '0,0'): number[] {
   const lit = w.series(at).lit;
   const latest = w.hours - deadlineH - 2;
-  const out: number[] = [];
+  const out = new Set<number>();
   for (let h = 1; h < lit.length; h++) {
-    if (lit[h] !== lit[h - 1] && h - 12 >= 0 && h - 12 <= latest) out.push(h - 12);
+    if (lit[h] === lit[h - 1]) continue;
+    let start = Math.floor(h / 24) * 24;
+    if (h - start < 6) start -= 24;
+    if (start >= 0 && start <= latest) out.add(start);
   }
-  // A site where the center never changes (always lit): any hour works.
-  if (out.length === 0) for (let h = 0; h <= latest; h += 24) out.push(h);
-  return out;
+  // A site where the center never changes (always lit): any midnight works.
+  if (out.size === 0) for (let h = 0; h <= latest; h += 24) out.add(h);
+  return [...out].sort((a, b) => a - b);
 }
 
 export function pickStart(w: World, rand: () => number, deadlineH: number): number {

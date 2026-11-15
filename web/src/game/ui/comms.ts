@@ -1,8 +1,9 @@
 // Mission control: the mascot's portrait (its face follows the base) and one
-// line of radio talk, typed out. It only appears while it has something to
-// say: a passing line fades out a few seconds after it's typed; a blocking
-// line (only three in a run, game.MD v3 §7) waits for the player. Every line
-// is kept for the menu's Radio log.
+// line of radio talk, typed out. Every line waits for the player to press
+// Next (click, Space or Enter); nothing skips by itself. Lines that arrive
+// while one is showing queue up behind it, and the game clock stays stopped
+// while any line is showing or waiting, so the talk never falls behind the
+// game. Every line is kept for the menu's Radio log.
 
 import { el, reducedMotion } from './dom';
 import { mascot, setMood, sprite } from './sprites';
@@ -10,7 +11,7 @@ import { sfx } from './sound';
 
 export type Mood = 'idle' | 'talk' | 'happy' | 'cheer' | 'love' | 'sad' | 'angry' | 'sleepy' | 'zzz' | 'cool';
 
-const LINGER_MS = 6000;
+const TYPE_MS = 32; // per character
 const MET_KEY = 'moonbase:met-frog';
 
 /** Has the player been introduced to Astrofrog (in this browser)? */
@@ -30,17 +31,24 @@ export function setMetFrog(): void {
   }
 }
 
+interface Line {
+  text: string;
+  mood?: Mood;
+  done: () => void;
+}
+
 export class Comms {
   readonly el: HTMLElement;
   private face: HTMLElement;
   private line: HTMLElement;
-  private more: HTMLElement;
+  private next: HTMLButtonElement;
   private typing = 0;
-  private hideTimer = 0;
   private resting: Mood = 'idle';
-  private waiter: (() => void) | null = null;
+  private current: Line | null = null;
+  private queue: Line[] = [];
   private full = '';
   private log: string[] = [];
+  private idlers: (() => void)[] = [];
   onBlock: ((on: boolean) => void) | null = null;
 
   constructor() {
@@ -53,9 +61,11 @@ export class Comms {
     const box = el('div', 'g-dlg g-comms-box');
     this.line = el('p', 'g-comms-line');
     this.line.setAttribute('role', 'status');
-    this.more = sprite('cont', { loop: 0.8, cls: 'g-cont' });
-    this.more.hidden = true;
-    box.append(el('span', 'g-comms-name', 'Astrofrog · mission control'), this.line, this.more);
+    this.next = el('button', 'g-comms-next');
+    this.next.type = 'button';
+    this.next.append(el('span', 'g-comms-next-word', 'Next'), sprite('cont', { loop: 0.8, cls: 'g-cont' }));
+    this.next.setAttribute('aria-label', 'Next');
+    box.append(el('span', 'g-comms-name', 'Astrofrog · mission control'), this.line, this.next);
     this.el.append(portrait, box);
     this.el.addEventListener('click', () => this.advance());
   }
@@ -71,67 +81,65 @@ export class Comms {
     if (!this.typing) setMood(this.face, m);
   }
 
-  /** A passing line: typed out, logged, then it fades away. */
-  say(text: string, mood?: Mood): void {
-    if (mood) this.resting = mood;
-    this.type(text);
-  }
-
-  /** A blocking line: play stops until the player continues. */
-  hold(text: string, mood?: Mood): Promise<void> {
-    if (mood) this.resting = mood;
-    this.type(text);
-    this.el.classList.add('blocking');
-    this.more.hidden = false;
-    this.onBlock?.(true);
-    return new Promise((resolve) => {
-      this.waiter = () => {
-        this.waiter = null;
-        this.el.classList.remove('blocking');
-        this.more.hidden = true;
-        this.onBlock?.(false);
-        this.linger();
-        resolve();
-      };
+  /** Say a line; it waits for the player. Resolves when they press Next. */
+  say(text: string, mood?: Mood): Promise<void> {
+    return new Promise((done) => {
+      this.queue.push({ text, mood, done });
+      if (!this.current) this.showNext();
     });
   }
 
-  get blocking(): boolean {
-    return this.waiter !== null;
+  /** Same as say(): kept for the call sites that read as "hold here". */
+  hold(text: string, mood?: Mood): Promise<void> {
+    return this.say(text, mood);
   }
 
-  /** Click / Enter: finish the line being typed, continue past a blocking one, or dismiss. */
+  /** Resolves once every queued line has been read (at once if none). */
+  idle(): Promise<void> {
+    if (!this.current) return Promise.resolve();
+    return new Promise((res) => this.idlers.push(res));
+  }
+
+  /** A line is showing or waiting: the game clock must not run. */
+  get blocking(): boolean {
+    return this.current !== null;
+  }
+
+  /** Click / Space / Enter: finish typing first, then go to the next line. */
   advance(): void {
+    if (!this.current) return;
     if (this.typing) {
       this.finishTyping();
       return;
     }
-    if (this.waiter) this.waiter();
-    else this.hide();
+    const line = this.current;
+    this.current = null;
+    line.done();
+    if (this.queue.length) this.showNext();
+    else {
+      this.el.hidden = true;
+      setMood(this.face, this.resting);
+      this.onBlock?.(false);
+      for (const f of this.idlers.splice(0)) f();
+    }
   }
 
-  private show(): void {
-    window.clearTimeout(this.hideTimer);
-    this.el.hidden = false;
-  }
-
-  private hide(): void {
-    window.clearTimeout(this.hideTimer);
-    if (!this.waiter) this.el.hidden = true;
-  }
-
-  private linger(): void {
-    window.clearTimeout(this.hideTimer);
-    if (!this.waiter) this.hideTimer = window.setTimeout(() => this.hide(), LINGER_MS);
+  private showNext(): void {
+    const line = this.queue.shift()!;
+    const was = this.current !== null || !this.el.hidden;
+    this.current = line;
+    if (line.mood) this.resting = line.mood;
+    this.type(line.text);
+    if (!was) this.onBlock?.(true);
   }
 
   private type(text: string): void {
-    this.finishTyping();
-    this.show();
+    this.el.hidden = false;
     sfx.ding();
     this.full = text;
     this.log.unshift(text);
     if (this.log.length > 60) this.log.pop();
+    this.next.hidden = true;
     setMood(this.face, 'talk');
     if (reducedMotion()) {
       this.line.textContent = text;
@@ -141,15 +149,15 @@ export class Comms {
     let i = 0;
     this.line.textContent = '';
     const tick = () => {
-      i = Math.min(text.length, i + 2);
+      i = Math.min(text.length, i + 1);
       this.line.textContent = text.slice(0, i);
-      if (i < text.length) this.typing = window.setTimeout(tick, 28);
+      if (i < text.length) this.typing = window.setTimeout(tick, TYPE_MS);
       else {
         this.typing = 0;
         this.rest();
       }
     };
-    this.typing = window.setTimeout(tick, 28);
+    this.typing = window.setTimeout(tick, TYPE_MS);
   }
 
   private finishTyping(): void {
@@ -162,6 +170,7 @@ export class Comms {
 
   private rest(): void {
     setMood(this.face, this.resting);
-    this.linger();
+    this.next.hidden = false;
+    this.next.focus({ preventScroll: true });
   }
 }

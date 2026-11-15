@@ -128,7 +128,7 @@
 .g-hud > * { pointer-events: auto; }
 .g-hud [hidden] { display: none !important; }
 .pano-stage.moving > .g-hud, .pano-stage.moving > .g-reveal-slot, .pano-stage.moving > .g-lookbar { opacity: 1; }
-.g-hud:not(.landed) .g-stat:not(.g-day), .g-hud:not(.landed) .g-map-btn { display: none; }
+.g-hud:not(.landed) .g-stat:not(.g-day) { display: none; }
 
 .g-bar {
   position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
@@ -167,7 +167,7 @@
 .g-slot .g-b-label { font-size: 12px; }
 .g-slot-cost { font-size: 12px; color: var(--g-sun); }
 .g-slot.built .g-slot-cost { color: var(--g-green); }
-.g-mapbox { width: 252px; left: auto; right: 12px; transform: none; }
+.g-mapbox { position: absolute; top: 12px; right: 12px; z-index: 4; width: 208px; padding: 4px; }
 .g-mapbox .sg-wrap { margin: 0; }
 .g-mapbox .sg-where { font: 12px var(--g-font); }
 .g-mapbox .sg-legend, .g-mapbox .sg-nums { display: none; } /* the numbers stay hidden until the reveal */
@@ -176,13 +176,13 @@
 .g-dot { fill: var(--g-ink); stroke: var(--g-shadow); stroke-width: 2; }
 .g-dot.loaded { fill: var(--g-blue); }
 
-/* The Explore overlay's Sun / Earth arrows sit in the top-right corner (the top is free). */
-#pano-screen.game-ready .ov-arrow { top: 12px; }
-#pano-screen.game-ready .ov-arrow.ov-earth { top: 40px; }
+/* The Explore overlay's Sun / Earth arrows sit halfway up the side they point to
+   (the top-right corner belongs to the map). */
+#pano-screen.game-ready .ov-arrow { top: 42%; }
+#pano-screen.game-ready .ov-arrow.ov-earth { top: calc(42% + 28px); }
 #pano-screen.game-ready .ov-arrow.right { right: 12px; }
 
-/* While time runs, only this month's timeline shows; the whole year comes back for choices. */
-#pano-screen.g-calm .tb-year, #pano-screen.g-calm .tb-months { display: none; }
+/* The whole year (and what's ahead) stays visible above this month's timeline at all times. */
 
 /* Game mode: no chrome above the view. The site title, coordinates and mode switch
    move into the menu (Explore, Moon map); the compass shows only while choosing,
@@ -192,6 +192,7 @@ body:has(#pano-screen.game-ready) .topbar,
 #pano-screen.g-calm .ov-compass { display: none; }
 #pano-screen.game-ready:not(.g-calm) .g-bar,
 #pano-screen.game-ready:not(.g-calm) .g-pop { visibility: hidden; }
+#pano-screen.game-ready .g-mapbox { visibility: visible; }
 .g-stat:empty, .g-v:empty { display: none; }
 
 /* Map marks (letters on squares). */
@@ -222,9 +223,9 @@ body:has(#pano-screen.game-ready) .topbar,
 .g-comms-box { position: relative; flex: 1; min-height: 56px; padding: 6px 30px 6px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; }
 .g-comms-name { font-size: 11px; color: var(--g-purple); text-transform: uppercase; letter-spacing: 1px; }
 .g-comms-line { margin: 0; font-size: 15px; line-height: 1.3; }
-.g-cont { position: absolute; right: 8px; bottom: 6px; }
-.g-comms.blocking .g-comms-box { --g-rail: var(--g-sun); }
-.g-sprites .g-comms.blocking .g-comms-box { border-image-source: var(--s-dlg-hi); }
+.g-comms-next { align-self: flex-end; display: inline-flex; align-items: center; gap: 4px; margin: 2px -22px 0 0; padding: 0 2px; border: 0; background: none; font: 12px var(--g-font); color: var(--g-sun); text-transform: uppercase; letter-spacing: 1px; text-shadow: inherit; cursor: inherit; }
+.g-comms-next:focus-visible { outline: 2px solid var(--g-sun); outline-offset: 2px; }
+.g-cont { position: static; }
 .g-log { margin: 0; padding-left: 20px; max-height: 50vh; overflow: auto; font-size: 14px; color: var(--g-muted); }
 .g-log li + li { margin-top: 4px; }
 

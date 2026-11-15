@@ -80,10 +80,6 @@ export async function startGame(x: GameSession): Promise<void> {
   const revealSlot = el('div', 'g-reveal-slot');
   const hud = new Hud({
     menu: () => openMenu(),
-    map: () => {
-      hud.mapSlot.hidden = !hud.mapSlot.hidden;
-      drawRoutes();
-    },
     build: (item) => { if (run && buy(run.game, world.env, item).ok) afterBuy(item); },
     togglePlay: () => togglePlay(),
     speed: (h) => { speed = h; slowUntil = -1; sync(); },
@@ -252,7 +248,7 @@ export async function startGame(x: GameSession): Promise<void> {
     return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top];
   };
   const drawRoutes = () => {
-    if (hud.mapSlot.hidden || !run) return;
+    if (!run) return;
     const s = run.game;
     const box = hud.mapSlot.getBoundingClientRect();
     routes.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
@@ -355,15 +351,15 @@ export async function startGame(x: GameSession): Promise<void> {
   };
 
   // ---- Decisions ----
-  const after = () => {
+  const after = async () => {
     pending = [];
     routeTo = null;
-    hud.mapSlot.hidden = true;
-    busy = false;
     if (run?.game.base && here() !== run.game.base) goTo(run.game.base);
     x.timebar.seek(Math.min(run!.game.hour, lastHour), false);
     if (run) saveRun(run);
     render();
+    await comms.idle(); // the next choice waits until the player has read what was just said
+    busy = false;
     if (!nextDecision()) {
       want = true;
       sync();
@@ -380,13 +376,11 @@ export async function startGame(x: GameSession): Promise<void> {
   const showReveal = (spec: Parameters<typeof revealPanel>[0]) => new Promise<void>((resolve) => {
     revealing = true;
     hud.el.classList.add('quiet');
-    comms.el.classList.add('quiet');
     sync();
     const panel = revealPanel(spec, () => {
       panel.remove();
       revealing = false;
       hud.el.classList.remove('quiet');
-      comms.el.classList.remove('quiet');
       x.stage.classList.remove('g-flash');
       resolve();
     });
@@ -418,8 +412,6 @@ export async function startGame(x: GameSession): Promise<void> {
   const doLand = async (i: number) => {
     const r = run!;
     const k = r.landOptions[i];
-    comms.say('Running the numbers on all three spots…', 'talk');
-    await new Promise((res) => window.setTimeout(res, 30)); // let the line paint before the projection
     const proj = projectLandOptions(r, world);
     if (!land(r.game, env, k, world.craters).ok) {
       comms.say('That spot didn\'t work. Try another.', 'sad');
@@ -468,7 +460,7 @@ export async function startGame(x: GameSession): Promise<void> {
     sync();
     pending = keys;
     refreshMarks();
-    hud.mapSlot.hidden = false;
+    drawRoutes();
     chooser.show('Which crater will the rovers dig?', 'Ice only lasts where the Sun never or barely reaches. Go look at each floor and the way there.', keys.map((k) => ({
       glyph: 'e-pick',
       title: names.get(k) ?? 'Crater',
@@ -555,7 +547,7 @@ export async function startGame(x: GameSession): Promise<void> {
     }
     pending = keys;
     refreshMarks();
-    hud.mapSlot.hidden = false;
+    drawRoutes();
     chooser.show('Where should the solar tower stand?', 'A good spot is sunny when your base is dark. Go look and compare the timelines.', keys.map((k, i) => ({
       glyph: 'e-sun',
       title: `Tower spot ${i + 1}`,
@@ -611,9 +603,10 @@ export async function startGame(x: GameSession): Promise<void> {
     want = false;
     sync();
     if (r.game.base) goTo(r.game.base);
-    comms.say('Tanks full. Three, two, one…', 'cool');
-    window.setTimeout(liftOff, 600);
-    window.setTimeout(() => endRun(), 4800);
+    void comms.say('Tanks full. Three, two, one…', 'cool').then(() => {
+      liftOff();
+      window.setTimeout(() => endRun(), 4200);
+    });
   };
   const liftOff = () => {
     propsKey = '';
@@ -719,7 +712,7 @@ export async function startGame(x: GameSession): Promise<void> {
       afterStep();
       stop = nextDecision();
     }
-    if (stop) {
+    if (stop || blocked()) {
       x.timebar.seek(Math.min(run.game.hour, lastHour), false);
       sync();
     } else if (run.game.hour >= lastHour) endRun();
@@ -794,9 +787,9 @@ export async function startGame(x: GameSession): Promise<void> {
     } else goTo(r.landOptions[0]);
     modal.close();
     render();
-    const go = () => {
-      if (resumed && r.game.base) comms.say(`Welcome back. Day ${runDay(r)} at ${siteName}.`, 'happy');
-      else comms.say(`${siteName}. Three places to land. Let's go and look.`, 'talk');
+    const go = async () => {
+      if (resumed && r.game.base) await comms.say(`Welcome back. Day ${runDay(r)} at ${siteName}.`, 'happy');
+      else await comms.say(`${siteName}. Three places to land. Let's go and look.`, 'talk');
       if (!nextDecision()) {
         want = true;
         sync();
@@ -805,8 +798,8 @@ export async function startGame(x: GameSession): Promise<void> {
     // The first time ever, Astrofrog says who it is before anything else.
     if (!metFrog()) {
       void comms.hold('Hi! I\'m Astrofrog, your mission control back on Earth. I\'ll radio you here whenever something happens. Click me or press space to carry on.', 'cheer')
-        .then(() => { setMetFrog(); go(); });
-    } else go();
+        .then(() => { setMetFrog(); void go(); });
+    } else void go();
   };
 
   const saved = loadRun(siteId);
