@@ -12,7 +12,7 @@ import type { Scene3D, SceneProp } from '../panorama3d/Scene3D';
 import { SHORT, SHORT_GAME, STORY, TUTORIAL } from '../tips';
 import type { SpotGridHandle, SpotMark } from '../ui/SpotGrid';
 import type { TimeBar } from '../ui/TimeBar';
-import { craterNames, currentWindow, groundLabel, siteHasMission, spotMetrics, towerGainHours, tripFacts } from './cards';
+import { craterNames, currentWindow, groundLabel, siteHasMission, spotMetrics, sunHoursAhead, towerGainHours, tripFacts } from './cards';
 import { KEEPALIVE_KW, OVEN_BAKE_FACTOR, ROADS_SPEED_FACTOR, ROVER_BATTERY_KWH, SHELTER_KEEPALIVE_FACTOR } from './constants';
 import { BUILD_INFO } from './ui/hud';
 import { buildWorld, type SeriesAt } from './env';
@@ -28,7 +28,7 @@ import {
 import { clearRun, loadRun, saveRun } from './save';
 import { choicePoints, ranks, verdict } from './score';
 import { dailySeed, newSeed } from './seed';
-import { BUILD_ITEMS, TARGET, buildCost, buy, isBuilt, type BuildItem, chooseCrater, deliver, land, launch, step, type GameEvent, type PowerReport } from './sim';
+import { BUILD_ITEMS, TARGET, buildCost, buy, isBuilt, type BuildItem, chooseCrater, deliver, floorLitAhead, land, launch, step, type GameEvent, type PowerReport } from './sim';
 import { keyOf, type Key, type Rover } from './state';
 import { Chooser, revealPanel, type ChoiceOption, type RevealRow } from './ui/choose';
 import { Coach, type CoachStep } from './ui/coach';
@@ -439,9 +439,16 @@ export async function startGame(x: GameSession): Promise<void> {
     if (!power.earth && (r.phase === 'out' || r.phase === 'back' || r.phase === 'working')) return { word: 'waiting for Earth', stuck: true };
     switch (r.phase) {
       case 'idle': return { word: 'at base', stuck: false };
-      case 'charging': return { word: power.earth ? 'charging' : 'charging, no Earth', stuck: !power.earth };
+      case 'charging': {
+        if (!power.earth) return { word: 'charging, no Earth', stuck: true };
+        const route = r.job ? env.route(s.base!, r.job.target) : null;
+        if (r.job && route && floorLitAhead(s, env, r.job, route.km)) return { word: 'waiting for the floor to go dark', stuck: true };
+        return { word: 'charging', stuck: false };
+      }
       case 'out': return { word: `driving to ${where}`, stuck: false };
-      case 'working': return { word: r.job?.kind === 'prospect' ? 'scouting' : 'digging', stuck: false };
+      case 'working':
+        if (r.job?.kind === 'haul' && env.solarKw(r.at, s.hour) > 0) return { word: 'Sun on the floor: waiting', stuck: true };
+        return { word: r.job?.kind === 'prospect' ? 'scouting' : 'digging', stuck: false };
       case 'back': return { word: 'hauling home', stuck: false };
       default: return { word: 'unloading', stuck: false };
     }
@@ -646,10 +653,16 @@ export async function startGame(x: GameSession): Promise<void> {
     pending = keys;
     refreshMarks();
     drawRoutes();
-    chooser.show('Which crater will the rovers dig?', 'Ice only lasts where the Sun never or barely reaches. Go look at each floor and the way there.', keys.map((k) => ({
+    const end = deadlineHour(r);
+    const sunLabel = (k: Key) => {
+      if (world.floor(k) === 0) return 'never sunlit';
+      const days = sunHoursAhead(world, k, r.game.hour, end) / 24;
+      return days < 0.05 ? 'no Sun on the floor before the deadline' : `Sun on the floor ${days < 1 ? 'under a day' : `${Math.round(days)} days`} before the deadline`;
+    };
+    chooser.show('Which crater will the rovers dig?', 'Ice lasts where the Sun never or barely reaches. A floor that gets some Sun keeps ice too, but rovers cannot dig while the Sun is on it: check when it is lit.', keys.map((k) => ({
       glyph: 'e-pick',
       title: names.get(k) ?? 'Crater',
-      label: `about ${Math.round(tripFacts(world, r.game.base!, k, 'haul').km)} km away`,
+      label: `about ${Math.round(tripFacts(world, r.game.base!, k, 'haul').km)} km away · ${sunLabel(k)}`,
       look: () => {
         routeTo = k; goTo(k); drawRoutes();
         coachSoon('craterLook', [
@@ -675,6 +688,8 @@ export async function startGame(x: GameSession): Promise<void> {
     const floors = keys.map((k) => world.floor(k));
     const ice = keys.map((k) => world.ice.get(k) ?? 0);
     const km = keys.map((k) => tripFacts(world, r.game.base!, k, 'haul').km);
+    const end = deadlineHour(r);
+    const sunH = keys.map((k) => sunHoursAhead(world, k, r.game.hour, end));
     const rk = ranks(proj);
     coachSoon('craterReveal', [{ target: revealRow(2), text: TUTORIAL.craterReveal }]);
     await showReveal({
@@ -683,7 +698,7 @@ export async function startGame(x: GameSession): Promise<void> {
       picked: i,
       rows: [
         { name: 'Floor sunlit over the year', tag: 'REAL', values: floors.map(share), winners: bestOf(floors, 'low') },
-        { name: 'Ice tier', tag: 'RULE', values: keys.map((k) => (world.tier(k) === 'rich' ? 'rich' : 'trace')), winners: bestOf(keys.map((k) => (world.tier(k) === 'rich' ? 1 : 0)), 'high') },
+        { name: 'Sun on the floor before the deadline (no digging)', tag: 'REAL', values: sunH.map((h) => `${Math.round(h)} h`), winners: bestOf(sunH, 'low') },
         { name: 'Ice in the dirt', tag: 'HYPOTHETICAL', values: ice.map((v) => `${(v * 100).toFixed(1)}%`), winners: bestOf(ice, 'high') },
         { name: 'Drive', tag: 'REAL', values: km.map((v) => `${v.toFixed(1)} km`), winners: bestOf(km, 'low') },
       ],
@@ -691,7 +706,7 @@ export async function startGame(x: GameSession): Promise<void> {
       points: choicePoints(r.choices[r.choices.length - 1]),
       why: floors[i] === 0
         ? 'Your floor never saw the Sun in 2027: a cold trap, so the ice is rich.'
-        : `Your floor saw a sliver of Sun ${share(floors[i])} of the year, so only a trace of ice is left.`,
+        : `Your floor saw Sun ${share(floors[i])} of the year, so it keeps less ice, and the rovers lose ${Math.round(sunH[i])} hours of digging to sunlight before the deadline.`,
     });
     if (coach.active) {
       coach.hide();

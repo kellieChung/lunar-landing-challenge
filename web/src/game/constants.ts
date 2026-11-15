@@ -138,11 +138,12 @@ export const BATTERY_PACK_KWH = BATTERY_KWH;
 
 /**
  * Cold-trap tiers. A floor whose mean sunlit share over 2027 is 0 is "rich";
- * above 0 up to this share it holds a "trace" that shrinks linearly to nothing
- * at the cut-off; sunnier floors hold none. The rule follows the cold-trap idea;
- * the cut-off is a game choice.
+ * above 0 up to this share it is "sunlit": it keeps some ice (down to half the
+ * cell's roll at the cut-off), but rovers cannot dig while the Sun is on it, so
+ * when its sunny stretches fall matters. Sunnier floors hold none. The rule
+ * follows the cold-trap idea; the cut-off and the halving are game choices.
  */
-export const TRACE_MAX_SUNLIT = 0.05;
+export const LIT_MAX_SUNLIT = 0.15;
 /** A run must launch within this many hours of landing: 3 Sun circuits (synodic month 708.7 h). */
 export const RUN_DEADLINE_H = 2124;
 /** Most hours the base may sleep in a run and still earn the "Lights on" star. */

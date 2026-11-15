@@ -4,7 +4,7 @@
 // (game.MD v3 §5); which one is actually best is left to the projection.
 
 import type { GridSummary } from '../data/types';
-import { CABLE_REACH_KM, ROVER_BATTERY_KWH } from './constants';
+import { CABLE_REACH_KM, ROVER_BATTERY_KWH, RUN_DEADLINE_H } from './constants';
 import { craterSpots } from './deposits';
 import type { World } from './env';
 import { buildTerrain } from './paths';
@@ -117,19 +117,40 @@ export function groundLabel(w: World, k: Key): 'flat' | 'rough' | 'steep' {
   return worst < 5 ? 'flat' : worst < 12 ? 'rough' : 'steep';
 }
 
-/** Up to three craters a rover can reach from the base: the darkest, a near-dark one, the closest. */
-export function craterCards(s: GameState, w: World): Card[] {
+/** Hours in [from, to) with any of the Sun's disk above this spot's horizon (REAL). */
+export function sunHoursAhead(w: World, k: Key, from: number, to: number): number {
+  const f = w.series(k).fraction;
+  let n = 0;
+  for (let h = Math.max(0, from); h < Math.min(f.length, to); h++) if (f[h] > 0) n++;
+  return n;
+}
+
+/**
+ * Up to three craters a rover can reach from the base: the darkest floor, the
+ * closest sunlit floor (nearer if one is), and a second sunlit floor whose Sun
+ * over the rest of the run differs most from the first. Rovers cannot dig
+ * while the Sun is on a floor, so the player has to read each floor's future.
+ */
+export function craterCards(s: GameState, w: World, until = (s.landedHour ?? s.hour) + RUN_DEADLINE_H): Card[] {
   if (!s.base) return [];
   const base = s.base;
   const reach = reachableDark(w.env, base, w.craters);
   const km = (k: Key) => w.env.route(base, k)!.km;
+  const ahead = new Map(reach.map((k) => [k, sunHoursAhead(w, k, s.hour, until)]));
   const darkest = [...reach].sort((a, b) => w.floor(a) - w.floor(b) || km(a) - km(b));
+  const closest = [...reach].sort((a, b) => km(a) - km(b));
+  const lit = closest.filter((k) => w.tier(k) === 'sunlit');
   const picked: Key[] = [];
   const add = (k: Key | undefined) => { if (k && !picked.includes(k)) picked.push(k); };
   add(darkest[0]);
-  // Near-dark: the darkest floor of a different tier or distance band than the first.
-  add(darkest.find((k) => !picked.includes(k) && (w.tier(k) !== w.tier(picked[0]) || Math.abs(km(k) - km(picked[0])) >= 1.5)));
-  add([...reach].sort((a, b) => km(a) - km(b)).find((k) => !picked.includes(k)));
+  add(lit.find((k) => !picked.includes(k) && picked[0] && km(k) < km(picked[0])) ?? lit.find((k) => !picked.includes(k)));
+  const first = picked[1];
+  if (first) {
+    const other = lit.filter((k) => !picked.includes(k))
+      .sort((a, b) => Math.abs(ahead.get(b)! - ahead.get(first)!) - Math.abs(ahead.get(a)! - ahead.get(first)!) || km(a) - km(b))[0];
+    if (other && ahead.get(other) !== ahead.get(first)) add(other);
+  }
+  add(closest.find((k) => !picked.includes(k)));
   for (const k of darkest) if (picked.length < 3) add(k);
   return picked.slice(0, 3).map((target) => ({ kind: 'crater', target }));
 }

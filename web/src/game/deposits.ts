@@ -6,7 +6,7 @@
 //    these spots; each gets a fixed made-up value inside the LCROSS range.
 
 import type { GridSummary } from '../data/types';
-import { ICE_WT_PCT_MEAN, ICE_WT_PCT_SIGMA, TRACE_MAX_SUNLIT } from './constants';
+import { ICE_WT_PCT_MEAN, ICE_WT_PCT_SIGMA, LIT_MAX_SUNLIT } from './constants';
 import { keyOf, type Key } from './state';
 
 /**
@@ -50,7 +50,7 @@ export function iceMap(siteId: string, summaries: GridSummary[]): Map<Key, numbe
 
 // ---- Cold-trap tiers (game.MD v3 §6) ---------------------------------------
 
-export type IceTier = 'rich' | 'trace' | 'none';
+export type IceTier = 'rich' | 'sunlit' | 'none';
 
 /** REAL: mean share of the Sun's disk above the horizon at this floor over 2027 (0..1). */
 export function floorSunlit(s: GridSummary): number {
@@ -60,21 +60,19 @@ export function floorSunlit(s: GridSummary): number {
 /** Game rule: the ice tier of a floor from its mean sunlit share. */
 export function iceTier(sunlit: number): IceTier {
   if (sunlit <= 0) return 'rich';
-  return sunlit <= TRACE_MAX_SUNLIT ? 'trace' : 'none';
+  return sunlit <= LIT_MAX_SUNLIT ? 'sunlit' : 'none';
 }
 
 /**
- * HYPOTHETICAL ice share of a floor. Rich: the cell's fixed roll inside the
- * LCROSS range. Trace: never more than the lowest rich amount (half to all of
- * it, by the same roll), shrinking linearly to 0 at the cut-off, so a trace
- * floor always holds less ice than any rich one.
+ * HYPOTHETICAL ice share of a floor: the cell's fixed roll inside the LCROSS
+ * range. A sunlit floor keeps less, shrinking linearly to half the roll at the
+ * cut-off, so a lit floor can still beat a lean rich one (its catch is that
+ * rovers cannot dig while the Sun is on it; see sim.ts).
  */
 export function tieredIce(siteId: string, i: number, j: number, sunlit: number): number {
   const tier = iceTier(sunlit);
   if (tier === 'none') return 0;
-  if (tier === 'rich') return iceFraction(siteId, i, j);
-  const lowestRich = (ICE_WT_PCT_MEAN - ICE_WT_PCT_SIGMA) / 100;
-  return lowestRich * (0.5 + 0.5 * hash01(`${siteId}:${i},${j}`)) * (1 - sunlit / TRACE_MAX_SUNLIT);
+  return iceFraction(siteId, i, j) * (1 - 0.5 * (sunlit / LIT_MAX_SUNLIT));
 }
 
 /** Cells whose floor holds some ice by the tier rule (from sites.json numbers only). */

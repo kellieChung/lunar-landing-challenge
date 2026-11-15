@@ -68,6 +68,22 @@ export function tripNeedKWh(env: Env, from: Key, to: Key, kind: Job['kind'], spe
   return path ? tripEnergyKWh(path.km, kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS, speed) : null;
 }
 
+/** Is the Sun off this floor for every hour in [from, from + hours) (REAL sunlight)? */
+export function floorDark(env: Env, spot: Key, from: number, hours: number): boolean {
+  for (let h = from; h < from + hours; h++) if (env.solarKw(spot, h) > 0) return false;
+  return true;
+}
+
+/**
+ * Game rule: rovers cannot dig while the Sun is on the floor (exposed ice
+ * sublimates and the rover overheats). Would a haul leaving now find the floor
+ * lit while it digs? Scouting is allowed in sunlight.
+ */
+export function floorLitAhead(s: GameState, env: Env, job: Job, km: number, hour = s.hour): boolean {
+  if (job.kind !== 'haul') return false;
+  return !floorDark(env, job.target, hour + Math.ceil(km / roverSpeed(s)), DIG_HOURS);
+}
+
 /** Craters (or any spots in `targets`) a rover could drive to and back from `spot` on one battery charge. */
 export function reachableDark(env: Env, spot: Key, targets: Key[]): Key[] {
   return targets.filter((d) => {
@@ -297,6 +313,10 @@ function stepRover(s: GameState, env: Env, r: Rover, events: GameEvent[], earthN
       }
       break;
     case 'working':
+      if (r.job!.kind === 'haul' && env.solarKw(r.at, s.hour) > 0) { // Sun on the floor: wait it out
+        drain(r, ROVER_PARK_KW);
+        break;
+      }
       drain(r, ROVER_KW);
       if (--r.workLeftH > 0) break;
       if (r.job!.kind === 'prospect') {
@@ -412,8 +432,10 @@ export function step(s: GameState, env: Env): { events: GameEvent[]; power: Powe
     s.batteryKWh -= batt;
     r.chargeKWh += sun + batt;
     power.roverKw += sun + batt;
-    // Leave only with enough charge, and only if the trip can finish before Earth sets.
-    if (r.chargeKWh >= need - 1e-9 && env.earthHoursLeft(s.base, hour) >= tripHours(path.km, r.job.kind, roverSpeed(s))) {
+    // Leave only with enough charge, only if the trip can finish before Earth
+    // sets, and (for a haul) only if the floor will be dark while it digs.
+    if (r.chargeKWh >= need - 1e-9 && env.earthHoursLeft(s.base, hour) >= tripHours(path.km, r.job.kind, roverSpeed(s))
+      && !floorLitAhead(s, env, r.job, path.km, hour)) {
       r.phase = 'out';
       r.route = path.keys.slice(1);
       r.legKm = 0;

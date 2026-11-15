@@ -42,9 +42,10 @@ describe('site par', () => {
     if (process.env.UPDATE_PAR) writeFileSync(PAR_FILE, `${JSON.stringify(par, null, 2)}\n`);
     const saved = JSON.parse(readFileSync(PAR_FILE, 'utf8'));
     expect(saved).toEqual(par);
-    // Malapert has no cold trap; Cabeus B Peak's floors all see a little Sun (trace ice only, too little in time).
+    // Malapert has no cold trap. Cabeus B Peak's floors all see a little Sun:
+    // a run built only on sunlit floors, where timing the dig matters.
     expect(par.order).not.toContain('malapert-massif');
-    expect(par.order).not.toContain('cabeus-b-peak');
-    expect(par.order.length).toBe(7);
+    expect(par.order).toContain('cabeus-b-peak');
+    expect(par.order.length).toBe(8);
   }, 300_000);
 });

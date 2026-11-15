@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GridSummary } from '../data/types';
 import { H2_PER_KG_WATER, O2_PER_KG_WATER, fuelTarget, propellantKg } from './chemistry';
 import {
-  BATTERY_KWH, BATTERY_PACK_KWH, KEEPALIVE_KW, MAX_SLOPE_DEG, PROSPECT_HOURS, ROVER_BATTERY_KWH, ROVER_KW, ROVER_PAYLOAD_KG, ROVER_SPEED_KMH, SOLAR_TOWER_KW, SHELTER_KEEPALIVE_FACTOR, TRACE_MAX_SUNLIT,
+  BATTERY_KWH, BATTERY_PACK_KWH, KEEPALIVE_KW, MAX_SLOPE_DEG, PROSPECT_HOURS, ROVER_BATTERY_KWH, ROVER_KW, ROVER_PAYLOAD_KG, ROVER_SPEED_KMH, SOLAR_TOWER_KW, SHELTER_KEEPALIVE_FACTOR, LIT_MAX_SUNLIT,
 } from './constants';
 import { darkSpots, hash01, iceFraction, iceTier, tieredIce } from './deposits';
 import { buildTerrain, slopeDeg } from './paths';
@@ -19,11 +19,12 @@ function strip(heights = [0, 0, 0, 0, 0]): GridSummary[] {
   }));
 }
 
-function env(summaries: GridSummary[], opts: { sun?: (h: number) => number; earth?: (h: number) => boolean; ice?: number } = {}): Env {
+function env(summaries: GridSummary[], opts: { sun?: (h: number) => number; earth?: (h: number) => boolean; ice?: number; floorSun?: (h: number) => boolean } = {}): Env {
   const terrain = buildTerrain(summaries);
   const dark = new Set(darkSpots(summaries).map(keyOf));
   return {
-    solarKw: (_spot, h) => SOLAR_TOWER_KW * (opts.sun ? opts.sun(h) : 1),
+    // Dark spots see no Sun unless a test lights the floor on purpose.
+    solarKw: (spot, h) => (dark.has(spot) ? (opts.floorSun?.(h) ? SOLAR_TOWER_KW : 0) : SOLAR_TOWER_KW * (opts.sun ? opts.sun(h) : 1)),
     earthVisible: (_spot, h) => (opts.earth ? opts.earth(h) : true),
     route: terrain.route,
     legKm: terrain.legKm,
@@ -77,18 +78,15 @@ describe('deposits', () => {
     expect(darkSpots(strip()).map(keyOf)).toEqual(['4,0']);
   });
 
-  it('cold-trap tiers: rich in full dark, a shrinking trace up to the cut-off, none above', () => {
+  it('cold-trap tiers: rich in full dark, a shrinking sunlit share up to the cut-off, none above', () => {
     expect(iceTier(0)).toBe('rich');
-    expect(iceTier(TRACE_MAX_SUNLIT / 2)).toBe('trace');
-    expect(iceTier(TRACE_MAX_SUNLIT)).toBe('trace');
-    expect(iceTier(TRACE_MAX_SUNLIT + 0.001)).toBe('none');
+    expect(iceTier(LIT_MAX_SUNLIT / 2)).toBe('sunlit');
+    expect(iceTier(LIT_MAX_SUNLIT)).toBe('sunlit');
+    expect(iceTier(LIT_MAX_SUNLIT + 0.001)).toBe('none');
     const rich = tieredIce('haworth', 1, 1, 0);
     expect(rich).toBe(iceFraction('haworth', 1, 1));
-    const nearDark = tieredIce('haworth', 1, 1, 1e-6);
-    expect(tieredIce('haworth', 1, 1, TRACE_MAX_SUNLIT / 2)).toBeCloseTo(nearDark / 2, 6);
-    expect(tieredIce('haworth', 1, 1, TRACE_MAX_SUNLIT)).toBe(0);
-    // A trace floor never holds more ice than any rich floor.
-    for (let i = -5; i <= 5; i++) for (let j = -5; j <= 5; j++) expect(tieredIce('haworth', i, j, 1e-6)).toBeLessThanOrEqual(0.027 + 1e-12);
+    expect(tieredIce('haworth', 1, 1, LIT_MAX_SUNLIT / 2)).toBeCloseTo(rich * 0.75, 9);
+    expect(tieredIce('haworth', 1, 1, LIT_MAX_SUNLIT)).toBeCloseTo(rich / 2, 9);
     expect(tieredIce('haworth', 1, 1, 0.5)).toBe(0);
   });
 });
@@ -163,6 +161,25 @@ describe('sim', () => {
     expect(s.hopperKg + s.waterKg + s.h2Kg + s.o2Kg + s.tailingsKg).toBeCloseTo(hauled, 6);
     expect(s.o2Kg / s.h2Kg).toBeCloseTo(O2_PER_KG_WATER / H2_PER_KG_WATER, 6);
     expect(s.milestones).toEqual(expect.arrayContaining(['prospect', 'regolith', 'water']));
+  });
+
+  it('rovers do not dig while the Sun is on the floor', () => {
+    const lit = (h: number) => h >= 20 && h < 120; // the floor is sunlit for hours 20..119
+    const e = env(strip(), { ice: 0.056, floorSun: lit });
+    const s = newGame('test');
+    land(s, e, '0,0', ['4,0']);
+    s.prospected.push('4,0');
+    orderRover(s, e, 1, { kind: 'haul', target: '4,0' });
+    const trips: number[] = [];
+    for (let h = 0; h < 200; h++) {
+      const before = s.trips;
+      step(s, e);
+      if (s.trips > before) trips.push(h);
+    }
+    expect(trips.length).toBeGreaterThan(0);
+    // No load was dug in the sunlit stretch: a trip home after hour ~20 waits until 120.
+    for (const h of trips) expect(h < 40 || h >= 120).toBe(true);
+    expect(trips.some((h) => h >= 120)).toBe(true);
   });
 
   it('rover battery: never runs below empty, and far trips are refused', () => {
