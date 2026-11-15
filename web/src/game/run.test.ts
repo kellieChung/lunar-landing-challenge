@@ -3,10 +3,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { GridSummary, SiteData, SiteIndexEntry } from '../data/types';
-import { LIGHTS_ON_MAX_SLEEP_H, RUN_DEADLINE_H } from './constants';
+import { RUN_DEADLINE_H } from './constants';
 import { buildWorld } from './env';
 import { due, newRun, projectLandOptions, record, type Projection, type Run } from './run';
-import { choicePoints, nearMiss, ranks, stars } from './score';
+import { choicePoints, lightsOnLimit, nearMiss, ranks, stars } from './score';
 import { land } from './sim';
 
 const read = <T>(name: string): T => JSON.parse(readFileSync(new URL(`../../public/data/${name}`, import.meta.url), 'utf8')) as T;
@@ -50,7 +50,7 @@ describe('score', () => {
     land(run.game, world.env, run.landOptions[0], world.craters);
     expect(stars(run)).toBe(0);
     run.game.launchedHour = run.game.hour + 500;
-    run.game.sleepHours = LIGHTS_ON_MAX_SLEEP_H + 1;
+    run.game.sleepHours = lightsOnLimit(run.game.siteId) + 1;
     expect(stars(run)).toBe(1);
     run.game.sleepHours = 0;
     record(run, 'land', [p(30), p(50), p(70)], 2); // 20 points

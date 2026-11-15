@@ -3,10 +3,17 @@
 
 import { fill } from './autopilot';
 import { spotMetrics } from './cards';
-import { LIGHTS_ON_MAX_SLEEP_H, RUN_DEADLINE_H, SKY_SENSE_POINTS, SKY_SENSE_STAR } from './constants';
+import { LIGHTS_ON_DEFAULT_H, LIGHTS_ON_SLACK_H, RUN_DEADLINE_H, SKY_SENSE_POINTS, SKY_SENSE_STAR } from './constants';
 import type { World } from './env';
 import { fuelReady } from './sim';
 import type { ChoiceRecord, Projection, Run } from './run';
+import PAR from './par.json';
+
+/** Most hours the base may sleep at this site and still earn the "Lights on" star. */
+export function lightsOnLimit(siteId: string): number {
+  const par = (PAR as { sleep?: Record<string, number> }).sleep?.[siteId];
+  return par === undefined ? LIGHTS_ON_DEFAULT_H : Math.round(par + LIGHTS_ON_SLACK_H);
+}
 
 const DEADLINE_DAYS = RUN_DEADLINE_H / 24;
 
@@ -43,7 +50,7 @@ export function launched(run: Run): boolean {
 /** Stars earned: each needs the one before it. */
 export function stars(run: Run): number {
   if (!launched(run)) return 0;
-  if (run.game.sleepHours > LIGHTS_ON_MAX_SLEEP_H) return 1;
+  if (run.game.sleepHours > lightsOnLimit(run.game.siteId)) return 1;
   return (skySense(run) ?? 0) >= SKY_SENSE_STAR ? 3 : 2;
 }
 
@@ -104,6 +111,7 @@ export interface Verdict {
   launched: boolean;
   skySense: number | null;
   sleepHours: number;
+  sleepLimit: number;
   days: number | null;
   nearMiss: string;
 }
@@ -115,6 +123,7 @@ export function verdict(run: Run, w: World): Verdict {
     launched: launched(run),
     skySense: skySense(run),
     sleepHours: s.sleepHours,
+    sleepLimit: lightsOnLimit(s.siteId),
     days: s.launchedHour === null || s.landedHour === null ? null : (s.launchedHour - s.landedHour) / 24,
     nearMiss: nearMiss(run, w),
   };

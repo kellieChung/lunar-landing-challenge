@@ -7,7 +7,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { GridSummary, SiteData, SiteIndexEntry } from '../data/types';
 import { STRATEGIES, projectFrom, type Strategy } from './autopilot';
-import { LIGHTS_ON_MAX_SLEEP_H, RUN_DEADLINE_H } from './constants';
+import { RUN_DEADLINE_H } from './constants';
+import { lightsOnLimit } from './score';
 import { buildWorld } from './env';
 import PAR from './par.json';
 import { newRun } from './run';
@@ -30,7 +31,7 @@ export function sweep() {
         // The best landing spot for this strategy, as a player who knows it would pick.
         const outs = run.landOptions.map((k) => projectFrom(w, newGame(id, run.startHour), run.startHour + RUN_DEADLINE_H, (c) => land(c, w.env, k, w.craters).ok, st));
         const r = outs.reduce((a, b) => ((b.days ?? 999) < (a.days ?? 999) ? b : a));
-        const stars = r.days === null ? 0 : r.sleepHours <= LIGHTS_ON_MAX_SLEEP_H ? 2 : 1;
+        const stars = r.days === null ? 0 : r.sleepHours <= lightsOnLimit(id) ? 2 : 1;
         score += stars;
         if (r.days !== null) { days += r.days; launches++; }
         sleep += r.sleepHours;
@@ -54,6 +55,8 @@ describe('balance', () => {
       });
       wins[best] = (wins[best] ?? 0) + 1;
       expect(Math.max(...STRATEGIES.map((s) => row[s].score)), id).toBeGreaterThan(0);
+      // Lights on must be reachable at every site by some build order.
+      expect(Math.min(...STRATEGIES.map((s) => row[s].sleep)), `${id} lights on`).toBeLessThanOrEqual(lightsOnLimit(id));
     }
     console.info(JSON.stringify(table), wins);
     // Rovers-first is the fastest at most sites; the others must still win somewhere

@@ -866,7 +866,7 @@ export async function startGame(x: GameSession): Promise<void> {
     const openedName = opened ? (opened === siteId ? siteName : opened.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())) : null;
     comms.mood(v.stars === 3 ? 'love' : v.stars > 0 ? 'happy' : 'sad');
     modal.show(reportPanel({
-      siteName, stars: v.stars, launched: v.launched, days: v.days, sleepHours: v.sleepHours, skySense: v.skySense,
+      siteName, stars: v.stars, launched: v.launched, days: v.days, sleepHours: v.sleepHours, sleepLimit: v.sleepLimit, skySense: v.skySense,
       fillPct: Math.round(100 * Math.min(1, r.game.h2Kg / TARGET.h2Kg, r.game.o2Kg / TARGET.o2Kg)), nearMiss: v.nearMiss, improved,
       unlocked: openedName, rank: rankOf(totalStars(progress)), totalStars: totalStars(progress),
     },

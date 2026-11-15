@@ -145,8 +145,11 @@ export const BATTERY_PACK_KWH = BATTERY_KWH;
 export const LIT_MAX_SUNLIT = 0.15;
 /** A run must launch within this many hours of landing: 3 Sun circuits (synodic month 708.7 h). */
 export const RUN_DEADLINE_H = 2124;
-/** Most hours the base may sleep in a run and still earn the "Lights on" star. */
-export const LIGHTS_ON_MAX_SLEEP_H = 168;
+/** "Lights on" star: the base may sleep this many hours beyond the site's par sleep
+ * (the least sleep any autopilot build order manages there, par.json). */
+export const LIGHTS_ON_SLACK_H = 48;
+/** Lights-on limit for a site with no par sleep. */
+export const LIGHTS_ON_DEFAULT_H = 168;
 /** Sky Sense points for the 1st, 2nd and 3rd best option of a look-and-compare. */
 export const SKY_SENSE_POINTS = [100, 70, 20];
 /** Average Sky Sense needed for the third star. */

@@ -135,6 +135,7 @@ export interface ReportInfo {
   launched: boolean;
   days: number | null;
   sleepHours: number;
+  sleepLimit: number;
   skySense: number | null;
   fillPct: number;
   nearMiss: string;
@@ -167,7 +168,7 @@ export function reportPanel(r: ReportInfo, again: () => void, retry: () => void,
     list.append(li);
   };
   line(r.launched, 'Launch', r.launched ? `Tanks full on day ${Math.ceil(r.days ?? 0)}.` : `Your tank was ${r.fillPct}% full at the deadline.`);
-  line(r.stars >= 2, 'Lights on', `The base slept ${Math.round(r.sleepHours)} h (2 days or less earns it).`);
+  line(r.stars >= 2, 'Lights on', `The base slept ${Math.round(r.sleepHours)} h (${r.sleepLimit} h or less earns it here).`);
   line(r.stars >= 3, 'Sky Sense', r.skySense === null ? 'No choices scored.' : `Your picks scored ${r.skySense} (80 earns it).`);
   out.push(list);
 
