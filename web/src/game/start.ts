@@ -6,9 +6,10 @@
 // the Moon comes from src/physics through env.ts.
 
 import './game.css';
+import * as THREE from 'three';
 import type { GridPoint, GridSummary, SiteData } from '../data/types';
 import type { Scene3D, SceneProp } from '../panorama3d/Scene3D';
-import { SHORT, SHORT_GAME } from '../tips';
+import { SHORT, SHORT_GAME, TUTORIAL } from '../tips';
 import type { SpotGridHandle, SpotMark } from '../ui/SpotGrid';
 import type { TimeBar } from '../ui/TimeBar';
 import { craterNames, currentWindow, groundLabel, siteHasMission, spotMetrics, towerGainHours, tripFacts } from './cards';
@@ -16,7 +17,9 @@ import { KEEPALIVE_KW, ROVER_BATTERY_KWH, SHELTER_KEEPALIVE_FACTOR } from './con
 import { buildWorld, type SeriesAt } from './env';
 import { GameClock } from './hud/clock';
 import { hostsRuns, isUnlocked, loadProgress, rankOf, recordResult, saveProgress, SITE_ORDER, starsToUnlock, totalStars, unlockedCount } from './progress';
+import { playLaunch } from './launch';
 import { buildBattery, buildPlant, buildRocket, buildRover, buildSolarTower, type Plant, type Rocket, type SolarTower } from './props';
+import { bearingDeg, RoverViz, type RoverSight } from './roverViz';
 import {
   affordable, craterOptions, deadlineHour, due, markBuildsSeen, newRun, nightAhead, projectCraterOptions, projectLandOptions,
   projectTowerOptions, record, RUN_DAYS, runDay, towerOptions, type Mods, type Projection, type Run,
@@ -27,10 +30,13 @@ import { dailySeed, newSeed } from './seed';
 import { TARGET, buildCost, buy, chooseCrater, deliver, land, launch, step, type GameEvent, type PowerReport } from './sim';
 import { keyOf, type Key, type Rover } from './state';
 import { Chooser, revealPanel, type ChoiceOption, type RevealRow } from './ui/choose';
+import { Coach, type CoachStep } from './ui/coach';
 import { Comms, metFrog, setMetFrog, type Mood } from './ui/comms';
-import { dur, el, kg } from './ui/dom';
+import { dur, el, kg, reducedMotion } from './ui/dom';
 import { Hud, SPEEDS, type HudView } from './ui/hud';
 import { briefPanel, lockedPanel, menuPanel, Modal, reportPanel } from './ui/panels';
+import { burst, floatLabel } from './ui/juice';
+import { sfx } from './ui/sound';
 import { installSpriteVars } from './ui/sprites';
 import { hasEarth, type WindowKind } from './windows';
 import { darkWhy, whySentence } from './why';
@@ -95,6 +101,7 @@ export async function startGame(x: GameSession): Promise<void> {
   let slowUntil = -1;
   let revealing = false;
   let busy = false; // a decision or an animation owns the screen
+  let launching = false; // the launch cinematic is playing
   const clock = new GameClock(x.timebar, stepH, lastHour);
   const blocked = () => !run || !run.game.base || run.endedHour !== null || busy || revealing || chooser.open || modal.open || comms.blocking;
   const sync = () => {
@@ -105,7 +112,7 @@ export async function startGame(x: GameSession): Promise<void> {
     hud.setClock(clock.isPlaying || (want && !blocked()), speed, slowed);
     screen.classList.toggle('g-calm', !chooser.open && !revealing);
     // One rule for the radio: hidden (and waiting) while anything owns the whole screen.
-    comms.suspend(modal.open || chooser.full || revealing);
+    comms.suspend(modal.open || chooser.full || revealing || launching);
     if (blocked()) hud.closeTray();
   };
   /** Run `fn` once mission control has nothing left to say, holding the clock meanwhile. */
@@ -180,8 +187,7 @@ export async function startGame(x: GameSession): Promise<void> {
     if (!x.scene || !run) return;
     const s = run.game;
     const k = here();
-    const home = s.rovers.filter((r) => r.at === k && r.phase !== 'out' && r.phase !== 'back');
-    const sig = [k, s.base, s.towers.join('|'), home.length, s.launchedHour !== null, s.pads ?? 0].join(';');
+    const sig = [k, s.base, s.towers.join('|'), s.launchedHour !== null, s.pads ?? 0].join(';');
     if (sig === propsKey) return;
     const arrived = !propsKey.startsWith(`${k};${s.base};`);
     propsKey = sig;
@@ -201,11 +207,103 @@ export async function startGame(x: GameSession): Promise<void> {
         props.push({ object: rocket.group, azDeg: az - 58, distM: 75 });
       }
     }
-    home.forEach((_, n) => props.push({ object: buildRover(), azDeg: az + 52 + 9 * n, distM: 26 + 4 * (n % 2) }));
     x.scene.setProps(props);
     if (arrived && s.base === k && !revealing) x.scene.lookAtProps();
     lightProps();
   };
+
+  // Rovers drive in and out of view (roverViz.ts) instead of being rebuilt with the buildings.
+  if (x.scene) x.scene.fx.few = reducedMotion();
+  const rovers = x.scene ? new RoverViz(x.scene, buildRover, (n) => ({ azDeg: x.landerAz + 52 + 9 * n, distM: 26 + 4 * (n % 2) })) : null;
+  let roverSpot: Key | null = null;
+  /** Bearing from spot k toward the far end of a trip to `other` (the first step of the route). */
+  const bearingToward = (k: Key, other: Key | null | undefined): number | null => {
+    if (!other || other === k) return null;
+    const next = env.route(k, other)?.keys[1] ?? other;
+    const a = world.point(k);
+    const b = world.point(next);
+    return a && b ? bearingDeg(a, b) : null;
+  };
+  const refreshRovers = () => {
+    if (!rovers || !run) return;
+    const s = run.game;
+    const k = here();
+    const snap = roverSpot !== k;
+    roverSpot = k;
+    const sights: RoverSight[] = s.rovers.map((r) => {
+      const present = r.at === k && r.phase !== 'out' && r.phase !== 'back';
+      const other = k === s.base ? r.route[r.route.length - 1] ?? r.job?.target : s.base;
+      const toward = r.route[0] && (r.phase === 'out' || r.phase === 'back') && r.at === k ? r.route[0] : null;
+      const a = toward ? world.point(k) : null;
+      const b = toward ? world.point(toward) : null;
+      return { present, awayAz: a && b ? bearingDeg(a, b) : bearingToward(k, other) };
+    });
+    rovers.sync(sights, snap);
+  };
+
+  // Ambient life: the plant vent puffs while it works and the clock runs.
+  const ventAt = new THREE.Vector3();
+  let ventT = 0;
+  x.scene?.addTicker((dt) => {
+    ventT -= dt;
+    if (ventT > 0 || !plant) return;
+    ventT = 0.45;
+    plant.vent.getWorldPosition(ventAt);
+    x.scene!.fx.steam(ventAt);
+  }, { lowRate: true, idle: () => !(plant?.working && clock.isPlaying && run?.game.base === here()) });
+
+  /** "+N kg ice" over the hopper when a load comes home (or by the fuel gauge when elsewhere). */
+  let lastPop = -Infinity;
+  const deliveryPop = (iceKg: number) => {
+    const now = performance.now();
+    if (now - lastPop < 1200 || !run || iceKg <= 0) return;
+    lastPop = now;
+    const label = `+${iceKg >= 10 ? Math.round(iceKg) : iceKg.toFixed(1)} kg ice`;
+    const stageBox = x.stage.getBoundingClientRect();
+    if (plant && x.scene && run.game.base === here()) {
+      const at = plant.hopper.getWorldPosition(new THREE.Vector3());
+      x.scene.fx.dust(at, { count: 28, speedM: 1.6, sizeM: 0.45 });
+      const p = x.scene.projectToScreen(at);
+      if (p && p.x > stageBox.left && p.x < stageBox.right && p.y > stageBox.top && p.y < stageBox.bottom) {
+        floatLabel(x.stage, p.x - stageBox.left, p.y - stageBox.top - 8, label);
+        return;
+      }
+    }
+    const fuel = hud.el.querySelector('.g-fuel');
+    if (!fuel) return;
+    const f = fuel.getBoundingClientRect();
+    floatLabel(x.stage, f.left + f.width / 2 - stageBox.left, f.top - stageBox.top - 4, label);
+  };
+
+  /** A little party for things that make the base bigger. */
+  let seen: { towers: number; pads: number; shelter: boolean } | null = null;
+  const celebrate = () => {
+    if (!run) return;
+    const s = run.game;
+    const now = { towers: s.towers.length, pads: s.pads ?? 0, shelter: !!s.shelter };
+    const before = seen;
+    seen = now;
+    if (!before) return;
+    if (now.towers > before.towers) {
+      sfx.sparkle();
+      if (tower && x.scene && s.towers[s.towers.length - 1] === here()) {
+        x.scene.fx.sparkle(tower.group.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 3.5 * x.scene.exaggeration, 0)), { count: 60 });
+      } else {
+        const map = hud.mapSlot;
+        burst(map, 20);
+      }
+    }
+    if (now.pads > before.pads && rocket && x.scene) {
+      sfx.sparkle();
+      const at = rocket.group.getWorldPosition(new THREE.Vector3());
+      x.scene.fx.blast(at.setY(at.y + 0.3 * x.scene.exaggeration), { count: 90, speedM: 6 });
+    }
+    if (now.shelter && !before.shelter) {
+      sfx.sparkle();
+      if (plant && x.scene && s.base === here()) x.scene.fx.dust(plant.group.getWorldPosition(new THREE.Vector3()), { count: 70, speedM: 3, sizeM: 0.8 });
+    }
+  };
+
   const lightProps = () => {
     if (!run) return;
     const h = Math.min(run.game.hour, lastHour);
@@ -329,6 +427,10 @@ export async function startGame(x: GameSession): Promise<void> {
         const cost = buildCost(s, env, item);
         return { item, cost, can: cost !== null && s.tailingsKg >= cost && !blocked() };
       }),
+      nextCost: (['pad', 'shelter'] as const)
+        .filter((item) => !(item === 'shelter' && s.shelter))
+        .map((item) => buildCost(s, env, item))
+        .reduce<number | null>((m, c) => (c === null ? m : m === null ? c : Math.min(m, c)), null),
       deliveries: s.deliveries ?? 0, shelter: !!s.shelter, towers: s.towers.length,
       sunFlipH: flipIn(world.series(at).lit, h), earthFlipH: flipIn(world.series(at).earth, h),
     };
@@ -351,8 +453,22 @@ export async function startGame(x: GameSession): Promise<void> {
     comms.mood(restingMood());
     refreshMarks();
     refreshProps();
+    refreshRovers();
+    celebrate();
     lightProps();
   };
+
+  // ---- Tutorial (first run only): how to read a spot and a crater ----
+  const coach = new Coach();
+  const q = (sel: string) => () => document.querySelector(sel);
+  /** Play a tutorial beat once the panel it points at has been laid out. */
+  const coachSoon = (id: string, steps: CoachStep[]) => {
+    if (!coach.active || coach.played(id)) return;
+    window.setTimeout(() => { if (coach.active) void coach.beat(id, steps); }, 80);
+  };
+  const looked = new Set<number>();
+  const cardLook = (n: number) => () => document.querySelectorAll('.g-chooser .g-card')[n]?.querySelector('button') ?? null;
+  const revealRow = (n: number) => () => document.querySelectorAll('.g-reveal-table tr')[n]?.firstElementChild ?? null;
 
   // ---- Blocking tips: only three in a run's life (game.MD v3 §7) ----
   const holdOnce = async (id: string, text: string, mood: Mood = 'talk', tag?: string) => {
@@ -412,18 +528,30 @@ export async function startGame(x: GameSession): Promise<void> {
       label: `${groundLabel(world, k)} ground`,
       look: () => {
         goTo(k);
-        void holdOnce('look', `${SHORT_GAME.look} Is the ice close?`, 'talk', 'look');
+        looked.add(i);
+        if (!coach.active) { void holdOnce('look', `${SHORT_GAME.look} Is the ice close?`, 'talk', 'look'); return; }
+        coachSoon('look', [
+          { target: q('.ov-compass'), text: TUTORIAL.compass },
+          { target: q('#timebar'), text: TUTORIAL.timeline },
+          { target: q('.g-mapbox'), text: TUTORIAL.map },
+          {
+            target: q('.g-lookbar'), text: TUTORIAL.compare,
+            hint: () => `You have looked at ${looked.size} of ${r.landOptions.length} spots.`,
+          },
+        ]);
       },
       chooseLabel: 'Land here',
       choose: () => void doLand(i),
     }));
     chooser.show(`Where will you land at ${siteName}?`, 'Go look at each spot. The cards hide the numbers: the sky and the timeline tell you.', opts,
       { label: 'Pick a different site', onClick: () => exitTo(sitesUrl, false) });
+    coachSoon('firstLook', [{ target: cardLook(0), text: TUTORIAL.firstLook }]);
   };
 
   const doLand = async (i: number) => {
     const r = run!;
     comms.drop('look'); // the "go look" hint is moot once a spot is picked
+    coach.hide();
     const k = r.landOptions[i];
     const proj = projectLandOptions(r, world);
     if (!land(r.game, env, k, world.craters).ok) {
@@ -450,6 +578,11 @@ export async function startGame(x: GameSession): Promise<void> {
       x.scene?.setYaw(why.sunAz);
       x.stage.classList.add('g-flash');
     }
+    coachSoon('landReveal', [
+      { target: q('.g-reveal-table'), text: TUTORIAL.revealRows },
+      { target: q('.g-reveal-table tr.g-proj > th'), text: TUTORIAL.revealProj },
+      { target: q('.g-reveal .g-why'), text: TUTORIAL.revealWhy },
+    ]);
     await showReveal({
       title: 'Landed! Here is what the three spots really had',
       names: r.landOptions.map((_, j) => `Spot ${LETTER(j)}`),
@@ -460,6 +593,7 @@ export async function startGame(x: GameSession): Promise<void> {
         ? `${why ? `The view shows day ${Math.floor((why.mid - r.game.landedHour!) / 24) + 1}, Sun marker bracketed. ` : ''}Projected launch replays the game on the real sky for each spot; Sky Sense scores how your pick would really turn out.`
         : undefined,
     });
+    coach.hide();
     after();
   };
 
@@ -477,16 +611,24 @@ export async function startGame(x: GameSession): Promise<void> {
       glyph: 'e-pick',
       title: names.get(k) ?? 'Crater',
       label: `about ${Math.round(tripFacts(world, r.game.base!, k, 'haul').km)} km away`,
-      look: () => { routeTo = k; goTo(k); drawRoutes(); },
+      look: () => {
+        routeTo = k; goTo(k); drawRoutes();
+        coachSoon('craterLook', [
+          { target: q('#timebar'), text: TUTORIAL.craterTimeline },
+          { target: q('.g-mapbox'), text: TUTORIAL.craterMap },
+        ]);
+      },
       chooseLabel: 'Dig here',
       choose: () => void doCrater(keys, keys.indexOf(k)),
     })));
+    coachSoon('crater', [{ target: q('.g-chooser .g-sub'), text: TUTORIAL.crater }]);
     return true;
   };
 
   const doCrater = async (keys: Key[], i: number) => {
     const r = run!;
     comms.drop('look');
+    coach.hide();
     const proj = projectCraterOptions(r, world, keys);
     chooseCrater(r.game, env, keys[i]);
     record(r, 'crater', proj, i);
@@ -495,6 +637,7 @@ export async function startGame(x: GameSession): Promise<void> {
     const ice = keys.map((k) => world.ice.get(k) ?? 0);
     const km = keys.map((k) => tripFacts(world, r.game.base!, k, 'haul').km);
     const rk = ranks(proj);
+    coachSoon('craterReveal', [{ target: revealRow(2), text: TUTORIAL.craterReveal }]);
     await showReveal({
       title: 'Crater picked. How the floors compare',
       names: keys.map((k) => names.get(k) ?? 'Crater'),
@@ -511,6 +654,11 @@ export async function startGame(x: GameSession): Promise<void> {
         ? 'Your floor never saw the Sun in 2027: a cold trap, so the ice is rich.'
         : `Your floor saw a sliver of Sun ${share(floors[i])} of the year, so only a trace of ice is left.`,
     });
+    if (coach.active) {
+      coach.hide();
+      coach.finish();
+      void comms.say(TUTORIAL.done, 'cheer');
+    }
     after();
   };
 
@@ -524,8 +672,8 @@ export async function startGame(x: GameSession): Promise<void> {
     const opts: ChoiceOption[] = items.map((item) => (item === 'pad'
       ? { glyph: 'crate', title: `Landing pad · ${buildCost(r.game, env, 'pad')} kg`, label: 'Earth lands one crate on it: a rover, a solar tower or a battery pack.', chooseLabel: 'Build the pad', choose: () => { buy(r.game, env, 'pad'); afterBuy('pad'); } }
       : { glyph: 'fire', title: `Shelter · ${buildCost(r.game, env, 'shelter')} kg`, label: `Bury the base under dirt: it needs ${Math.round(100 * (1 - SHELTER_KEEPALIVE_FACTOR))}% less power at night.`, chooseLabel: 'Build the shelter', choose: () => { buy(r.game, env, 'shelter'); afterBuy('shelter'); } }));
-    opts.push({ glyph: 'stone', title: 'Keep the dirt', label: 'Save it for something bigger. You can build any time from the tray.', chooseLabel: 'Keep it', choose: () => after() });
-    chooser.show('Your dry dirt can build something', `${kg(r.game.tailingsKg)} of dry dirt is piled up next to the plant.`, opts);
+    opts.push({ glyph: 'stone', title: 'Keep the dirt', label: 'Save it for something bigger. Build any time with the Build button next to your dirt.', chooseLabel: 'Keep it', choose: () => { void after(); hud.nudgeBuild(); } });
+    chooser.show('Your dry dirt can build something', `${kg(r.game.tailingsKg)} of dry dirt is piled up next to the plant. You don't have to wait for this: press Build in the dock whenever you have enough.`, opts);
   };
 
   const afterBuy = (item: 'pad' | 'shelter') => {
@@ -533,7 +681,8 @@ export async function startGame(x: GameSession): Promise<void> {
     if (item === 'shelter') comms.say(SHORT_GAME.shelter, 'happy');
     else comms.say(SHORT_GAME.pad, 'cheer');
     markBuildsSeen(run, world);
-    after();
+    void after();
+    hud.nudgeBuild(); // show where building lives for next time
   };
 
   const showDelivery = () => {
@@ -608,35 +757,32 @@ export async function startGame(x: GameSession): Promise<void> {
   };
 
   // 5. Launch and the end of a run
-  let launching = false;
   const doLaunch = () => {
     const r = run!;
-    comms.drop(); // nothing stale before the countdown or over the report card
+    comms.drop(); // nothing stale over the cinematic or the report card
     launch(r.game);
     busy = true;
     launching = true;
     want = false;
     sync();
     if (r.game.base) goTo(r.game.base);
-    void comms.say('Tanks full. Three, two, one…', 'cool').then(() => {
-      liftOff();
-      window.setTimeout(() => endRun(), 4200);
-    });
+    const fuel = hud.el.querySelector('.g-fuel');
+    if (fuel) burst(fuel, 40);
+    sfx.sparkle();
+    window.setTimeout(liftOff, 600); // let the move to the base and the confetti land first
   };
   const liftOff = () => {
     propsKey = '';
     refreshProps();
+    refreshRovers();
     const rk = rocket;
-    if (!rk || !x.scene) return;
-    x.scene.lookAtProps();
-    const t0 = performance.now();
-    const frame = (ms: number) => {
-      const t = (ms - t0) / 1000;
-      rk.body.position.y = 1.5 * t * t;
-      x.scene?.requestRender();
-      if (t < 4) requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
+    if (!rk || !x.scene) {
+      launching = false;
+      sync();
+      void comms.say('Tanks full. Three, two, one… liftoff!', 'cool').then(() => endRun());
+      return;
+    }
+    playLaunch({ scene: x.scene, rocket: rk, stage: x.stage, root: screen, reduced: reducedMotion(), onDone: () => endRun() });
   };
 
   const endRun = () => {
@@ -644,6 +790,7 @@ export async function startGame(x: GameSession): Promise<void> {
     if (r.endedHour !== null) return;
     r.endedHour = r.game.hour;
     comms.drop();
+    launching = false;
     busy = true;
     want = false;
     sync();
@@ -693,7 +840,11 @@ export async function startGame(x: GameSession): Promise<void> {
         const tier = world.tier(ev.spot);
         comms.say(`${names.get(ev.spot) ?? 'The crater'}: ${(100 * ev.ice).toFixed(1)}% ice in the dirt (${tier} floor; the amount is made up). Digging starts.`, 'cheer');
       } else if (ev.type === 'delivered') {
-        if (firstHaul) { firstHaul = false; comms.say('First load of icy dirt is home. The plant bakes the water out of it with spare sunlight.', 'happy'); }
+        if (firstHaul) {
+          firstHaul = false;
+          comms.say(`First load of icy dirt is home. The plant bakes the water out of it with spare sunlight. ${SHORT_GAME.dirt}`, 'happy');
+          hud.nudgeBuild();
+        }
       }
     }
   };
@@ -712,6 +863,9 @@ export async function startGame(x: GameSession): Promise<void> {
     if (!half && s.h2Kg >= TARGET.h2Kg / 2 && s.o2Kg >= TARGET.o2Kg / 2) {
       half = true;
       comms.say('The capsule is half full.', 'cheer');
+      const fuel = hud.el.querySelector('.g-fuel');
+      if (fuel) burst(fuel);
+      sfx.sparkle();
     }
   };
 
@@ -722,7 +876,9 @@ export async function startGame(x: GameSession): Promise<void> {
     const until = Math.min(Math.floor(t), lastHour);
     let stop = false;
     while (run.game.hour < until && !stop && !blocked()) {
+      const iceBefore = run.game.iceDeliveredKg ?? 0;
       const out = step(run.game, env);
+      if (out.events.some((ev) => ev.type === 'delivered')) deliveryPop((run.game.iceDeliveredKg ?? 0) - iceBefore);
       power = out.power;
       onEvents(out.events);
       afterStep();
@@ -744,6 +900,8 @@ export async function startGame(x: GameSession): Promise<void> {
     render();
   };
   x.onMove = () => render();
+  // Dev builds only: a handle for poking at the game from the console.
+  if (import.meta.env.DEV) (window as unknown as { moonbase: unknown }).moonbase = { get run() { return run; }, scene: x.scene, landerAz: x.landerAz, launch: () => doLaunch(), render };
 
   // ---- Menu ----
   const openMenu = () => {
@@ -810,6 +968,7 @@ export async function startGame(x: GameSession): Promise<void> {
     const go = async () => {
       if (resumed && r.game.base) await comms.say(`Welcome back. Day ${runDay(r)} at ${siteName}.`, 'happy');
       else await comms.say(`${siteName}. Three places to land. Let's go and look.`, 'talk');
+      if (coach.active && !r.game.base) for (const line of TUTORIAL.intro) await comms.say(line, 'talk');
       if (!nextDecision()) {
         want = true;
         sync();

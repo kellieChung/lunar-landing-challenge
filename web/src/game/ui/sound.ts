@@ -68,6 +68,38 @@ function play(name: string, fallback: () => void, volume = 0.5): void {
   }
 }
 
+/** Low noise through a falling lowpass: an engine heard through the ground and the lander's frame. */
+function rumble(seconds: number, gain = 0.22): void {
+  try {
+    ctx ??= new AudioContext();
+    const t0 = ctx.currentTime;
+    const n = Math.ceil(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      last = (last + 0.04 * (Math.random() * 2 - 1)) / 1.04; // brown-ish noise
+      d[i] = last * 3.5;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(900, t0);
+    lp.frequency.exponentialRampToValueAtTime(120, t0 + seconds);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + 0.06);
+    g.gain.setValueAtTime(gain, t0 + seconds * 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + seconds);
+    src.connect(lp).connect(g).connect(ctx.destination);
+    src.start(t0);
+    src.stop(t0 + seconds + 0.05);
+  } catch {
+    // no audio available
+  }
+}
+
 let lastDing = -Infinity;
 let lastClick = -Infinity;
 
@@ -84,5 +116,17 @@ export const sfx = {
     if (now - lastDing < 1500 || now - lastClick < 300) return; // a click already made a sound
     lastDing = now;
     play('deliver', () => tone(880, 0, 0.12, 'triangle', 0.04), 0.25);
+  },
+  /** Countdown beat; `last` is the higher "go" note. */
+  tick: (last = false) => {
+    if (!muted) tone(last ? 1320 : 660, 0, last ? 0.35 : 0.12, 'square', 0.035);
+  },
+  rumble: (seconds: number) => {
+    if (!muted) rumble(seconds);
+  },
+  /** A small rising chime (milestones). */
+  sparkle: () => {
+    if (muted) return;
+    [1046, 1318, 1568, 2093].forEach((f, i) => tone(f, i * 0.07, 0.25, 'triangle', 0.03));
   },
 };

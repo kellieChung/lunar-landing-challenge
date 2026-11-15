@@ -28,6 +28,7 @@ import {
   cameraEuler, defaultPitch, defaultVfov, enuToThree, exaggerateEnu, fitExaggeration3D, lensShiftPx, type Vec3,
 } from './mapping';
 import { Overlay, type OverlayBody } from './Overlay';
+import { Effects } from './effects';
 import { buildRing, maxMask, type Ring, type RingLight } from './rings';
 import { earthLitFraction, Sky, type SkyState } from './sky';
 
@@ -38,6 +39,7 @@ const USABLE_FRACTION = 0.8; // the whole year's shown elevation span fits in th
 // "Pitch" is a vertical lens shift (the camera stays level), so keep it moderate.
 const PITCH_MIN = -35;
 const PITCH_MAX = 35;
+const PITCH_MAX_CINEMATIC = 70; // a launch may tilt the view further up to follow the rocket
 const FOV_MIN = 8;
 const FOV_MAX = 75;
 const LIGHT_DIST = 20_000; // m
@@ -82,12 +84,21 @@ export interface SceneProp {
   distM: number; // true distance from the viewer
 }
 
+/** Called every frame while live (rendering only). Return false to stop. */
+export type Ticker = (dt: number, now: number) => boolean | void;
+
+export interface ViewState {
+  yaw: number;
+  pitch: number;
+  zoom: number; // factor on the default field of view (1 = default, < 1 = zoomed in)
+}
+
 export interface TimeInput extends Omit<SkyState, 'sunGlow'> {
   sunLit: boolean; // from physics (horizon mask)
   earthMarginDeg: number; // from physics: Earth's center above (+) or below (-) the horizon
 }
 
-function smoothstep(a: number, b: number, x: number): number {
+export function smoothstep(a: number, b: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
@@ -123,7 +134,19 @@ export class Scene3D implements PanoramaView {
   private time: TimeInput | null = null;
   private trueScale = false;
   private frame = 0;
+  private timer = 0;
   private active = true;
+  private tickers = new Map<Ticker, { full: boolean; idle?: () => boolean }>();
+  private flashLight = new THREE.PointLight(0xffd9a0, 0, 1, 0); // always present (intensity 0), so lighting never recompiles
+  private lastTick = 0;
+  private shakeAmp = 0;
+  private shakeLeft = 0;
+  private shakeDur = 1;
+  private shadowsDirty = false;
+  /** Particles in the near scene (dust, exhaust, sparkles). */
+  readonly fx = new Effects();
+  /** While true the view may tilt further up (launch follow-cam). */
+  cinematic = false;
 
   private _yaw = 180;
   private pitch = 0; // deg of (shown) elevation at screen center, done as a lens shift
@@ -160,7 +183,11 @@ export class Scene3D implements PanoramaView {
     this.sunLight.shadow.mapSize.set(shadowSize, shadowSize);
     this.sunLight.shadow.bias = -0.0005;
     this.sunLight.shadow.normalBias = shadowSize >= 4096 ? 4 : 8;
-    this.near.add(this.sunLight, this.sunLight.target, this.terrainGroup, this.lander.group);
+    this.near.add(this.sunLight, this.sunLight.target, this.terrainGroup, this.lander.group, this.fx.group);
+    this.flashLight.castShadow = false;
+    this.near.add(this.flashLight);
+    this.fx.onWake = () => this.requestRender();
+    this.addTicker((dt) => { this.fx.update(dt, this.k, this.camera, this.canvas.height); }, { idle: () => !this.fx.live });
 
     canvas.addEventListener('webglcontextlost', (ev) => {
       ev.preventDefault();
@@ -170,7 +197,7 @@ export class Scene3D implements PanoramaView {
       fovDeg: () => ({ h: this.hFovDeg, v: this.camera.fov }),
       look: (dy, dp) => {
         this._yaw = (((this._yaw + dy) % 360) + 360) % 360;
-        this.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, this.pitch + dp));
+        this.pitch = Math.min(this.pitchMax, Math.max(PITCH_MIN, this.pitch + dp));
         this.applyProjection();
         this.changed();
       },
@@ -288,6 +315,7 @@ export class Scene3D implements PanoramaView {
   }
 
   private props: SceneProp[] = [];
+  private movers: SceneProp[] = [];
 
   /** Replace the extra objects (rendering only; they never affect the physics). */
   setProps(props: SceneProp[]): void {
@@ -319,15 +347,18 @@ export class Scene3D implements PanoramaView {
 
   /** Stand each prop on the drawn ground, scaled with the stretch like the lander. */
   private placeProps(): void {
+    for (const p of this.props) this.stand(p);
+    for (const p of this.movers) this.stand(p);
+  }
+
+  private stand(p: SceneProp): void {
     if (!this.site) return;
-    for (const p of this.props) {
-      const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, p.azDeg, p.distM);
-      p.object.position.set(...place.pos);
-      p.object.scale.setScalar(place.scale);
-      // Laid out to be seen from +z: turn that side toward the eye.
-      if (p.object.userData.faceViewer) p.object.rotation.y = Math.atan2(-place.pos[0], -place.pos[2]);
-      this.settle(p.object);
-    }
+    const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, p.azDeg, p.distM);
+    p.object.position.set(...place.pos);
+    p.object.scale.setScalar(place.scale);
+    // Laid out to be seen from +z: turn that side toward the eye.
+    if (p.object.userData.faceViewer) p.object.rotation.y = Math.atan2(-place.pos[0], -place.pos[2]);
+    this.settle(p.object);
   }
 
   /**
@@ -354,6 +385,136 @@ export class Scene3D implements PanoramaView {
     o.position.y = y0 + lift * k;
   }
 
+  /**
+   * Objects that move on their own (rovers): kept apart from setProps, so
+   * rebuilding the buildings never touches them. Change azDeg / distM, then
+   * call placeMover to stand it on the ground there.
+   */
+  addMover(p: SceneProp): void {
+    if (this.movers.includes(p)) return;
+    this.movers.push(p);
+    this.near.add(p.object);
+    this.placeMover(p);
+  }
+
+  removeMover(p: SceneProp): void {
+    const i = this.movers.indexOf(p);
+    if (i < 0) return;
+    this.movers.splice(i, 1);
+    this.near.remove(p.object);
+    this.shadowsDirty = true;
+    this.requestRender();
+  }
+
+  placeMover(p: SceneProp): void {
+    this.stand(p);
+    this.shadowsDirty = true;
+    this.requestRender();
+  }
+
+  /** Where a ground point (true metres from the viewer) is drawn, in scene units. */
+  groundPoint(azDeg: number, distM: number, upM = 0): THREE.Vector3 {
+    if (!this.site) return new THREE.Vector3();
+    const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, azDeg, distM);
+    return new THREE.Vector3(place.pos[0], place.pos[1] + upM * this.k, place.pos[2]);
+  }
+
+  /**
+   * Run fn every frame until it returns false or the returned function is
+   * called. Rendering only. `idle` tickers (ambient motion) run at a lower
+   * frame rate when nothing else is animating, and `idle()` true skips them.
+   */
+  addTicker(fn: Ticker, opts: { lowRate?: boolean; idle?: () => boolean } = {}): () => void {
+    const wrapped: Ticker = (dt, now) => fn(dt, now); // its own identity, so one fn can be added twice
+    this.tickers.set(wrapped, { full: !opts.lowRate, idle: opts.idle });
+    this.requestRender();
+    return () => { this.tickers.delete(wrapped); };
+  }
+
+  /** A burst of warm light at a scene point that fades over `seconds` (ignition). */
+  flash(p: THREE.Vector3, intensity: number, seconds: number, reachM = 60): void {
+    this.flashLight.position.copy(p);
+    this.flashLight.distance = reachM * this.k;
+    let t = 0;
+    this.addTicker((dt) => {
+      t += dt;
+      const f = Math.max(0, 1 - t / seconds);
+      this.flashLight.intensity = intensity * f * f;
+      return f > 0;
+    });
+  }
+
+  /** The current view, to tween from or restore later. */
+  getView(): ViewState {
+    return { yaw: this._yaw, pitch: this.pitch, zoom: this.zoom };
+  }
+
+  setView(v: Partial<ViewState>): void {
+    if (v.yaw !== undefined) this._yaw = ((v.yaw % 360) + 360) % 360;
+    if (v.pitch !== undefined) this.pitch = Math.min(this.pitchMax, Math.max(PITCH_MIN, v.pitch));
+    if (v.zoom !== undefined) this.zoom = Math.min(FOV_MAX, Math.max(FOV_MIN, this.baseVfov * v.zoom)) / this.baseVfov;
+    this.applyProjection();
+    this.changed();
+  }
+
+  /** Ease the view to `to` over `seconds` (shortest way round in yaw). Resolves when done or cancelled. */
+  tweenView(to: Partial<ViewState>, seconds: number): { done: Promise<void>; cancel: () => void } {
+    const from = this.getView();
+    const dYaw = to.yaw === undefined ? 0 : ((((to.yaw - from.yaw) % 360) + 540) % 360) - 180;
+    let t = 0;
+    let resolve = () => {};
+    const done = new Promise<void>((r) => { resolve = r; });
+    const stop = this.addTicker((dt) => {
+      t += dt;
+      const f = smoothstep(0, 1, seconds > 0 ? t / seconds : 1);
+      this.setView({
+        yaw: from.yaw + dYaw * f,
+        pitch: to.pitch === undefined ? undefined : from.pitch + (to.pitch - from.pitch) * f,
+        zoom: to.zoom === undefined ? undefined : from.zoom * Math.pow(to.zoom / from.zoom, f),
+      });
+      if (f >= 1) { resolve(); return false; }
+      return true;
+    });
+    return { done, cancel: () => { stop(); resolve(); } };
+  }
+
+  /** Direction (deg) of a point in the scene from the eye: azimuth, and shown elevation. */
+  aimAt(p: THREE.Vector3): { yaw: number; pitch: number } {
+    const yaw = (Math.atan2(p.x, -p.z) * 180) / Math.PI;
+    return { yaw: (yaw + 360) % 360, pitch: (Math.atan2(p.y, Math.hypot(p.x, p.z)) * 180) / Math.PI };
+  }
+
+  /** Shake the view for a moment (decays); drawn only, the stored view stays put. */
+  shake(amountDeg: number, seconds: number): void {
+    this.shakeAmp = Math.max(this.shakeAmp * (this.shakeLeft / this.shakeDur), amountDeg);
+    this.shakeLeft = this.shakeDur = seconds;
+    const stop = this.addTicker((dt) => {
+      this.shakeLeft = Math.max(0, this.shakeLeft - dt);
+      if (this.shakeLeft === 0) { stop(); this.applyProjection(); return false; }
+      return true;
+    });
+  }
+
+  /** Where a scene point is on screen (viewport CSS px, like getBoundingClientRect), or null when behind the eye. */
+  projectToScreen(p: THREE.Vector3): { x: number; y: number } | null {
+    const v = p.clone().applyMatrix4(this.camera.matrixWorldInverse);
+    if (v.z >= 0) return null;
+    p = p.clone().project(this.camera);
+    const box = this.canvas.getBoundingClientRect();
+    return { x: box.left + ((p.x + 1) / 2) * box.width, y: box.top + ((1 - p.y) / 2) * box.height };
+  }
+
+  /** The view tilts further up during a cinematic. */
+  private get pitchMax(): number {
+    return this.cinematic ? PITCH_MAX_CINEMATIC : PITCH_MAX;
+  }
+
+  /** Mark the shadows for redrawing on the next frame (something that casts one moved). */
+  shadowsMoved(): void {
+    this.shadowsDirty = true;
+    this.requestRender();
+  }
+
   setTime(time: TimeInput): void {
     this.time = time;
     this.applyTime();
@@ -368,6 +529,7 @@ export class Scene3D implements PanoramaView {
     if (resetPitch) this.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, defaultPitch(lo, hi, this.k)));
     this.applyProjection();
     for (const r of this.rings) r.update(this.k);
+    this.fx.k = this.k;
     this.terrainGroup.scale.set(1, this.k, 1);
     this.terrainGroup.updateMatrixWorld(true);
 
@@ -448,14 +610,55 @@ export class Scene3D implements PanoramaView {
 
   requestRender(): void {
     if (this.frame || !this.active) return;
-    this.frame = requestAnimationFrame(() => {
+    if (this.timer) {
+      window.clearTimeout(this.timer);
+      this.timer = 0;
+    }
+    this.frame = requestAnimationFrame((now) => {
       this.frame = 0;
+      this.tick(now);
       this.render();
+      this.scheduleTick();
     });
   }
 
+  /** Keep frames coming while tickers are live: every frame for animations, ~30 fps for ambient motion only. */
+  private scheduleTick(): void {
+    if (this.tickers.size === 0 || !this.active) {
+      this.lastTick = 0;
+      return;
+    }
+    const live = [...this.tickers.values()].filter((o) => !o.idle?.());
+    if (live.length === 0) {
+      this.lastTick = 0;
+      return;
+    }
+    if (live.some((o) => o.full)) this.requestRender();
+    else if (!this.timer) this.timer = window.setTimeout(() => { this.timer = 0; this.requestRender(); }, 33);
+  }
+
+  private tick(now: number): void {
+    const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 1 / 60;
+    this.lastTick = now;
+    for (const [fn, o] of [...this.tickers]) {
+      if (o.idle?.()) continue;
+      if (fn(dt, now) === false) this.tickers.delete(fn);
+    }
+    if (this.shadowsDirty) {
+      this.shadowsDirty = false;
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+  }
+
   private render(): void {
-    const e = cameraEuler(this._yaw, 0); // always level; pitch is the lens shift
+    let shake = 0;
+    if (this.shakeLeft > 0) {
+      const f = this.shakeLeft / this.shakeDur;
+      shake = this.shakeAmp * f * f;
+    }
+    const jitter = (s: number) => shake * Math.sin(performance.now() * s);
+    const e = cameraEuler(this._yaw + jitter(0.071) + jitter(0.113) * 0.5, 0); // always level; pitch is the lens shift
+    if (shake > 0) this.applyProjection(jitter(0.089) + jitter(0.131) * 0.5);
     this.camera.rotation.set(e.x, e.y, e.z, e.order);
     this.camera.updateMatrixWorld();
     this.renderer.clear();
@@ -500,12 +703,12 @@ export class Scene3D implements PanoramaView {
   }
 
   /** Field of view and lens shift for the current canvas, zoom and pitch. */
-  private applyProjection(): void {
+  private applyProjection(pitchJitter = 0): void {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     if (w === 0 || h === 0) return;
     this.camera.fov = Math.min(FOV_MAX, Math.max(FOV_MIN, this.baseVfov * this.zoom));
-    this.camera.setViewOffset(w, h, 0, -lensShiftPx(this.pitch, this.camera.fov, h), w, h);
+    this.camera.setViewOffset(w, h, 0, -lensShiftPx(this.pitch + pitchJitter, this.camera.fov, h), w, h);
     this.camera.updateProjectionMatrix();
   }
 }

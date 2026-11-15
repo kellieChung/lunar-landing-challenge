@@ -3,7 +3,8 @@
 
 import { FACTS, NOT_MODELLED } from '../facts';
 import type { Mods } from '../run';
-import { TIPS } from '../../tips';
+import { SPOT_CHECKLIST, TIPS } from '../../tips';
+import { resetTutorial } from './coach';
 import { btn, el, tag } from './dom';
 import { isMuted, setMuted, sfx } from './sound';
 import { HAS_SPRITES, mascot, sprite } from './sprites';
@@ -54,7 +55,7 @@ const HOW: [string, string][] = [
   ['ice-rich', 'Pick a crater. Ice only lasts on floors the Sun never or barely reaches.'],
   ['i-remote', 'Rovers dig by themselves, but only while Earth is in view: people drive them by radio.'],
   ['i-plant', 'The plant turns ice into hydrogen and oxygen, but only with spare sunlight.'],
-  ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and a shelter.'],
+  ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and a shelter. Press Build in the dock whenever you have enough: no need to wait to be asked.'],
   ['star-on', 'Fill the capsule before the deadline. Keep the lights on. Pick well for the third star.'],
 ];
 
@@ -66,6 +67,16 @@ export function howTo(): HTMLElement {
     ol.append(li);
   }
   return ol;
+}
+
+/** What makes a good landing spot and crater: the tutorial's lessons, kept for reference. */
+export function spotChecklist(): HTMLElement {
+  const box = el('div', 'g-checklist');
+  box.append(el('p', 'g-kicker', 'Picking a good spot'));
+  const ul = el('ul');
+  for (const t of SPOT_CHECKLIST) ul.append(el('li', '', t));
+  box.append(ul);
+  return box;
 }
 
 export interface BriefInfo {
@@ -110,7 +121,7 @@ export function briefPanel(b: BriefInfo, start: (mods: Mods) => void, extra: Nod
   out.push(go, ...extra);
   if (b.resumeDay === undefined) {
     const how = el('details', 'g-fold');
-    how.append(el('summary', '', 'How to play'), howTo());
+    how.append(el('summary', '', 'How to play'), howTo(), spotChecklist());
     const hard = el('details', 'g-fold');
     hard.append(el('summary', '', 'Make it harder'), box);
     out.push(how, hard);
@@ -201,11 +212,12 @@ export function menuPanel(m: MenuActions, show: (nodes: Node[]) => void): Node[]
     btn('Explore', m.explore, 'plate', 'i-remote'),
     btn('Start over', () => show([el('h2', 'g-h', 'Start a new run?'), el('p', '', 'This run ends without a result.'), btn('Start over', m.restart, 'go'), btn('Cancel', back, 'plate')]), 'plate', 'i-skull'),
   );
-  return [head, go, btn('Guide & facts', () => show(guidePage(m.log, back)), 'plate', 'i-question'), row];
+  const replay = () => { resetTutorial(); m.restart(); };
+  return [head, go, btn('Guide & facts', () => show(guidePage(m.log, back, replay)), 'plate', 'i-question'), row];
 }
 
 /** Everything to read, on one page of folds: how to play, the radio log, facts, sources, credits. */
-function guidePage(log: string[], back: () => void): Node[] {
+function guidePage(log: string[], back: () => void, replay: () => void): Node[] {
   const fold = (title: string, kids: Node[], open = false) => {
     const d = el('details', 'g-fold');
     d.open = open;
@@ -217,7 +229,7 @@ function guidePage(log: string[], back: () => void): Node[] {
   if (!log.length) ol.append(el('li', '', 'No messages yet.'));
   return [
     el('h2', 'g-h', 'Guide & facts'),
-    fold('How to play', [howTo()], true),
+    fold('How to play', [howTo(), spotChecklist(), btn('Replay tutorial (starts a new run)', replay, 'plate', 'i-question')], true),
     fold('Radio log', [ol]),
     fold('Moon facts', factsPage()),
     fold('What\'s real', realPage()),
