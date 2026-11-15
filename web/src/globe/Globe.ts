@@ -46,6 +46,7 @@ export class Globe {
   private hoveredPin: PinObject | null = null;
   private selectedId: string | null = null;
   private pinFactory = new PinVisualFactory();
+  private logo: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; start: number; hold: number } | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -253,6 +254,98 @@ export class Globe {
     return Math.min(this.controls.maxDistance, Math.max(this.controls.minDistance, d));
   }
 
+  /**
+   * Project an image onto the Moon's near side as seen from the current
+   * camera (like a slide projector), fade it in, hold, then fade it out.
+   * The projection is frozen in world space, so it stays painted on the
+   * surface if the user drags the globe. Pixels close to `keyColor` are
+   * keyed out so only the artwork lands on the regolith.
+   */
+  async projectLogo(url: string, holdMs = 3500, keyColor = 0x2e3764): Promise<void> {
+    const tex = await new THREE.TextureLoader().loadAsync(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const img = tex.image as { width: number; height: number };
+    const dir = this.camera.position.clone().normalize();
+    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
+    const up = new THREE.Vector3().crossVectors(dir, right).normalize();
+    const key = new THREE.Color(keyColor);
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      uniforms: {
+        map: { value: tex },
+        dir: { value: dir },
+        right: { value: right },
+        up: { value: up },
+        halfW: { value: 1.25 },
+        aspect: { value: img.width / img.height },
+        key: { value: new THREE.Vector3(key.r, key.g, key.b) },
+        opacity: { value: 0 },
+      },
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0);
+        }`,
+      fragmentShader: `
+        uniform sampler2D map;
+        uniform vec3 dir, right, up, key;
+        uniform float halfW, aspect, opacity;
+        varying vec3 vPos;
+        void main() {
+          float facing = dot(normalize(vPos), dir);
+          if (facing <= 0.0) discard;
+          vec2 uv = vec2(dot(vPos, right) / halfW, dot(vPos, up) / (halfW / aspect)) * 0.5 + 0.5;
+          if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
+          vec4 c = texture2D(map, uv);
+          float keep = smoothstep(0.06, 0.18, distance(c.rgb, key));
+          float a = c.a * keep * opacity * smoothstep(0.05, 0.3, facing);
+          if (a < 0.01) discard;
+          gl_FragColor = vec4(c.rgb, a);
+          #include <colorspace_fragment>
+        }`,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.03, 96, 64), mat);
+    mesh.renderOrder = 5;
+    this.scene.add(mesh);
+    this.logo = { mesh, mat, start: performance.now(), hold: holdMs };
+    return new Promise((resolve) => { this.logoDone = resolve; });
+  }
+
+  private logoDone: (() => void) | null = null;
+
+  /** Skip the projected logo early (fades it out now). */
+  dismissLogo(): void {
+    if (!this.logo) return;
+    const t = performance.now() - this.logo.start;
+    const fadeIn = 900;
+    if (t < fadeIn + this.logo.hold) this.logo.hold = Math.max(0, t - fadeIn);
+  }
+
+  private updateLogo(): void {
+    if (!this.logo) return;
+    const fadeIn = 900, fadeOut = 900;
+    const t = performance.now() - this.logo.start;
+    let o: number;
+    if (t < fadeIn) o = t / fadeIn;
+    else if (t < fadeIn + this.logo.hold) o = 1;
+    else o = 1 - (t - fadeIn - this.logo.hold) / fadeOut;
+    // a little projector flicker while it warms up
+    if (t < fadeIn) o *= 0.75 + 0.25 * Math.sin(t * 0.08);
+    this.logo.mat.uniforms.opacity.value = Math.max(0, Math.min(1, o)) * 0.95;
+    if (o <= 0 && t > fadeIn) {
+      this.scene.remove(this.logo.mesh);
+      this.logo.mesh.geometry.dispose();
+      this.logo.mat.dispose();
+      (this.logo.mat.uniforms.map.value as THREE.Texture).dispose();
+      this.logo = null;
+      this.logoDone?.();
+      this.logoDone = null;
+    }
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
@@ -264,6 +357,7 @@ export class Globe {
         this.keyLight.getWorldDirection(lightWorldDir);
         this.distantEarth.setLightDir(lightWorldDir.negate());
       }
+      this.updateLogo();
       this.renderer.render(this.scene, this.camera);
       this.updateLabels();
       this.frame = requestAnimationFrame(tick);

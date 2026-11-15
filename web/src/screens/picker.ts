@@ -101,11 +101,36 @@ export class Picker {
     } else {
       picker.globe?.lookAt(-90, 0);
     }
+    picker.playIntro();
     return picker;
   }
 
   start(): void {
     this.globe?.start();
+  }
+
+  /** First visit only: project the T² = Ka³ logo onto the Moon. */
+  private playIntro(): void {
+    const globe = this.globe;
+    if (!globe) return;
+    try {
+      if (localStorage.getItem('halo-intro-seen') === '1') return;
+      localStorage.setItem('halo-intro-seen', '1');
+    } catch { /* storage blocked: just play it */ }
+    const caption = document.getElementById('intro-caption');
+    if (caption) caption.hidden = false;
+    const skip = () => globe.dismissLogo();
+    addEventListener('pointerdown', skip, { once: true });
+    addEventListener('keydown', skip, { once: true });
+    globe
+      .projectLogo(`${import.meta.env.BASE_URL}intro-t2ka3.png`)
+      .catch((err) => console.error(err))
+      .finally(() => {
+        removeEventListener('pointerdown', skip);
+        removeEventListener('keydown', skip);
+        caption?.classList.add('intro-out');
+        setTimeout(() => caption?.remove(), 700);
+      });
   }
 
   stop(): void {
