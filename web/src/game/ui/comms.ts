@@ -6,6 +6,7 @@
 
 import { el, reducedMotion } from './dom';
 import { mascot, setMood, sprite } from './sprites';
+import { sfx } from './sound';
 
 export type Mood = 'idle' | 'talk' | 'happy' | 'cheer' | 'love' | 'sad' | 'angry' | 'sleepy' | 'zzz' | 'cool';
 
@@ -109,6 +110,7 @@ export class Comms {
   private type(text: string): void {
     this.finishTyping();
     this.show();
+    sfx.ding();
     this.full = text;
     this.log.unshift(text);
     if (this.log.length > 60) this.log.pop();

@@ -1,11 +1,11 @@
 // Full-screen panels: the mission brief, the report card, the menu and its
-// pages (how to play, Moon facts, what's real, credits, settings).
+// guide page (how to play, radio log, Moon facts, what's real, credits).
 
 import { FACTS, NOT_MODELLED } from '../facts';
 import type { Mods } from '../run';
 import { TIPS } from '../../tips';
 import { btn, el, tag } from './dom';
-import { isMuted, setMuted } from './sound';
+import { isMuted, setMuted, sfx } from './sound';
 import { HAS_SPRITES, mascot, sprite } from './sprites';
 
 export class Modal {
@@ -32,6 +32,7 @@ export class Modal {
   show(content: Node[], locked = false): void {
     this.locked = locked;
     this.box.replaceChildren(...content);
+    if (this.el.hidden) sfx.ding();
     this.el.hidden = false;
     this.onChange?.(true);
     (this.box.querySelector('button.g-b-go, button') as HTMLButtonElement | null)?.focus();
@@ -185,33 +186,48 @@ export interface MenuActions {
 
 export function menuPanel(m: MenuActions, show: (nodes: Node[]) => void): Node[] {
   const back = () => show(menuPanel(m, show));
-  const head = el('div', 'g-brief-head');
+  const head = el('div', 'g-brief-head g-menu-head');
   head.append(sprite('i-crown', { scale: 2 }));
   const t = el('div');
   t.append(el('p', 'g-kicker', 'Menu'), el('h2', 'g-h', `${m.rank} · ${m.stars} stars`));
-  head.append(t);
-  return [
-    head,
-    btn('Keep playing', m.resume, 'go', 'arrow-r'),
-    btn('How to play', () => show([el('h2', 'g-h', 'How to play'), howTo(), btn('Back', back, 'plate', 'arrow-l')]), 'plate', 'i-question'),
-    btn('Radio log', () => {
-      const ol = el('ol', 'g-log');
-      for (const line of m.log) ol.append(el('li', '', line));
-      if (!m.log.length) ol.append(el('li', '', 'No messages yet.'));
-      show([el('h2', 'g-h', 'Radio log'), ol, btn('Back', back, 'plate', 'arrow-l')]);
-    }, 'plate', 'i-chat'),
-    btn('Moon facts', () => show(factsPage(back)), 'plate', 'i-star'),
-    btn('What\'s real', () => show(realPage(back)), 'plate', 'i-check'),
-    btn(isMuted() ? 'Sound: off' : 'Sound: on', () => { setMuted(!isMuted()); back(); }, 'plate', isMuted() ? 'i-minus' : 'i-plus'),
-    btn('Credits', () => show(creditsPage(back)), 'plate', 'i-trophy'),
-    btn('Start over', () => show([el('h2', 'g-h', 'Start a new run?'), el('p', '', 'This run ends without a result.'), btn('Start over', m.restart, 'go'), btn('Cancel', back, 'plate')]), 'plate', 'i-skull'),
-    btn('Explore this site', m.explore, 'plate', 'i-remote'),
+  const sound = btn(isMuted() ? 'Sound: off' : 'Sound: on', () => { setMuted(!isMuted()); back(); }, 'sq');
+  sound.classList.add('g-menu-sound');
+  head.append(t, sound);
+  const go = btn('Keep playing', m.resume, 'go', 'arrow-r');
+  go.classList.add('g-big');
+  const row = el('div', 'g-menu-row');
+  row.append(
     btn('Moon map', m.sites, 'plate', 'i-home'),
+    btn('Explore', m.explore, 'plate', 'i-remote'),
+    btn('Start over', () => show([el('h2', 'g-h', 'Start a new run?'), el('p', '', 'This run ends without a result.'), btn('Start over', m.restart, 'go'), btn('Cancel', back, 'plate')]), 'plate', 'i-skull'),
+  );
+  return [head, go, btn('Guide & facts', () => show(guidePage(m.log, back)), 'plate', 'i-question'), row];
+}
+
+/** Everything to read, on one page of folds: how to play, the radio log, facts, sources, credits. */
+function guidePage(log: string[], back: () => void): Node[] {
+  const fold = (title: string, kids: Node[], open = false) => {
+    const d = el('details', 'g-fold');
+    d.open = open;
+    d.append(el('summary', '', title), ...kids);
+    return d;
+  };
+  const ol = el('ol', 'g-log');
+  for (const line of log) ol.append(el('li', '', line));
+  if (!log.length) ol.append(el('li', '', 'No messages yet.'));
+  return [
+    el('h2', 'g-h', 'Guide & facts'),
+    fold('How to play', [howTo()], true),
+    fold('Radio log', [ol]),
+    fold('Moon facts', factsPage()),
+    fold('What\'s real', realPage()),
+    fold('Credits', creditsPage()),
+    btn('Back', back, 'plate', 'arrow-l'),
   ];
 }
 
-function factsPage(back: () => void): Node[] {
-  const out: Node[] = [el('h2', 'g-h', 'Moon facts')];
+function factsPage(): Node[] {
+  const out: Node[] = [];
   const add = (title: string, text: string, t?: Parameters<typeof tag>[0], source?: string) => {
     const d = el('details', 'g-fact');
     const s = el('summary');
@@ -228,7 +244,6 @@ function factsPage(back: () => void): Node[] {
   add('Rover batteries', TIPS.battery);
   for (const f of Object.values(FACTS)) add(f.title, f.text, f.tag, f.source);
   add('What this game leaves out', NOT_MODELLED);
-  out.push(btn('Back', back, 'plate', 'arrow-l'));
   return out;
 }
 
@@ -245,7 +260,7 @@ const REAL_ROWS: [string, Parameters<typeof tag>[0]][] = [
   ['The base sleeping when its battery is empty', 'RULE'],
 ];
 
-function realPage(back: () => void): Node[] {
+function realPage(): Node[] {
   const t = el('table', 'g-real');
   for (const [what, tg] of REAL_ROWS) {
     const tr = el('tr');
@@ -255,14 +270,12 @@ function realPage(back: () => void): Node[] {
     t.append(tr);
   }
   return [
-    el('h2', 'g-h', 'What\'s real in this game'),
     el('p', '', 'Numbers come from the horizon math, not from the 3D picture. If the two ever disagree, the numbers win.'),
     t,
-    btn('Back', back, 'plate', 'arrow-l'),
   ];
 }
 
-function creditsPage(back: () => void): Node[] {
+function creditsPage(): Node[] {
   const a = el('a', '', 'cupnooble.itch.io');
   a.href = 'https://cupnooble.itch.io';
   a.target = '_blank';
@@ -270,11 +283,9 @@ function creditsPage(back: () => void): Node[] {
   const p = el('p');
   p.append('Assets from Sprout Lands by Cup Nooble (UI pack, sprites and the Sorry pack: frames, icons, chests, sounds), recoloured for space. ', a);
   return [
-    el('h2', 'g-h', 'Credits'),
     p,
     el('p', 'g-small', 'The packs may not be redistributed, so they are not in this project. `npm run skin` builds the art from your own download; without it the game uses plain frames and words.'),
     el('p', '', 'Terrain: NASA LRO LOLA. Sun and Earth: NASA/NAIF SPICE.'),
-    btn('Back', back, 'plate', 'arrow-l'),
   ];
 }
 

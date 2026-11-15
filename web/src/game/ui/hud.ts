@@ -1,7 +1,8 @@
-// The instruments (game.MD v3 §7): ONE thin status bar along the top, so the
-// 3D view keeps the whole screen. Each reading is a glyph, a short meter or a
-// number and at most a few words; details live in tooltips. The build tray
-// and the map open as small pop-overs under the bar only when asked for.
+// The instruments (game.MD v3 §7): ONE compact dock along the bottom, beside
+// mission control and the timeline, so the 3D view keeps the rest of the
+// screen. Readings are glyphs and short meters; details live in tooltips, and
+// at most one warning shows at a time. The build tray and the map open as
+// small pop-overs above the dock only when asked for.
 
 import { btn, el, kg, meter, type Meter } from './dom';
 import { sprite } from './sprites';
@@ -74,32 +75,33 @@ export class Hud {
     this.el = root;
     this.q = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector(s) as T;
 
+    // One dock at the bottom, next to mission control and the timeline.
     const bar = el('div', 'g-bar g-dlg');
     const stat = (cls: string, ...kids: Node[]) => {
       const s = el('div', `g-stat ${cls}`);
       s.append(...kids);
       return s;
     };
+    const group = (...kids: Node[]) => {
+      const g = el('div', 'g-group');
+      g.append(...kids);
+      return g;
+    };
 
     const menu = btn('Menu', on.menu, 'sq', 'i-gear');
 
     this.fuel = meter(10, 'blue', 'Capsule fuel');
-    const fuel = stat('g-fuel', el('span', 'g-k', 'Capsule fuel'), this.fuel.el, el('b', 'g-fuel-pct'));
+    const fuel = stat('g-fuel', el('span', 'g-k', 'Fuel'), this.fuel.el, el('b', 'g-fuel-pct'));
 
     this.batt = meter(6, 'green', 'Base battery');
     const sunG = el('span', 'g-sun-glyph');
     sunG.append(sprite('w-day', { label: 'Sun up', cls: 'when-on' }), sprite('w-night', { label: 'Night', cls: 'when-off' }));
-    const power = stat('g-power', sunG, this.batt.el, el('span', 'g-v g-power-word'));
+    const power = stat('g-power', sunG, this.batt.el);
+    const earth = stat('g-link', sprite('earth', { label: 'Earth' }));
+    // At most one warning at a time: the most urgent one.
+    const alert = stat('g-alert', sprite('i-alert'), el('span', 'g-v g-alert-word'));
 
-    const earth = stat('g-link', sprite('earth', { label: 'Earth' }), el('span', 'g-v g-link-word'));
-
-    const rovers = stat('g-rov', sprite('i-remote', { label: 'Rovers' }), el('b', 'g-rov-n'), el('span', 'g-v g-rov-word'));
-
-    const buildBtn = btn('Build', () => { this.tray.hidden = !this.tray.hidden; }, 'go');
-    buildBtn.classList.add('g-build-btn');
-    const dirt = stat('g-dirt', sprite('stone', { label: 'Dry dirt' }), el('b', 'g-dirt-kg'), buildBtn);
-
-    const day = stat('g-day', el('b', 'g-day-n'), el('span', 'g-date'));
+    const day = stat('g-day', el('b', 'g-day-n'));
 
     this.playBtn = btn('Play', on.togglePlay, 'sq', 'arrow-r');
     this.playBtn.classList.add('g-play');
@@ -108,17 +110,25 @@ export class Hud {
       on.speed(SPEEDS[(i + 1) % SPEEDS.length].h);
     }, 'sq');
     this.speedBtn.classList.add('g-speed');
-    const clock = stat('g-clock', this.playBtn, this.speedBtn);
 
-    const map = btn('Map', on.map, 'sq', 'i-home');
+    const buildBtn = btn('Build', () => { this.tray.hidden = !this.tray.hidden; this.mapSlot.hidden = true; }, 'sq', 'stone');
+    buildBtn.classList.add('g-build-btn');
+    const map = btn('Map', () => { this.tray.hidden = true; on.map(); }, 'sq', 'i-home');
     map.classList.add('g-map-btn');
 
-    bar.append(menu, fuel, power, earth, rovers, dirt, el('span', 'g-gap'), day, clock, map);
+    bar.append(
+      group(menu),
+      group(fuel),
+      group(power, earth, alert),
+      group(day, this.playBtn, this.speedBtn),
+      group(buildBtn, map),
+    );
 
-    // Pop-overs under the bar, shown on request.
+    // Pop-overs above the dock, shown on request.
     this.tray = el('div', 'g-pop g-tray g-dlg');
     this.tray.hidden = true;
     this.tray.setAttribute('aria-label', 'Build with dry dirt');
+    this.tray.append(el('span', 'g-dirt-kg'));
     for (const item of ['pad', 'shelter'] as const) {
       const b = btn(item === 'pad' ? 'Landing pad' : 'Shelter', () => { this.tray.hidden = true; on.build(item); }, 'sq', item === 'pad' ? 'crate' : 'fire');
       b.classList.add('g-slot', `g-slot-${item}`);
@@ -151,37 +161,40 @@ export class Hud {
     const fill = Math.min(1, v.h2, v.o2);
     this.fuel.set(fill);
     this.q('.g-fuel-pct').textContent = `${Math.floor(fill * 100)}%`;
-    this.q('.g-fuel').title = `Capsule: ${kg(v.h2Kg)} of 19 kg hydrogen, ${kg(v.o2Kg)} of 114 kg oxygen`;
+    this.q('.g-fuel').title = `Capsule fuel: ${kg(v.h2Kg)} of 19 kg hydrogen, ${kg(v.o2Kg)} of 114 kg oxygen`;
 
-    // Power: the glyph and meter always; words only when the base is asleep or the Sun changes within a day.
+    // Power and Earth: icons only; the words live in the tooltips.
     this.batt.set(v.battery, v.asleep ? 'red' : v.battery < 0.25 ? 'sun' : 'green');
     this.q('.g-sun-glyph').classList.toggle('on', v.sun);
-    const soon = v.sunFlipH !== null && v.sunFlipH <= 24;
-    this.q('.g-power-word').textContent = v.asleep
-      ? `Base asleep${v.sunFlipH !== null && !v.sun ? `: sunrise in ${inWords(v.sunFlipH)}` : ''}`
-      : soon ? (v.sun ? `Sunset in ${inWords(v.sunFlipH)}` : `Sunrise in ${inWords(v.sunFlipH)}`) : '';
-    this.q('.g-power').classList.toggle('alert', v.asleep);
     this.q('.g-power').title = `${v.sun ? 'Sun up' : 'Night'} · base battery ${Math.round(v.battery * 100)}%${v.sunFlipH !== null ? ` · ${v.sun ? 'sunset' : 'sunrise'} in ${inWords(v.sunFlipH)}` : ''}`;
-
-    // Earth: the glyph always; words only when Earth is hidden or about to set.
-    const eSoon = v.earth && v.earthFlipH !== null && v.earthFlipH <= 24;
     this.q('.g-link').classList.toggle('off', !v.earth);
-    this.q('.g-link-word').textContent = !v.earth
-      ? `Earth hidden${v.earthFlipH !== null ? `: back in ${inWords(v.earthFlipH)}` : ''}`
-      : eSoon ? `Earth sets in ${inWords(v.earthFlipH)}` : '';
-    this.q('.g-link').classList.toggle('alert', !v.earth && v.landed);
-    this.q('.g-link').title = v.earth ? `Earth in view: rovers can drive${v.earthFlipH !== null ? ` · sets in ${inWords(v.earthFlipH)}` : ''}` : 'Earth hidden: rovers wait';
+    const roverLines = v.rovers.map((r) => `Rover ${r.id}: ${r.word}, battery ${Math.round(r.charge * 100)}%`);
+    this.q('.g-link').title = [
+      v.earth ? `Earth in view: rovers can drive${v.earthFlipH !== null ? ` · sets in ${inWords(v.earthFlipH)}` : ''}` : `Earth hidden: rovers wait${v.earthFlipH !== null ? ` · back in ${inWords(v.earthFlipH)}` : ''}`,
+      ...roverLines,
+    ].join('\n');
 
-    // Rovers: only when they are all stuck.
+    // The one warning: base asleep > Earth hidden > all rovers stuck.
     const stuck = v.rovers.filter((r) => r.stuck);
     const allStuck = v.rovers.length > 0 && stuck.length === v.rovers.length;
-    this.q('.g-rov').hidden = !allStuck;
-    this.q('.g-rov-n').textContent = '';
-    this.q('.g-rov-word').textContent = allStuck ? `Rovers ${stuck[0].word.split(':')[0]}` : '';
-    this.q('.g-rov').classList.toggle('alert', allStuck);
-    this.q('.g-rov').title = v.rovers.map((r) => `Rover ${r.id}: ${r.word}, battery ${Math.round(r.charge * 100)}%`).join('\n');
+    let alert = '';
+    let why = '';
+    if (!v.landed) alert = '';
+    else if (v.asleep) {
+      alert = `Asleep${v.sunFlipH !== null && !v.sun ? ` · sun in ${inWords(v.sunFlipH)}` : ''}`;
+      why = 'The base battery is empty. It wakes when the Sun comes back.';
+    } else if (!v.earth) {
+      alert = `No Earth${v.earthFlipH !== null ? ` · ${inWords(v.earthFlipH)}` : ''}`;
+      why = 'Earth is below the horizon, so nobody can drive the rovers.';
+    } else if (allStuck) {
+      alert = `Rovers ${stuck[0].word.split(/[:.,]/)[0].replace(/^rover\s+/i, '')}`;
+      why = roverLines.join('\n');
+    }
+    this.q('.g-alert').hidden = !alert;
+    this.q('.g-alert-word').textContent = alert;
+    this.q('.g-alert').title = why;
 
-    // Dirt and Build: only when something is affordable.
+    // Build: only when something is affordable.
     let any = false;
     for (const b of v.builds) {
       const slot = this.q<HTMLButtonElement>(`.g-slot-${b.item}`);
@@ -191,11 +204,11 @@ export class Hud {
       slot.classList.toggle('built', built);
       slot.querySelector('.g-slot-cost')!.textContent = built ? 'built' : b.cost === null ? '' : `${b.cost} kg`;
     }
-    this.q('.g-dirt-kg').textContent = `${kg(v.dirtKg)} dirt`;
-    this.q('.g-dirt').hidden = !any;
+    this.q('.g-dirt-kg').textContent = `${kg(v.dirtKg)} dry dirt`;
+    this.q('.g-build-btn').hidden = !any;
     if (!any) this.tray.hidden = true;
 
-    this.q('.g-day-n').textContent = v.landed ? `Day ${v.day} of ${v.days}` : 'Not landed';
-    this.q('.g-date').textContent = v.date;
+    this.q('.g-day-n').textContent = v.landed ? `Day ${v.day}/${v.days}` : 'Not landed';
+    this.q('.g-day').title = v.date;
   }
 }

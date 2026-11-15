@@ -3,6 +3,7 @@
 
 import type { Tag } from '../constants';
 import { btn, el, tag } from './dom';
+import { sfx } from './sound';
 import { sprite } from './sprites';
 
 export interface ChoiceOption {
@@ -36,6 +37,7 @@ export class Chooser {
   }
 
   show(title: string, sub: string, opts: ChoiceOption[], extra?: { label: string; onClick: () => void }): void {
+    sfx.ding();
     this.opts = opts;
     this.title = title;
     const box = el('div', 'g-chooser-box');

@@ -31,9 +31,8 @@ import { Comms, type Mood } from './ui/comms';
 import { dur, el, kg } from './ui/dom';
 import { Hud, SPEEDS, type HudView } from './ui/hud';
 import { briefPanel, lockedPanel, menuPanel, Modal, reportPanel } from './ui/panels';
-import { sfx } from './ui/sound';
 import { installSpriteVars } from './ui/sprites';
-import { hasEarth, hasSun, type WindowKind } from './windows';
+import { hasEarth, type WindowKind } from './windows';
 import { darkWhy, whySentence } from './why';
 
 /** What the site screen hands to the game (see screens/site.ts). */
@@ -428,7 +427,6 @@ export async function startGame(x: GameSession): Promise<void> {
     record(r, 'land', proj, i);
     refreshNames();
     goTo(k);
-    sfx.build();
     const m = r.landOptions.map((o) => spotMetrics(world, o));
     const rows: RevealRow[] = [
       { name: 'Sunlit over the year', tag: 'REAL', values: m.map((v) => pct(v.sun)), winners: bestOf(m.map((v) => v.sun), 'high') },
@@ -524,7 +522,6 @@ export async function startGame(x: GameSession): Promise<void> {
   };
 
   const afterBuy = (item: 'pad' | 'shelter') => {
-    sfx.build();
     if (!run) return;
     if (item === 'shelter') comms.say(SHORT_GAME.shelter, 'happy');
     else comms.say(SHORT_GAME.pad, 'cheer');
@@ -538,10 +535,10 @@ export async function startGame(x: GameSession): Promise<void> {
     sync();
     chooser.show('A crate is coming down on your pad', 'What should Earth send? Think about what is holding the base back right now.', [
       { glyph: 'e-robot', title: 'A rover', label: 'Digs and hauls more icy dirt. Needs charge and Earth in view.', chooseLabel: 'Send a rover',
-        choose: () => { deliver(r.game, env, 'rover'); sfx.delivery(); comms.say(`Rover ${r.game.rovers.length} is down and heading for the crater.`, 'cheer'); after(); } },
+        choose: () => { deliver(r.game, env, 'rover'); comms.say(`Rover ${r.game.rovers.length} is down and heading for the crater.`, 'cheer'); after(); } },
       { glyph: 'e-sun', title: 'A solar tower', label: 'More power. You choose where it stands, up to 2 km away.', chooseLabel: 'Send a tower', choose: () => showTowers() },
       { glyph: 'e-gameboy', title: 'A battery pack', label: 'Stores another 2 days of base power for the night.', chooseLabel: 'Send a battery',
-        choose: () => { deliver(r.game, env, 'battery'); sfx.delivery(); comms.say('Battery pack connected. The base can sit out longer nights.', 'happy'); after(); } },
+        choose: () => { deliver(r.game, env, 'battery'); comms.say('Battery pack connected. The base can sit out longer nights.', 'happy'); after(); } },
     ]);
   };
 
@@ -573,7 +570,6 @@ export async function startGame(x: GameSession): Promise<void> {
     const proj = projectTowerOptions(r, world, keys);
     deliver(r.game, env, 'tower', keys[i]);
     record(r, 'tower', proj, i);
-    sfx.delivery();
     const rk = ranks(proj);
     await showReveal({
       title: 'Tower up. How the spots compare',
@@ -614,7 +610,6 @@ export async function startGame(x: GameSession): Promise<void> {
     sync();
     if (r.game.base) goTo(r.game.base);
     comms.say('Tanks full. Three, two, one…', 'cool');
-    sfx.launch();
     window.setTimeout(liftOff, 600);
     window.setTimeout(() => endRun(), 4800);
   };
@@ -681,14 +676,12 @@ export async function startGame(x: GameSession): Promise<void> {
   let half = false;
   const onEvents = (events: GameEvent[]) => {
     for (const ev of events) {
-      if (ev.type === 'sleep') { comms.say('Battery empty. The base is asleep until the Sun comes back.', 'zzz'); sfx.sleep(); }
-      else if (ev.type === 'wake') { comms.say('Sunlight! The base woke up.', 'happy'); sfx.sunrise(); }
+      if (ev.type === 'sleep') { comms.say('Battery empty. The base is asleep until the Sun comes back.', 'zzz'); }
+      else if (ev.type === 'wake') { comms.say('Sunlight! The base woke up.', 'happy'); }
       else if (ev.type === 'prospected') {
         const tier = world.tier(ev.spot);
         comms.say(`${names.get(ev.spot) ?? 'The crater'}: ${(100 * ev.ice).toFixed(1)}% ice in the dirt (${tier} floor; the amount is made up). Digging starts.`, 'cheer');
-        sfx.earth();
       } else if (ev.type === 'delivered') {
-        sfx.delivery();
         if (firstHaul) { firstHaul = false; comms.say('First load of icy dirt is home. The plant bakes the water out of it with spare sunlight.', 'happy'); }
       }
     }
@@ -699,9 +692,8 @@ export async function startGame(x: GameSession): Promise<void> {
     const kind = currentWindow(world, s.base, Math.min(s.hour, lastHour)).win.kind;
     if (kind !== lastKind) {
       if (lastKind !== null) {
-        if (hasEarth(kind) && !hasEarth(lastKind)) { sfx.earth(); comms.say('Earth is back in view. Rovers are rolling again.', 'happy'); }
-        if (!hasEarth(kind) && hasEarth(lastKind)) { sfx.lost(); comms.say(SHORT.earthLink, 'sad'); }
-        if (hasSun(kind) && !hasSun(lastKind)) sfx.sunrise();
+        if (hasEarth(kind) && !hasEarth(lastKind)) { comms.say('Earth is back in view. Rovers are rolling again.', 'happy'); }
+        if (!hasEarth(kind) && hasEarth(lastKind)) { comms.say(SHORT.earthLink, 'sad'); }
         slowUntil = Math.max(slowUntil, s.hour + SLOW_SPAN_H);
       }
       lastKind = kind;
@@ -709,7 +701,6 @@ export async function startGame(x: GameSession): Promise<void> {
     if (!half && s.h2Kg >= TARGET.h2Kg / 2 && s.o2Kg >= TARGET.o2Kg / 2) {
       half = true;
       comms.say('The capsule is half full.', 'cheer');
-      sfx.mission();
     }
   };
 

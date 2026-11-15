@@ -13,7 +13,7 @@ let muted = (() => {
   }
 })();
 
-const files = import.meta.glob('../../assets/ui-sprout/sfx/*.wav', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const files = import.meta.glob('../../assets/ui-sprout/sfx/{click,deliver}.wav', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const WAV: Record<string, string> = Object.fromEntries(Object.entries(files).map(([p, u]) => [p.slice(p.lastIndexOf('/') + 1, -4), u]));
 const cache = new Map<string, HTMLAudioElement>();
 
@@ -68,15 +68,21 @@ function play(name: string, fallback: () => void, volume = 0.5): void {
   }
 }
 
+let lastDing = -Infinity;
+let lastClick = -Infinity;
+
+// Only short blips: a click for buttons and a soft ding when a line or a
+// dialogue appears (throttled so fast time can't spam it). The pack's longer
+// jingles are not used.
 export const sfx = {
-  click: () => play('click', () => tone(660, 0, 0.08, 'triangle', 0.05), 0.35),
-  build: () => play('build', () => { tone(520, 0, 0.1, 'triangle'); tone(780, 0.08, 0.14, 'triangle'); }),
-  delivery: () => play('deliver', () => { tone(520, 0, 0.1, 'triangle'); tone(780, 0.08, 0.14, 'triangle'); }, 0.3),
-  sunrise: () => play('sunrise', () => { tone(392, 0, 0.25); tone(523, 0.12, 0.3); tone(659, 0.24, 0.4); }),
-  earth: () => play('earth', () => { tone(880, 0, 0.12, 'square', 0.03); tone(1175, 0.1, 0.18, 'square', 0.03); }),
-  lost: () => play('lost', () => { tone(440, 0, 0.2, 'sawtooth', 0.03); tone(330, 0.15, 0.3, 'sawtooth', 0.03); }),
-  sleep: () => play('sleep', () => tone(220, 0, 0.5, 'sine', 0.06)),
-  rover: () => play('rover', () => tone(990, 0, 0.06, 'square', 0.02), 0.25),
-  mission: () => play('mission', () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.11, 0.35, 'triangle', 0.07))),
-  launch: () => play('launch', () => { for (let i = 0; i < 14; i++) tone(120 + i * 40, i * 0.12, 0.3, 'sawtooth', 0.025); }),
+  click: () => {
+    lastClick = performance.now();
+    play('click', () => tone(660, 0, 0.08, 'triangle', 0.05), 0.35);
+  },
+  ding: () => {
+    const now = performance.now();
+    if (now - lastDing < 1500 || now - lastClick < 300) return; // a click already made a sound
+    lastDing = now;
+    play('deliver', () => tone(880, 0, 0.12, 'triangle', 0.04), 0.25);
+  },
 };
