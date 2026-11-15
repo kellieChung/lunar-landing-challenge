@@ -17,7 +17,7 @@ import { KEEPALIVE_KW, OVEN_BAKE_FACTOR, ROADS_SPEED_FACTOR, ROVER_BATTERY_KWH, 
 import { BUILD_INFO } from './ui/hud';
 import { buildWorld, type SeriesAt } from './env';
 import { GameClock } from './hud/clock';
-import { hostsRuns, isUnlocked, loadProgress, rankOf, recordResult, saveProgress, SITE_ORDER, starsToUnlock, totalStars, unlockedCount } from './progress';
+import { hostsRuns, isUnlocked, loadProgress, rankOf, recordResult, saveProgress, SITE_ORDER, sitesDone, sitesToUnlock, unlockedCount } from './progress';
 import { playLaunch } from './launch';
 import { buildBattery, buildPlant, buildRocket, buildRover, buildSolarTower, type Plant, type Rocket, type SolarTower } from './props';
 import { bearingDeg, RoverViz, type RoverSight } from './roverViz';
@@ -864,11 +864,11 @@ export async function startGame(x: GameSession): Promise<void> {
     const nowOpen = unlockedCount(progress);
     const opened = nowOpen > before ? SITE_ORDER[nowOpen - 1] : null;
     const openedName = opened ? (opened === siteId ? siteName : opened.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())) : null;
-    comms.mood(v.stars === 3 ? 'love' : v.stars > 0 ? 'happy' : 'sad');
+    comms.mood(v.launched ? 'love' : 'sad');
     modal.show(reportPanel({
-      siteName, stars: v.stars, launched: v.launched, days: v.days, sleepHours: v.sleepHours, sleepLimit: v.sleepLimit, skySense: v.skySense,
+      siteName, launched: v.launched, days: v.days, sleepHours: v.sleepHours, skySense: v.skySense,
       fillPct: Math.round(100 * Math.min(1, r.game.h2Kg / TARGET.h2Kg, r.game.o2Kg / TARGET.o2Kg)), nearMiss: v.nearMiss, improved,
-      unlocked: openedName, rank: rankOf(totalStars(progress)), totalStars: totalStars(progress),
+      unlocked: openedName, rank: rankOf(sitesDone(progress)), sitesDone: sitesDone(progress), sitesTotal: SITE_ORDER.length,
     },
     () => exitTo(gameUrl(modsParam(r.mods)), false),
     () => exitTo(gameUrl({ seed: r.seed, ...modsParam(r.mods), ...(r.daily ? { daily: '1' } : {}) }), false),
@@ -992,8 +992,8 @@ export async function startGame(x: GameSession): Promise<void> {
       restart: () => { clearRun(); exitTo(gameUrl(), false); },
       explore: () => exitTo(exploreUrl()),
       sites: () => exitTo(sitesUrl),
-      rank: rankOf(totalStars(progress)),
-      stars: totalStars(progress),
+      rank: rankOf(sitesDone(progress)),
+      progress: `${sitesDone(progress)} of ${SITE_ORDER.length} sites`,
     }, show));
   };
 
@@ -1027,7 +1027,7 @@ export async function startGame(x: GameSession): Promise<void> {
 
   const daily = params.get('daily') === '1';
   if (!daily && !isUnlocked(progress, siteId)) {
-    modal.show(lockedPanel(siteName, starsToUnlock(progress, siteId), () => exitTo(sitesUrl, false)), true);
+    modal.show(lockedPanel(siteName, sitesToUnlock(progress, siteId), () => exitTo(sitesUrl, false)), true);
     return;
   }
 

@@ -7,7 +7,7 @@ import { SPOT_CHECKLIST, TIPS } from '../../tips';
 import { resetTutorial } from './coach';
 import { btn, el, tag } from './dom';
 import { isMuted, setMuted, sfx } from './sound';
-import { HAS_SPRITES, mascot, sprite } from './sprites';
+import { mascot, sprite } from './sprites';
 
 export class Modal {
   readonly el: HTMLElement;
@@ -56,7 +56,7 @@ const HOW: [string, string][] = [
   ['i-remote', 'Rovers dig by themselves, but only while Earth is in view: people drive them by radio.'],
   ['i-plant', 'The plant turns ice into hydrogen and oxygen, but only with spare sunlight.'],
   ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and upgrades that need nothing from Earth: a dirt cover (less night power), packed roads (faster rovers) and a dirt-lined oven (cheaper baking). Press Build in the dock whenever you have enough: no need to wait to be asked.'],
-  ['star-on', 'Fill your tank before the deadline. Keep the lights on. Pick well for the third star.'],
+  ['star-on', 'Fill your tank before the deadline to launch. Every site you launch from opens a new one.'],
 ];
 
 export function howTo(): HTMLElement {
@@ -131,53 +131,35 @@ export function briefPanel(b: BriefInfo, start: (mods: Mods) => void, extra: Nod
 
 export interface ReportInfo {
   siteName: string;
-  stars: number;
   launched: boolean;
   days: number | null;
   sleepHours: number;
-  sleepLimit: number;
   skySense: number | null;
   fillPct: number;
   nearMiss: string;
   improved: boolean;
   unlocked: string | null; // name of a site this result opened
   rank: string;
-  totalStars: number;
+  sitesDone: number;
+  sitesTotal: number;
 }
-
-const PATCH = ['patch-pine', 'patch-pine', 'patch-silver', 'patch-golden'];
 
 export function reportPanel(r: ReportInfo, again: () => void, retry: () => void, map: () => void): Node[] {
   const out: Node[] = [];
   const head = el('div', 'g-report-head');
-  head.append(sprite(PATCH[r.stars], { scale: 4, label: `${r.siteName} patch` }));
+  head.append(sprite(r.launched ? 'patch-golden' : 'i-cross', { scale: 4, label: r.launched ? `${r.siteName} patch` : 'no launch' }));
   const t = el('div');
   t.append(el('p', 'g-kicker', r.launched ? 'Lift-off: heading home' : 'Deadline reached'), el('h2', 'g-h', r.siteName));
-  const stars = el('div', 'g-stars');
-  stars.setAttribute('aria-label', `${r.stars} of 3 stars`);
-  for (let i = 0; i < 3; i++) stars.append(sprite(i < r.stars ? 'star-on' : 'star-off', { scale: 3, label: i < r.stars ? 'star' : 'no star' }));
-  if (!HAS_SPRITES) stars.textContent = `${r.stars} of 3 stars`;
-  t.append(stars);
+  t.append(el('p', 'g-lede', r.launched ? `Mission complete: tanks full on day ${Math.ceil(r.days ?? 0)}.` : `Your tank was ${r.fillPct}% full at the deadline.`));
   head.append(t);
   out.push(head);
-
-  const list = el('ul', 'g-star-list');
-  const line = (ok: boolean, title: string, detail: string) => {
-    const li = el('li', ok ? 'ok' : '');
-    li.append(sprite(ok ? 'i-check' : 'i-cross', { label: ok ? 'earned' : 'not earned' }), el('b', '', title), el('span', '', detail));
-    list.append(li);
-  };
-  line(r.launched, 'Launch', r.launched ? `Tanks full on day ${Math.ceil(r.days ?? 0)}.` : `Your tank was ${r.fillPct}% full at the deadline.`);
-  line(r.stars >= 2, 'Lights on', `The base slept ${Math.round(r.sleepHours)} h (${r.sleepLimit} h or less earns it here).`);
-  line(r.stars >= 3, 'Sky Sense', r.skySense === null ? 'No choices scored.' : `Your picks scored ${r.skySense} (80 earns it).`);
-  out.push(list);
+  if (r.skySense !== null) out.push(el('p', 'g-small', `Sky Sense: your picks scored ${r.skySense} of 100.`));
 
   const nm = el('div', 'g-nearmiss');
-  nm.append(mascot('sad'), el('p', '', r.nearMiss));
-  if (r.stars === 3) nm.firstElementChild?.replaceWith(mascot('love'));
+  nm.append(mascot(r.launched ? 'love' : 'sad'), el('p', '', r.nearMiss));
   out.push(nm);
   if (r.unlocked) out.push(el('p', 'g-unlock', `New site open: ${r.unlocked}.`));
-  out.push(el('p', 'g-small', `${r.rank} · ${r.totalStars} stars in all${r.improved ? ' · new best for this site' : ''}`));
+  out.push(el('p', 'g-small', `${r.rank} · ${r.sitesDone} of ${r.sitesTotal} sites complete${r.improved && r.launched ? ' · new best for this site' : ''}`));
   const go = btn('Another mission', again, 'go', 'arrow-r');
   go.classList.add('g-big');
   const row = el('div', 'g-row');
@@ -193,7 +175,7 @@ export interface MenuActions {
   explore(): void;
   sites(): void;
   rank: string;
-  stars: number;
+  progress: string;
 }
 
 export function menuPanel(m: MenuActions, show: (nodes: Node[]) => void): Node[] {
@@ -201,7 +183,7 @@ export function menuPanel(m: MenuActions, show: (nodes: Node[]) => void): Node[]
   const head = el('div', 'g-brief-head g-menu-head');
   head.append(sprite('i-crown', { scale: 2 }));
   const t = el('div');
-  t.append(el('p', 'g-kicker', 'Menu'), el('h2', 'g-h', `${m.rank} · ${m.stars} stars`));
+  t.append(el('p', 'g-kicker', 'Menu'), el('h2', 'g-h', `${m.rank} · ${m.progress}`));
   const sound = btn(isMuted() ? 'Sound: off' : 'Sound: on', () => { setMuted(!isMuted()); back(); }, 'sq');
   sound.classList.add('g-menu-sound');
   head.append(t, sound);
@@ -308,5 +290,5 @@ export function lockedPanel(siteName: string, need: number, map: () => void): No
   const t = el('div');
   t.append(el('p', 'g-kicker', 'Locked'), el('h2', 'g-h', siteName));
   head.append(t);
-  return [head, el('p', 'g-lede', `Earn ${need} more star${need === 1 ? '' : 's'} at the open sites to fly here.`), btn('Moon map', map, 'go', 'arrow-l')];
+  return [head, el('p', 'g-lede', `Launch from ${need} more open site${need === 1 ? '' : 's'} to fly here.`), btn('Moon map', map, 'go', 'arrow-l')];
 }

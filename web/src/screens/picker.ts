@@ -7,11 +7,10 @@ import { Globe, type GlobePin } from '../globe/Globe';
 import { formatLatLon } from '../globe/coords';
 import { siteHasMission } from '../game/cards';
 import { hash01 } from '../game/deposits';
-import { hostsRuns, isUnlocked, loadProgress, rankOf, SITE_ORDER, starsToUnlock, totalStars } from '../game/progress';
+import { hostsRuns, isUnlocked, loadProgress, rankOf, SITE_ORDER, siteDone, sitesDone, sitesToUnlock } from '../game/progress';
 import { dailySeed } from '../game/seed';
 import { sprite } from '../game/ui/sprites';
 
-const PATCH = ['patch-pine', 'patch-pine', 'patch-silver', 'patch-golden'];
 
 /** Today's Daily Mission site: the same for everyone on a date (no server). */
 function dailySite(): string | null {
@@ -109,13 +108,15 @@ export class Picker {
     this.globe?.start();
   }
 
-  /** First visit only: project the T² = Ka³ logo onto the Moon. */
+  /** Fresh page open: project the T² = Ka³ logo onto the Moon. */
   private playIntro(): void {
     const globe = this.globe;
     if (!globe) return;
     try {
-      if (localStorage.getItem('halo-intro-seen') === '1') return;
-      localStorage.setItem('halo-intro-seen', '1');
+      // Once per tab session: replays whenever the site is opened fresh,
+      // but not when coming back to the globe from a site panorama.
+      if (sessionStorage.getItem('halo-intro-seen') === '1') return;
+      sessionStorage.setItem('halo-intro-seen', '1');
     } catch { /* storage blocked: just play it */ }
     const caption = document.getElementById('intro-caption');
     if (caption) caption.hidden = false;
@@ -167,10 +168,10 @@ export class Picker {
           this.globe?.lookAt(s.lat!, s.lon!);
         });
       }
-      const best = loadProgress().best[s.id]?.stars ?? 0;
+      const done = siteDone(loadProgress(), s.id);
       body.append(
         el('span', 'site-name', s.name),
-        el('span', 'site-meta', `${iceRunLabel(s)}${best ? ` · ${best} of 3 stars` : ''}`),
+        el('span', 'site-meta', `${iceRunLabel(s)}${done ? ' · complete' : ''}`),
       );
       li.append(body);
       list.append(li);
@@ -196,7 +197,7 @@ export class Picker {
     card.hidden = false;
   }
 
-  /** Moon Base on the site card: the patch and stars, or why there's no run here, or the lock. */
+  /** Moon Base on the site card: the patch if completed, or why there's no run here, or the lock. */
   private gameCard(s: SiteIndexEntry): HTMLElement[] {
     const progress = loadProgress();
     if (!s.grid || !hostsRuns(s.id)) {
@@ -209,16 +210,16 @@ export class Picker {
       ];
     }
     if (!isUnlocked(progress, s.id)) {
-      const need = starsToUnlock(progress, s.id);
+      const need = sitesToUnlock(progress, s.id);
       const row = el('div', 'card-patch');
-      row.append(sprite('i-lock', { scale: 2, label: 'Locked' }), el('span', '', `Earn ${need} more star${need === 1 ? '' : 's'} to fly here.`));
+      row.append(sprite('i-lock', { scale: 2, label: 'Locked' }), el('span', '', `Launch from ${need} more open site${need === 1 ? '' : 's'} to fly here.`));
       return [row, el('span', 'go disabled card-game', 'Ice run locked')];
     }
-    const best = progress.best[s.id]?.stars ?? 0;
+    const best = progress.best[s.id];
+    const done = siteDone(progress, s.id);
     const row = el('div', 'card-patch');
-    row.append(sprite(PATCH[best], { scale: 2, label: `${best} of 3 stars` }));
-    for (let i = 0; i < 3; i++) row.append(sprite(i < best ? 'star-on' : 'star-off', { scale: 2, label: i < best ? 'star' : 'no star' }));
-    row.append(el('span', 'card-patch-text', best ? `Best: ${best} of 3 stars` : 'No patch yet'));
+    if (done) row.append(sprite('patch-golden', { scale: 2, label: 'Completed' }));
+    row.append(el('span', 'card-patch-text', done ? `Complete${best?.days != null ? `: launched on day ${Math.ceil(best.days)}` : ''}` : 'Not launched yet'));
     return [row, Object.assign(el('a', 'go card-game', 'Start an ice run →'), { href: `?site=${s.id}&mode=game` })];
   }
 
@@ -230,9 +231,9 @@ export class Picker {
     panel.querySelector('.daily')?.remove();
     const site = this.sites.find((x) => x.id === id);
     const box = el('div', 'daily');
-    const stars = totalStars(loadProgress());
+    const done = sitesDone(loadProgress());
     box.append(
-      el('span', 'daily-rank', `${rankOf(stars)} · ${stars} stars`),
+      el('span', 'daily-rank', `${rankOf(done)} · ${done} of ${SITE_ORDER.length} sites`),
       Object.assign(el('a', 'go daily-go', `Daily mission: ${site?.name ?? id} →`), { href: `?site=${id}&mode=game&daily=1` }),
     );
     panel.querySelector('h2')?.after(box);

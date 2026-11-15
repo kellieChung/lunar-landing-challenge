@@ -41,7 +41,7 @@ Pick site → LOOK & compare 3 landing spots → Land → REVEAL (+ ridge flash)
   → rovers dig icy dirt, the plant makes H₂ + O₂ on sunlight, dry dirt piles up
   → build: pad (Earth sends rover / solar tower / battery), shelter
   → Prepare beat before the longest night
-  → tanks full → countdown → launch → REPORT (stars, near-miss, patch) → Another mission
+  → tanks full → countdown → launch → REPORT (launch, near-miss, patch) → Another mission
 ```
 
 Three layers, in order: **look and decide** (the skill), **watch it play out** (the consequence), **grow the base** (the reward).
@@ -52,7 +52,7 @@ Three layers, in order: **look and decide** (the skill), **watch it play out** (
 
 | Phase | What happens | Time |
 | --- | --- | --- |
-| Site | Pick a site on the globe. Each site shows its patch (0–3 stars) or a lock. | 10 s |
+| Site | Pick a site on the globe. Each site shows its patch if completed, or a lock. | 10 s |
 | Brief | One screen: the goal, the deadline, optional modifiers. **Start mission**. | 10 s |
 | Land | 3 landing spots. Each card shows only a name and a ground label (flat / rough / steep). **Go look** each one in 3D, on the year timeline and in the forecast, then **Land here**. | 60–90 s |
 | Reveal 1 | REAL metrics for all three, the projected launch day for each, a tick on the winner of each row, and the **ridge flash**. | 15–20 s |
@@ -62,7 +62,7 @@ Three layers, in order: **look and decide** (the skill), **watch it play out** (
 | Builds | When dirt pays for something, the clock pauses for the choice. | 15–30 s each |
 | Prepare | ~24 h before the longest dark stretch at the base, the clock slows. Mission control explains the coming night; if a delivery is waiting, choose it now. | 10 s |
 | Launch | Tanks full → countdown → liftoff in 3D. | 5 s |
-| Report | Stars, near-miss line, patch, **Another mission** (the biggest button). | 20 s |
+| Report | Launch result, near-miss line, patch, **Another mission** (the biggest button). | 20 s |
 
 **Deadline:** 3 Sun circuits from landing (2,124 h, `TUNE`). If it passes, the run ends with "the capsule didn't fill in time" and a report. That is still a soft ending: it shows the biggest drag and offers one-tap retry of the **same** run.
 
@@ -180,19 +180,14 @@ Cold trap (floor never or barely sunlit) → rovers dig icy dirt → haul home �
 
 **Sky Sense, per look-and-compare:** your option's rank by projected launch day. 1st = 100, 2nd = 70, 3rd = 20 (`TUNE`). Ties share the higher rank. "Missed" ranks last.
 
-**Stars:**
-- ★ **Launch:** tanks full before the deadline.
-- ★★ **Lights on:** the base slept no more than 48 h (`TUNE`) beyond the site's par sleep, the least any autopilot build order manages there (`par.json`).
-- ★★★ **Sky Sense:** an average of 70 or more.
-
-Each star needs the one before it, so the order is the order of difficulty.
+**Winning:** fill the tanks and launch before the deadline. That completes the site. Sky Sense is shown on the report for feedback only.
 
 **Near-miss line (always shown):** the single biggest gap between your choice and the best option's projection, with real numbers: "Your spot has a 62 h longest night; the Earth spot's is 38 h. It would have launched 8 days sooner."
 
 **Between runs** (`localStorage` only, no names or accounts):
-1. **Patches:** one per site, best stars kept. The patch is a pine / silver / gold chest for 1 / 2 / 3 stars.
-2. **Unlocks:** the 3 most forgiving sites (by autopilot launch day) start open. Every 3 stars opens the next one, in order of difficulty.
-3. **Sky Rank** from total stars: Cadet → Navigator → Pathfinder → Pole Pilot.
+1. **Patches:** a gold chest for each completed site; the earliest launch is kept.
+2. **Unlocks:** the 3 most forgiving sites (by autopilot launch day) start open. Each completed site opens the next one, in order of difficulty.
+3. **Sky Rank** from sites completed (0 / 2 / 5 / 8): Cadet → Navigator → Pathfinder → Pole Pilot.
 4. **Modifiers** (opt-in, chosen in the brief): **True scale** (no vertical stretch, so ridges are harder to read); **No timeline** (read the 3D sky only); **Small battery** (half capacity).
 5. **Daily Mission** (§3).
 

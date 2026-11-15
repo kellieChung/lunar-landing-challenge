@@ -6,7 +6,7 @@ import type { GridSummary, SiteData, SiteIndexEntry } from '../data/types';
 import { RUN_DEADLINE_H } from './constants';
 import { buildWorld } from './env';
 import { due, newRun, projectLandOptions, record, type Projection, type Run } from './run';
-import { choicePoints, lightsOnLimit, nearMiss, ranks, stars } from './score';
+import { choicePoints, launched, nearMiss, ranks, skySense } from './score';
 import { land } from './sim';
 
 const read = <T>(name: string): T => JSON.parse(readFileSync(new URL(`../../public/data/${name}`, import.meta.url), 'utf8')) as T;
@@ -45,20 +45,16 @@ describe('score', () => {
     expect(ranks([p(null, 0.9), p(null, 0.2), p(60)])).toEqual([1, 2, 0]);
   });
 
-  it('stars come in order: launch, then lights on, then Sky Sense', () => {
+  it('a run is won by launching; Sky Sense averages the picks', () => {
     const run = newRun(world, 'seed-c') as Run;
     land(run.game, world.env, run.landOptions[0], world.craters);
-    expect(stars(run)).toBe(0);
+    expect(launched(run)).toBe(false);
     run.game.launchedHour = run.game.hour + 500;
-    run.game.sleepHours = lightsOnLimit(run.game.siteId) + 1;
-    expect(stars(run)).toBe(1);
-    run.game.sleepHours = 0;
+    expect(launched(run)).toBe(true);
     record(run, 'land', [p(30), p(50), p(70)], 2); // 20 points
-    expect(stars(run)).toBe(2);
-    record(run, 'crater', [p(30), p(50)], 0); // 100 points: average 60
-    expect(stars(run)).toBe(2);
-    record(run, 'tower', [p(30), p(50)], 0); // 100 points: average 73
-    expect(stars(run)).toBe(3);
+    record(run, 'crater', [p(30), p(50)], 0); // 100 points
+    record(run, 'tower', [p(30), p(50)], 0); // 100 points
+    expect(skySense(run)).toBe(73);
     expect(choicePoints(run.choices[0])).toBe(20);
   });
 

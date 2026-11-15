@@ -329,11 +329,6 @@ body:has(#pano-screen.game-ready) .topbar,
 .g-switch[aria-checked="true"] .g-switch-name { color: var(--g-green); }
 .g-switch .g-word { min-width: 3em; }
 .g-switch[aria-checked="true"] .g-word::after { content: " on"; }
-.g-stars { display: flex; gap: 4px; margin-top: 4px; }
-.g-star-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-.g-star-list li { display: grid; grid-template-columns: 32px 7em 1fr; align-items: center; gap: 6px; font-size: 14px; color: var(--g-muted); }
-.g-star-list li b { font-weight: normal; color: var(--g-ink); }
-.g-star-list li.ok b { color: var(--g-green); }
 .g-nearmiss { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; padding: 8px; border: 2px solid #23262f; }
 .g-nearmiss p { margin: 0; }
 .g-unlock { margin: 0; color: var(--g-green); }
@@ -450,11 +445,11 @@ body:has(#pano-screen.game-ready) .topbar,
 #pano-screen, .g-modal { --g-read: system-ui, -apple-system, "Segoe UI", sans-serif; }
 .g-comms-line, .g-sub, .g-small, .g-lede, .g-log, .g-why, .g-how,
 .g-card-label, .g-look-hint, .g-nearmiss p, .g-fact p, .g-unlock,
-.g-star-list li, .g-fold > :not(summary), .g-tag.open::after {
+.g-fold > :not(summary), .g-tag.open::after {
   font-family: var(--g-read, system-ui, sans-serif);
   text-shadow: none;
 }
-.g-star-list li b, .g-how li b { font-family: var(--g-font); }
+.g-how li b { font-family: var(--g-font); }
 .g-comms-line { font-size: 15px; line-height: 1.4; }
 
 /* ---------- Opening cutscene (ui/crash.ts): red alarm over the 3D landing ---------- */

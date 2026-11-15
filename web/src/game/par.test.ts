@@ -8,10 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { GridSummary, SiteData, SiteIndexEntry } from '../data/types';
 import { siteHasMission } from './cards';
-import { STRATEGIES, projectFrom } from './autopilot';
 import { RUN_DEADLINE_H } from './constants';
-import { land } from './sim';
-import { newGame } from './state';
 import { buildWorld } from './env';
 import { newRun, projectLandOptions } from './run';
 import { outcomeValue } from './score';
@@ -20,25 +17,8 @@ const read = <T>(name: string): T => JSON.parse(readFileSync(new URL(`../../publ
 const index = read<{ sites: SiteIndexEntry[] }>('sites.json').sites;
 const PAR_FILE = new URL('./par.json', import.meta.url);
 
-/** Least average sleep (h) any build order manages, landing on its best spot. */
-function parSleep(w: ReturnType<typeof buildWorld>, id: string): number {
-  let best = Infinity;
-  for (const st of STRATEGIES) {
-    let sleep = 0;
-    for (let n = 0; n < 3; n++) {
-      const run = newRun(w, `balance:${n}`);
-      const outs = run.landOptions.map((k) => projectFrom(w, newGame(id, run.startHour), run.startHour + RUN_DEADLINE_H, (c) => land(c, w.env, k, w.craters).ok, st));
-      const r = outs.reduce((a, b) => ((b.days ?? 999) < (a.days ?? 999) ? b : a));
-      sleep += r.sleepHours;
-    }
-    best = Math.min(best, sleep / 3);
-  }
-  return Math.round(best);
-}
-
-export function computePar(): { order: string[]; days: Record<string, number>; sleep: Record<string, number> } {
+export function computePar(): { order: string[]; days: Record<string, number> } {
   const days: Record<string, number> = {};
-  const sleep: Record<string, number> = {};
   for (const site of index) {
     if (!site.grid || !siteHasMission(site.grid as GridSummary[])) continue;
     const w = buildWorld(read<SiteData>(`${site.id}.json`), site.grid as GridSummary[]);
@@ -52,11 +32,10 @@ export function computePar(): { order: string[]; days: Record<string, number>; s
     // A site hosts runs only if some start can launch before the deadline.
     if (vals.some((v) => v <= RUN_DEADLINE_H / 24)) {
       days[site.id] = Math.round((10 * vals.reduce((a, b) => a + b, 0)) / vals.length) / 10;
-      sleep[site.id] = parSleep(w, site.id);
     }
   }
   const order = Object.keys(days).sort((a, b) => days[a] - days[b]);
-  return { order, days, sleep };
+  return { order, days };
 }
 
 describe('site par', () => {

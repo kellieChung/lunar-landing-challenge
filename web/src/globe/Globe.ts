@@ -261,7 +261,7 @@ export class Globe {
    * surface if the user drags the globe. Pixels close to `keyColor` are
    * keyed out so only the artwork lands on the regolith.
    */
-  async projectLogo(url: string, holdMs = 3500, keyColor = 0x2e3764): Promise<void> {
+  async projectLogo(url: string, holdMs = 3000, keyColor = 0x2e3764): Promise<void> {
     const tex = await new THREE.TextureLoader().loadAsync(url);
     tex.colorSpace = THREE.SRGBColorSpace;
     const img = tex.image as { width: number; height: number };
@@ -282,6 +282,7 @@ export class Globe {
         aspect: { value: img.width / img.height },
         key: { value: new THREE.Vector3(key.r, key.g, key.b) },
         opacity: { value: 0 },
+        time: { value: 0 },
       },
       vertexShader: `
         varying vec3 vPos;
@@ -292,18 +293,39 @@ export class Globe {
       fragmentShader: `
         uniform sampler2D map;
         uniform vec3 dir, right, up, key;
-        uniform float halfW, aspect, opacity;
+        uniform float halfW, aspect, opacity, time;
         varying vec3 vPos;
+        float keyed(vec4 c) { return c.a * smoothstep(0.06, 0.18, distance(c.rgb, key)); }
         void main() {
           float facing = dot(normalize(vPos), dir);
           if (facing <= 0.0) discard;
           vec2 uv = vec2(dot(vPos, right) / halfW, dot(vPos, up) / (halfW / aspect)) * 0.5 + 0.5;
           if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
-          vec4 c = texture2D(map, uv);
-          float keep = smoothstep(0.06, 0.18, distance(c.rgb, key));
-          float a = c.a * keep * opacity * smoothstep(0.05, 0.3, facing);
+          // horizontal signal jitter on a few rows
+          float row = floor(uv.y * 90.0);
+          float jit = step(0.985, fract(sin(row * 12.9 + floor(time * 9.0)) * 43758.5)) * 0.012;
+          vec2 u2 = uv + vec2(jit, 0.0);
+          // RGB split like a misconverged projector
+          float off = 0.0035;
+          vec4 cr = texture2D(map, u2 + vec2(off, 0.0));
+          vec4 cg = texture2D(map, u2);
+          vec4 cb = texture2D(map, u2 - vec2(off, 0.0));
+          vec3 col = vec3(cr.r * keyed(cr), cg.g * keyed(cg), cb.b * keyed(cb));
+          float art = max(max(keyed(cr), keyed(cg)), keyed(cb));
+          // scanlines + rolling refresh bar
+          float scan = 0.72 + 0.28 * sin(uv.y * 520.0);
+          float roll = 1.0 + 0.35 * smoothstep(0.06, 0.0, abs(fract(uv.y - time * 0.35) - 0.5));
+          // faint glowing screen rectangle with a border, so it reads as a projected screen
+          vec2 e = min(uv, 1.0 - uv);
+          float edge = min(e.x, e.y * aspect);
+          float border = smoothstep(0.012, 0.004, edge) * smoothstep(0.0, 0.003, edge);
+          float panel = 0.10 * smoothstep(0.0, 0.05, edge);
+          vec3 tint = vec3(0.45, 0.95, 1.0);
+          vec3 rgb = col * mix(vec3(1.0), tint, 0.25) * scan * roll * 1.25 + tint * (panel + border * 0.9);
+          float flick = 0.92 + 0.08 * sin(time * 53.0) * sin(time * 7.0);
+          float a = clamp(art * scan + panel + border * 0.9, 0.0, 1.0) * opacity * flick * smoothstep(0.05, 0.3, facing);
           if (a < 0.01) discard;
-          gl_FragColor = vec4(c.rgb, a);
+          gl_FragColor = vec4(rgb, a);
           #include <colorspace_fragment>
         }`,
     });
@@ -334,6 +356,7 @@ export class Globe {
     else o = 1 - (t - fadeIn - this.logo.hold) / fadeOut;
     // a little projector flicker while it warms up
     if (t < fadeIn) o *= 0.75 + 0.25 * Math.sin(t * 0.08);
+    this.logo.mat.uniforms.time.value = t / 1000;
     this.logo.mat.uniforms.opacity.value = Math.max(0, Math.min(1, o)) * 0.95;
     if (o <= 0 && t > fadeIn) {
       this.scene.remove(this.logo.mesh);
