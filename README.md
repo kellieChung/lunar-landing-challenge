@@ -39,17 +39,18 @@ npm run build    # -> web/dist
 
 ## Deploy (Vercel)
 
-Production is deployed **prebuilt from a machine that has the Sprout Lands packs**, so the pixel skin and sounds ship with the site but never enter git. A Vercel git build would come out in the plain look, which is why `web/vercel.json` turns git deployments off.
+Vercel project: Root Directory `web`, preset Vite (`web/vercel.json`). **Every push to `main` deploys automatically, with the pixel skin.** The Sprout Lands licence forbids redistributing the art, so the generated skin lives in a **private** repo (`kellieChung/lunar-landing-skin`). `npm run build` runs `scripts/fetch-skin.mjs` first: on Vercel it downloads the skin with `SKIN_TOKEN`, and if that fails the build fails, so a plain-look build never goes live. Locally it uses your own `npm run skin` output.
 
-```sh
-cd web
-npx vercel link          # one time: pick/create the project. Decline connecting the GitHub repo
-npm run skin             # generate the gitignored skin (deploy refuses to run without it)
-npm run deploy:preview   # pull settings, build locally, upload .vercel/output -> preview URL
-npm run deploy           # same, plus tests, to production
-```
+One-time setup:
 
-`web/vercel.json` sets long-lived caching for Vite's hashed `/assets/*` and a 1-hour cache for the unhashed `data/` and `models/` files. No rewrites are needed because routes are query parameters on `/`. The upload is about 95 MB, mostly site terrain.
+1. On GitHub, create an empty **private** repo `lunar-landing-skin` (no README).
+2. `cd web && npm run skin && npm run skin:publish` pushes the generated skin to it. Run the same after any skin change.
+3. GitHub → Settings → Developer settings → Fine-grained tokens: give it access to *only* `lunar-landing-skin`, with **Contents: Read-only**.
+4. Vercel project → Settings → Environment Variables: `SKIN_TOKEN` = that token (Production + Preview). Then redeploy.
+
+Manual deploys from a Mac with the skin still work: `npm run deploy:preview` / `npm run deploy` (after `npx vercel link`).
+
+`web/vercel.json` sets a year-long cache for Vite's hashed `/assets/*` and a 1-hour cache for the unhashed `data/` and `models/` files. No rewrites are needed because routes are query parameters on `/`.
 
 See `spec.MD` for the full brief, `docs/METHODS.md` and `docs/VALIDATION.md` for the physics.
 
