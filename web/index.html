@@ -12,6 +12,34 @@
     <meta name="theme-color" content="#0b1020" />
   </head>
   <body>
+    <div id="intro" class="intro" style="position:fixed;inset:0;z-index:10000;background:#2e3764" hidden>
+      <div class="intro-inner">
+        <p class="intro-by">brought to you by</p>
+        <img class="intro-art" src="./intro-t2ka3.png" alt="T² = Ka³ — a frog catching a fly on an orbit" />
+        <p class="intro-skip">click or press any key to skip</p>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var seen = false;
+        try { seen = localStorage.getItem("halo-intro-seen") === "1"; } catch (e) {}
+        if (seen) return;
+        var el = document.getElementById("intro");
+        el.hidden = false;
+        try { localStorage.setItem("halo-intro-seen", "1"); } catch (e) {}
+        var done = false;
+        function end() {
+          if (done) return;
+          done = true;
+          el.classList.add("intro-out");
+          setTimeout(function () { el.remove(); }, 700);
+          removeEventListener("keydown", end);
+        }
+        el.addEventListener("click", end);
+        addEventListener("keydown", end);
+        setTimeout(end, 4200);
+      })();
+    </script>
     <header class="topbar">
       <h1><a href="./" title="Horizon and Lunar Orbital Simulator">H.A.L.O.sim</a></h1>
       <span class="hook">Can my lander survive here?</span>
