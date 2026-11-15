@@ -8,15 +8,21 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "skin": "node scripts/build-sprout-skin.mjs"
+    "skin": "node scripts/build-sprout-skin.mjs",
+    "deploy:preview": "node scripts/check-skin.mjs && vercel pull --yes --environment=preview && vercel build && vercel deploy --prebuilt",
+    "deploy": "node scripts/check-skin.mjs && npm test && vercel pull --yes --environment=production && vercel build --prod && vercel deploy --prebuilt --prod"
   },
   "devDependencies": {
     "@types/three": "^0.187.0",
     "typescript": "^7.0.2",
+    "vercel": "^65.16.0",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
   },
   "dependencies": {
     "three": "^0.187.0"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

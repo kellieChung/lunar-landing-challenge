@@ -37,6 +37,20 @@ npm test
 npm run build    # -> web/dist
 ```
 
+## Deploy (Vercel)
+
+Production is deployed **prebuilt from a machine that has the Sprout Lands packs**, so the pixel skin and sounds ship with the site but never enter git. A Vercel git build would come out in the plain look, which is why `web/vercel.json` turns git deployments off.
+
+```sh
+cd web
+npx vercel link          # one time: pick/create the project. Decline connecting the GitHub repo
+npm run skin             # generate the gitignored skin (deploy refuses to run without it)
+npm run deploy:preview   # pull settings, build locally, upload .vercel/output -> preview URL
+npm run deploy           # same, plus tests, to production
+```
+
+`web/vercel.json` sets long-lived caching for Vite's hashed `/assets/*` and a 1-hour cache for the unhashed `data/` and `models/` files. No rewrites are needed because routes are query parameters on `/`. The upload is about 95 MB, mostly site terrain.
+
 See `spec.MD` for the full brief, `docs/METHODS.md` and `docs/VALIDATION.md` for the physics.
 
 ## Credits
