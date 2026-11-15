@@ -33,6 +33,7 @@ const SOURCES = {
   lm: 'Apollo%20Lunar%20Module/Apollo%20Lunar%20Module.glb',
   perseverance: 'Mars%202020%20Perseverance%20Rover/Mars%202020%20Perseverance%20Rover.glb',
   hdu: 'Habitat%20Demonstration%20Unit/Habitat%20Demonstration%20Unit%20(part%201).glb',
+  insight: 'InSight%20Cruise%20Lander/InSight%20Cruise%20Lander%20(panels%20deployed).glb',
 };
 
 await MeshoptEncoder.ready;
@@ -62,6 +63,24 @@ function triangles(doc) {
     }
   }
   return n;
+}
+
+/** Keep only the named node and its children, as the scene's single root at its world placement. */
+function keepSubtree(doc, name) {
+  const node = doc.getRoot().listNodes().find((n) => n.getName() === name);
+  if (!node) throw new Error(`no node named ${name}`);
+  const world = node.getWorldMatrix();
+  node.getParentNode()?.removeChild(node);
+  node.setMatrix(world);
+  for (const scene of doc.getRoot().listScenes()) {
+    for (const child of scene.listChildren()) scene.removeChild(child);
+    scene.addChild(node);
+  }
+  for (const n of doc.getRoot().listNodes()) {
+    let p = n;
+    while (p && p !== node) p = p.getParentNode();
+    if (!p) n.dispose();
+  }
 }
 
 /** Keep only the mesh nodes for which keep(node) is true. */
@@ -119,12 +138,30 @@ for (const [file, ascent] of [['lm-descent.glb', false], ['lm-ascent.glb', true]
   total += await emit(doc, file);
 }
 
+const perseverancePath = await download('perseverance');
 console.log('Mars 2020 Perseverance Rover');
 {
-  const doc = await io.read(await download('perseverance'));
+  const doc = await io.read(perseverancePath);
   console.log(`  source: ${triangles(doc)} tris`);
   await optimise(doc, { textureSize: 512, ratio: 0.2, error: 0.01, merge: true });
   total += await emit(doc, 'perseverance.glb');
+}
+
+// Parts lifted out of other NASA models for props NASA has no model of.
+console.log('Solar array (from InSight: one deployed UltraFlex wing)');
+{
+  const doc = await io.read(await download('insight'));
+  keepSubtree(doc, 'panel_l_root');
+  await optimise(doc, { textureSize: 1024 });
+  total += await emit(doc, 'solar-array.glb');
+}
+
+console.log('Power unit (from Perseverance: its MMRTG)');
+{
+  const doc = await io.read(perseverancePath);
+  keepSubtree(doc, 'rtg');
+  await optimise(doc, { textureSize: 512 });
+  total += await emit(doc, 'rtg.glb');
 }
 
 console.log('Habitat Demonstration Unit');

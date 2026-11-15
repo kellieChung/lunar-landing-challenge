@@ -1,24 +1,28 @@
 // Base buildings and rovers for the first-person view, in the style of
 // panorama3d/lander.ts: true size in metres, standing on y = 0. Rendering
-// only. Where NASA publishes an official model it is used (Perseverance for
-// the rovers, the Apollo LM for the return rocket, the Habitat Demonstration
-// Unit for the plant); otherwise the shapes are illustrations. Whether a solar
+// only. NASA's official models are used throughout: Perseverance for the
+// rovers, the Apollo LM for the return rocket, the Habitat Demonstration Unit
+// for the plant, an InSight solar array for the solar tower and Perseverance's
+// MMRTG for the power bank; the rest (tanks, gauges, hopper) are illustrations. Whether a solar
 // panel glows comes from the physics, never from the renderer.
 
 import * as THREE from 'three';
 import { fitTo, nasaModel } from '../panorama3d/nasaModels';
+import { buildSolarArray } from '../panorama3d/solarArray';
 
 const metal = () => new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.35, metalness: 0.3 });
 const white = () => new THREE.MeshStandardMaterial({ color: 0xeef0f3, roughness: 0.55, metalness: 0.05 });
 const paint = (color: number, roughness = 0.7) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.05 });
 
-const PANEL_LIT = 0xffc845;
-const PANEL_DARK = 0x1a2238;
-
 /** Real heights / lengths (m) the NASA models are scaled to. */
 const LM_HEIGHT_M = 7.0;
 const HDU_HEIGHT_M = 6.0;
 const ROVER_LENGTH_M = 3.0;
+const TOWER_HUB_M = 3.2;
+/** The MMRTG, scaled up from its real ~0.7 m to read as the base's power bank. */
+const RTG_HEIGHT_M = 1.3;
+/** Its tilt on the rover's back (rad), undone to stand it upright (set by eye). */
+const RTG_TILT = 1.1;
 
 function finish(group: THREE.Group): THREE.Group {
   group.traverse((o) => {
@@ -44,89 +48,16 @@ function strut(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Materia
   return m;
 }
 
-let cellTexture: THREE.Texture | null = null;
-/** Solar-cell grid: light cells with dark gaps, so the lit/dark tint reads through. */
-function solarCells(): THREE.Texture {
-  if (cellTexture) return cellTexture;
-  const n = 128;
-  const c = document.createElement('canvas');
-  c.width = c.height = n;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#2a2f3a';
-  g.fillRect(0, 0, n, n);
-  const cells = 8;
-  const step = n / cells;
-  for (let i = 0; i < cells; i++) {
-    for (let j = 0; j < cells; j++) {
-      const shade = 225 + ((i * 7 + j * 13) % 5) * 6;
-      g.fillStyle = `rgb(${shade},${shade},${shade})`;
-      g.fillRect(i * step + 1.5, j * step + 1.5, step - 3, step - 3);
-    }
-  }
-  g.fillStyle = 'rgba(255,255,255,0.35)'; // busbars
-  for (let j = 0; j < cells; j++) g.fillRect(0, j * step + step / 2 - 0.5, n, 1);
-  cellTexture = new THREE.CanvasTexture(c);
-  cellTexture.colorSpace = THREE.SRGBColorSpace;
-  cellTexture.wrapS = cellTexture.wrapT = THREE.RepeatWrapping;
-  cellTexture.repeat.set(1, 2);
-  return cellTexture;
-}
-
-function panelMaterial(): THREE.MeshStandardMaterial {
-  const map = solarCells();
-  return new THREE.MeshStandardMaterial({
-    color: PANEL_DARK, map, emissive: PANEL_DARK, emissiveMap: map, emissiveIntensity: 0.4, roughness: 0.3, metalness: 0.1,
-  });
-}
-
-function setPanel(mat: THREE.MeshStandardMaterial, lit: boolean): void {
-  mat.color.setHex(lit ? PANEL_LIT : PANEL_DARK);
-  mat.emissive.setHex(lit ? PANEL_LIT : PANEL_DARK);
-  mat.emissiveIntensity = lit ? 0.9 : 0.4;
-}
-
 export interface SolarTower {
   group: THREE.Group;
   setLit(lit: boolean): void; // from the physics
   face(azDeg: number): void;
 }
 
-/** A Sun-tracking panel on a lattice mast (the physics uses a 3 m mast height). */
+/** A Sun-tracking array (NASA's InSight wing) on a lattice mast; the physics uses a 3 m mast height. */
 export function buildSolarTower(): SolarTower {
-  const group = new THREE.Group();
-  const frame = metal();
-  // Ballast footing and a three-legged lattice mast with cross braces.
-  group.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.9, 0.3, 16), paint(0x6b7079)), 0, 0.15, 0));
-  const legs = [0, 1, 2].map((i) => (i * 2 * Math.PI) / 3);
-  const foot = (a: number, y: number, r: number) => new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r);
-  const rAt = (y: number) => 0.42 - 0.3 * (y / 2.9);
-  for (const a of legs) group.add(strut(foot(a, 0.3, rAt(0.3)), foot(a, 2.9, rAt(2.9)), 0.03, frame));
-  for (let y = 0.3; y < 2.9; y += 0.65) {
-    for (let i = 0; i < 3; i++) {
-      const a0 = legs[i];
-      const a1 = legs[(i + 1) % 3];
-      group.add(strut(foot(a0, y, rAt(y)), foot(a1, y + 0.65, rAt(y + 0.65)), 0.012, frame));
-      group.add(strut(foot(a0, y, rAt(y)), foot(a1, y, rAt(y)), 0.012, frame));
-    }
-  }
-  // Gimbal head and the panel in a thin frame.
-  const head = new THREE.Group();
-  head.position.y = 3.2;
-  head.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), frame), 0, -0.25, 0));
-  const panelMat = panelMaterial();
-  head.add(new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.4, 0.04), panelMat));
-  const rail = paint(0x9aa1ab, 0.4);
-  for (const x of [-0.82, 0.82]) head.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.05, 3.5, 0.08), rail), x, 0, -0.02));
-  for (const y of [-1.72, 0, 1.72]) head.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.05, 0.08), rail), 0, y, -0.02));
-  group.add(head);
-  finish(group);
-  return {
-    group,
-    setLit(lit) { setPanel(panelMat, lit); },
-    face(azDeg) {
-      head.rotation.y = Math.PI - (azDeg * Math.PI) / 180;
-    },
-  };
+  const a = buildSolarArray(TOWER_HUB_M);
+  return { group: a.group, setLit: a.setLit, face: a.face };
 }
 
 export interface Plant {
@@ -191,20 +122,30 @@ export function buildPlant(): Plant {
   };
 }
 
-/** Battery bank: a ribbed radiator box with a status strip. */
+/**
+ * Power unit: the finned MMRTG lifted out of NASA's Perseverance model, set
+ * level on a low cradle. Falls back to a simple box.
+ */
 export function buildBattery(): THREE.Group {
+  const rtg = nasaModel('rtg');
+  if (!rtg) return buildFallbackBattery();
   const g = new THREE.Group();
-  const body = paint(0x3d4656, 0.55);
-  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.9, 1.0), body), 0, 0.6, 0));
-  // Radiator fins along both long sides.
-  const fin = paint(0xb8bec7, 0.4);
-  for (let i = 0; i < 9; i++) {
-    for (const z of [-0.56, 0.56]) g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.78, 0.12), fin), -0.68 + i * 0.17, 0.6, z));
-  }
+  // On the rover it is mounted tilted up at the back; level it out.
+  rtg.rotation.x = RTG_TILT;
+  const unit = fitTo([rtg], { height: RTG_HEIGHT_M });
+  unit.position.y = 0.02; // its rover mounting struts sink into the cradle
+  g.add(unit);
+  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.3, 1.3), paint(0x9aa1ab, 0.6)), 0, 0.15, 0));
+  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.05, 1.36), metal()), 0, 0.3, 0));
+  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.04),
+    new THREE.MeshStandardMaterial({ color: 0x4fd18b, emissive: 0x4fd18b, emissiveIntensity: 0.8 })), 0, 0.16, 0.66));
+  return finish(g);
+}
+
+function buildFallbackBattery(): THREE.Group {
+  const g = new THREE.Group();
+  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.9, 1.0), paint(0x3d4656, 0.55)), 0, 0.6, 0));
   g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 1.1), metal()), 0, 1.09, 0));
-  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x4fd18b, emissive: 0x4fd18b, emissiveIntensity: 0.7 })), 0, 1.15, 0.38));
-  for (const x of [-0.6, 0.6]) g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.95), metal()), x, 0.08, 0));
   return finish(g);
 }
 

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { heightOnMesh, type Heightmap } from './heightmap';
 import { fitTo, nasaModel } from './nasaModels';
+import { buildSolarArray, type SolarArray } from './solarArray';
 
 const RAD = Math.PI / 180;
 
@@ -19,12 +20,13 @@ export interface Lander {
 
 /** Real Apollo LM height, legs extended (m). */
 const LM_HEIGHT_M = 7.0;
-/** The sun-tracking panel stands on its own mast beside the LM, clear of its footpads (~4.5 m out). */
-const PANEL_MAST_X = 6.2;
+/** The sun-tracking array stands on its own mast beside the LM, clear of its footpads (~4.5 m out). */
+const PANEL_MAST_X = 6.4;
+const PANEL_HUB_M = 3.4;
 
 /**
  * NASA's Apollo Lunar Module at true size in metres, standing on y = 0, with a
- * slim sun-tracking solar panel beside it. Falls back to a simple shape if the
+ * sun-tracking solar array (from NASA's InSight) on a mast beside it. Falls back to a simple shape if the
  * NASA models are not loaded.
  */
 export function buildLander(): Lander {
@@ -34,28 +36,27 @@ export function buildLander(): Lander {
   const nasa = descent && ascent;
   const metal = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.4, metalness: 0.3 });
 
+  // The physics-driven solar panel: NASA's InSight array on its own mast
+  // beside the LM (or the old two flat panels on the simple fallback lander).
+  let array: SolarArray | null = null;
   const panelMat = new THREE.MeshStandardMaterial({
     color: PANEL_DARK, emissive: PANEL_DARK, emissiveIntensity: 0.4, roughness: 0.4, flatShading: true,
   });
   const panels = new THREE.Group();
   if (nasa) {
     group.add(fitTo([descent, ascent], { height: LM_HEIGHT_M }));
-    const mast = new THREE.Group();
-    mast.position.x = PANEL_MAST_X;
-    mast.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.25, 10), metal), 0, 0.125, 0));
-    mast.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 3.0, 8), metal), 0, 1.6, 0));
-    panels.position.y = 3.3;
-    mast.add(panels);
-    group.add(mast);
+    array = buildSolarArray(PANEL_HUB_M);
+    array.group.position.x = PANEL_MAST_X;
+    group.add(array.group);
   } else {
     buildFallbackBody(group, metal);
     panels.position.y = 2.6;
     group.add(panels);
-  }
-  for (const side of [-1, 1]) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 0.04), panelMat);
-    p.position.set(side * 0.8, 0, 0);
-    panels.add(p);
+    for (const side of [-1, 1]) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 0.04), panelMat);
+      p.position.set(side * 0.8, 0, 0);
+      panels.add(p);
+    }
   }
 
   group.traverse((o) => {
@@ -79,11 +80,13 @@ export function buildLander(): Lander {
   return {
     group,
     setPanelLit(lit) {
+      array?.setLit(lit);
       panelMat.color.setHex(lit ? PANEL_LIT : PANEL_DARK);
       panelMat.emissive.setHex(lit ? PANEL_LIT : PANEL_DARK);
       panelMat.emissiveIntensity = lit ? 0.9 : 0.4;
     },
     facePanels(azDeg) {
+      array?.face(azDeg);
       // Panel faces +z by default; point its face toward the azimuth (in world
       // terms, so undo however the lander itself is turned).
       panels.rotation.y = Math.PI - azDeg * RAD - group.rotation.y;
