@@ -55,7 +55,7 @@ const HOW: [string, string][] = [
   ['ice-rich', 'Pick a crater. Ice only lasts on floors the Sun never or barely reaches.'],
   ['i-remote', 'Rovers dig by themselves, but only while Earth is in view: people drive them by radio.'],
   ['i-plant', 'The plant turns ice into hydrogen and oxygen, but only with spare sunlight.'],
-  ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and a shelter. Press Build in the dock whenever you have enough: no need to wait to be asked.'],
+  ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and upgrades that need nothing from Earth: a dirt cover (less night power), packed roads (faster rovers) and a dirt-lined oven (cheaper baking). Press Build in the dock whenever you have enough: no need to wait to be asked.'],
   ['star-on', 'Fill the capsule before the deadline. Keep the lights on. Pick well for the third star.'],
 ];
 
@@ -268,7 +268,7 @@ const REAL_ROWS: [string, Parameters<typeof tag>[0]][] = [
   ['Projected launch day (the game rules replayed on the real sky)', 'ESTIMATE'],
   ['Rich / trace / no ice by how dark a floor is; the 5% cut-off', 'RULE'],
   ['How much ice each crater holds (inside the LCROSS range)', 'HYPOTHETICAL'],
-  ['Pads, deliveries, shelter, battery packs, rover loads', 'HYPOTHETICAL'],
+  ['Pads, deliveries, upgrades, battery packs, rover loads', 'HYPOTHETICAL'],
   ['The base sleeping when its battery is empty', 'RULE'],
 ];
 

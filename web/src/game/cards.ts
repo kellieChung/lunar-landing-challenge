@@ -164,12 +164,12 @@ export function currentWindow(w: World, base: Key, h: number): { win: SkyWindow;
 }
 
 /** Round-trip facts for a crater (distance, hours, battery share). */
-export function tripFacts(w: World, base: Key, target: Key, kind: 'haul' | 'prospect') {
+export function tripFacts(w: World, base: Key, target: Key, kind: 'haul' | 'prospect', speed?: number) {
   const route = w.env.route(base, target);
-  const need = tripNeedKWh(w.env, base, target, kind);
+  const need = tripNeedKWh(w.env, base, target, kind, speed);
   return {
     km: route?.km ?? 0,
-    hours: route ? tripHours(route.km, kind) : 0,
+    hours: route ? tripHours(route.km, kind, speed) : 0,
     batteryPct: need === null ? 0 : Math.round((100 * need) / ROVER_BATTERY_KWH),
   };
 }

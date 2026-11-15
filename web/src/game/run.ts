@@ -6,7 +6,7 @@ import { fill, projectFrom, type Strategy } from './autopilot';
 import { craterCards, landingCards, towerCards, type LandRole } from './cards';
 import { BATTERY_KWH, PREPARE_LEAD_H, PREPARE_MIN_NIGHT_H, RUN_DEADLINE_H } from './constants';
 import type { World } from './env';
-import { buildCost, chooseCrater, deliver, fuelReady, land, type BuildItem } from './sim';
+import { BUILD_ITEMS, buildCost, chooseCrater, deliver, fuelReady, land, type BuildItem } from './sim';
 import { newGame, type GameState, type Key } from './state';
 import { pickStart, rng } from './seed';
 
@@ -123,14 +123,14 @@ export function towerOptions(run: Run, w: World): Key[] {
 /** Builds that the dirt pays for right now. */
 export function affordable(run: Run, w: World): BuildItem[] {
   const s = run.game;
-  return (['pad', 'shelter'] as BuildItem[]).filter((i) => {
+  return BUILD_ITEMS.filter((i) => {
     const c = buildCost(s, w.env, i);
     return c !== null && s.tailingsKg >= c;
   });
 }
 
 /** Identity of a build offer: the pad number, or the shelter. */
-const offerId = (run: Run, item: BuildItem) => (item === 'pad' ? `pad${run.game.pads ?? 0}` : 'shelter');
+const offerId = (run: Run, item: BuildItem) => (item === 'pad' ? `pad${run.game.pads ?? 0}` : item);
 
 /** Builds newly affordable since the last offer (the clock pauses for these once). */
 export function newBuilds(run: Run, w: World): BuildItem[] {

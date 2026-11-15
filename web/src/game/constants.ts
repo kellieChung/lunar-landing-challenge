@@ -118,6 +118,18 @@ export const PAD_COSTS_KG = [150, 250, 350, 450, 550, 650];
  */
 export const SHELTER_KG = 250;
 export const SHELTER_KEEPALIVE_FACTOR = 0.5;
+/**
+ * Packed roads: rovers drive on graded, compacted regolith tracks (sintered
+ * regolith roads are proposed for lunar bases). Rover speed is multiplied by this.
+ */
+export const ROADS_KG = 300;
+export const ROADS_SPEED_FACTOR = 1.5;
+/**
+ * Dirt-lined oven: the ice oven wrapped in regolith insulation, so less heat
+ * leaks away. Baking energy is multiplied by this.
+ */
+export const OVEN_KG = 350;
+export const OVEN_BAKE_FACTOR = 0.75;
 /** Battery pack Earth can land on a pad: one more base battery's worth (HYPOTHETICAL). */
 export const BATTERY_PACK_KWH = BATTERY_KWH;
 

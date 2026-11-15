@@ -8,6 +8,15 @@
 
 import { btn, el, kg, meter, type Meter } from './dom';
 import { sprite } from './sprites';
+import { BUILD_ITEMS, type BuildItem } from '../sim';
+
+/** Name and icon of each thing the dry dirt can build. */
+export const BUILD_INFO: Record<BuildItem, { name: string; glyph: string }> = {
+  pad: { name: 'Landing pad', glyph: 'crate' },
+  shelter: { name: 'Dirt cover', glyph: 'i-home' },
+  roads: { name: 'Packed roads', glyph: 'e-dirt' },
+  oven: { name: 'Dirt-lined oven', glyph: 'fire' },
+};
 
 export interface RoverView {
   id: number;
@@ -17,7 +26,8 @@ export interface RoverView {
 }
 
 export interface BuildView {
-  item: 'pad' | 'shelter';
+  item: BuildItem;
+  built: boolean;
   cost: number | null;
   can: boolean;
 }
@@ -43,13 +53,12 @@ export interface HudView {
   builds: BuildView[];
   nextCost: number | null; // the cheapest build still open, for the dirt meter
   deliveries: number;
-  shelter: boolean;
   towers: number;
 }
 
 export interface HudHandlers {
   menu(): void;
-  build(item: 'pad' | 'shelter'): void;
+  build(item: BuildItem): void;
   togglePlay(): void;
   speed(hoursPerSec: number): void;
 }
@@ -145,8 +154,8 @@ export class Hud {
     });
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') this.tray.hidden = true; });
 
-    for (const item of ['pad', 'shelter'] as const) {
-      const b = btn(item === 'pad' ? 'Landing pad' : 'Shelter', () => { this.tray.hidden = true; on.build(item); }, 'sq', item === 'pad' ? 'crate' : 'fire');
+    for (const item of BUILD_ITEMS) {
+      const b = btn(BUILD_INFO[item].name, () => { this.tray.hidden = true; on.build(item); }, 'sq', BUILD_INFO[item].glyph);
       b.classList.add('g-slot', `g-slot-${item}`);
       b.append(el('span', 'g-slot-cost'));
       this.tray.append(b);
@@ -230,7 +239,7 @@ export class Hud {
     let any = false;
     for (const b of v.builds) {
       const slot = this.q<HTMLButtonElement>(`.g-slot-${b.item}`);
-      const built = b.item === 'shelter' && v.shelter;
+      const built = b.built;
       slot.disabled = !b.can;
       any ||= b.can;
       slot.classList.toggle('built', built);

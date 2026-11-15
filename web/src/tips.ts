@@ -20,7 +20,7 @@ export const TIPS = {
   /** Game: finding ice. Hydrogen and oxygen burn together as rocket fuel. */
   ice: 'Water ice is one of the most valuable resources on the Moon. It can only last in very cold, dark places, like craters the Sun never reaches. You can split it into oxygen, which humans need to breathe, and hydrogen. Burned together, hydrogen and oxygen fuel rockets.',
   /** Game: first dry regolith. Metals are locked inside minerals; using them is future technology. */
-  regolith: 'Lunar regolith is the Moon\'s version of dirt. It contains minerals with metals like iron and aluminum that could one day be used to build machinery. Here, the dry dirt left after baking out the ice builds landing pads and a shelter for the base.',
+  regolith: 'Lunar regolith is the Moon\'s version of dirt. It contains minerals with metals like iron and aluminum that could one day be used to build machinery. Here, the dry dirt left after baking out the ice builds landing pads and upgrades for the base: a dirt cover, packed roads and an insulated oven.',
   /** Game: rover battery meter. Rovers here only leave with enough charge for the round trip. */
   battery: 'Machines on the Moon use solar panels to charge their batteries, so they can keep working when the Sun is hidden. But if a rover ran out of battery while exploring a dark crater, it would be stranded. This meter shows how much charge each rover has. A rover only leaves once it has enough for the whole round trip.',
 } as const;
@@ -37,7 +37,7 @@ export const SHORT = {
   earth: 'Earth barely moves in the Moon\'s sky. Near the south pole it sits low, so hills can hide it for days.',
   timeline: 'This bar shows when the Sun (gold) and Earth (blue) can be seen from here. Green means both!',
   ice: 'Ice hides in dark craters the Sun never reaches. We can split it into oxygen and hydrogen: rocket fuel!',
-  regolith: 'Regolith is Moon dirt. Our leftover dry dirt builds landing pads and a shelter.',
+  regolith: 'Regolith is Moon dirt. Our leftover dry dirt builds landing pads and base upgrades.',
   battery: 'Rovers run on batteries. They only leave with enough charge to get back home.',
   earthLink: 'People on Earth drive our rovers by radio. When a hill blocks Earth, the rovers must stop and wait.',
   sunOnly: 'Sun but no Earth: the rovers wait, but sunshine powers the fuel plant.',
@@ -48,9 +48,11 @@ export const SHORT = {
 export const SHORT_GAME = {
   look: 'Look around! Are hills hiding the Sun? Is Earth in view? The timeline below shows the whole year: green is best.',
   crater: 'Floors that never or barely see the Sun keep their ice. Closer craters mean shorter trips.',
-  dirt: 'The dry dirt left over piles up by the plant (Dirt, in the dock). Spend it on a landing pad or a shelter with Build, any time you like.',
+  dirt: 'The dry dirt left over piles up by the plant (Dirt, in the dock). Spend it on a landing pad or an upgrade with Build, any time you like.',
   pad: 'Landing pad ready. Earth can land a crate near the base without sandblasting it.',
-  shelter: 'Moon dirt holds heat. Under a dirt shelter, the base needs less power at night.',
+  shelter: 'Moon dirt holds heat. Under its dirt cover, the base needs less power at night.',
+  roads: 'Roads packed. The rovers roll faster and spend less charge on each trip.',
+  oven: 'Oven wrapped in dirt. Baking ice out now takes less power.',
 } as const;
 
 /**

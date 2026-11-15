@@ -74,14 +74,14 @@ export const FACTS: Record<string, Fact> = {
     title: 'Good night, base',
     text: 'The battery ran out during a long dark stretch, so your base went to sleep. It will wake up when the Sun returns and the battery has charged a little. Real Moon robots do this too: after landing in 2019, China\'s Yutu-2 rover slept through dozens of two-week lunar nights.',
     tag: 'REAL',
-    source: 'Dark stretches: this app\'s physics. Tip: a thermal shelter, or a solar tower on a spot that is sunny at other times, helps.',
+    source: 'Dark stretches: this app\'s physics. Tip: a dirt cover, or a solar tower on a spot that is sunny at other times, helps.',
   },
   shelter: {
     id: 'shelter',
     title: 'Dirt keeps things warm',
     text: 'Moon dirt soaks up heat in the sunshine and gives it back slowly in the dark. Researchers have proposed "thermal wadis": machines parked under heat-holding regolith so they survive the long, freezing lunar night with less power.',
     tag: 'ESTIMATE',
-    source: 'Thermal wadi concept (NASA Innovative Advanced Concepts). How much power the game\'s shelter saves is a made-up number.',
+    source: 'Thermal wadi concept (NASA Innovative Advanced Concepts). How much power the game\'s dirt cover saves is a made-up number.',
   },
   oxygen: {
     id: 'oxygen',

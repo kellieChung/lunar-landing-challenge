@@ -67,7 +67,9 @@ export interface GameState {
   crater?: Key | null; // the crater the rovers work at
   pads?: number; // landing pads built
   deliveries?: number; // pads waiting for Earth to land something on them
-  shelter?: boolean; // thermal shelter built
+  shelter?: boolean; // dirt cover built (less night power)
+  roads?: boolean; // packed roads built (faster rovers)
+  oven?: boolean; // dirt-lined oven built (cheaper baking)
 }
 
 export function newGame(siteId: string, hour = 0): GameState {

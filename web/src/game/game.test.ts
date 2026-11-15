@@ -7,7 +7,7 @@ import {
 import { darkSpots, hash01, iceFraction, iceTier, tieredIce } from './deposits';
 import { buildTerrain, slopeDeg } from './paths';
 import {
-  TARGET, buildCost, buy, chooseCrater, deliver, land, launch, orderRover, reachableDark, step, tripEnergyKWh, type Env,
+  TARGET, buildCost, buy, chooseCrater, deliver, land, launch, orderRover, reachableDark, roverSpeed, step, tripEnergyKWh, tripHours, type Env,
 } from './sim';
 import { keyOf, newGame, type Key } from './state';
 
@@ -246,6 +246,11 @@ describe('sim', () => {
     // Shelter: once.
     expect(buy(s, e, 'shelter').ok).toBe(true);
     expect(buy(s, e, 'shelter').ok).toBe(false);
+    // Roads and oven: local upgrades, once each, no Earth delivery needed.
+    for (const u of ['roads', 'oven'] as const) {
+      expect(buy(s, e, u).ok).toBe(true);
+      expect(buy(s, e, u).ok).toBe(false);
+    }
     // Battery pack: more storage, arrives charged.
     buy(s, e, 'pad');
     const cap = s.batteryCapKWh;
@@ -271,6 +276,30 @@ describe('sim', () => {
       return s.batteryCapKWh - s.batteryKWh;
     };
     expect(night(true)).toBeCloseTo(night(false) * SHELTER_KEEPALIVE_FACTOR, 9);
+  });
+
+  it('packed roads speed rovers up and cut trip energy', () => {
+    const s = newGame('test');
+    expect(roverSpeed(s)).toBe(ROVER_SPEED_KMH);
+    s.roads = true;
+    expect(roverSpeed(s)).toBeGreaterThan(ROVER_SPEED_KMH);
+    expect(tripHours(5, 'haul', roverSpeed(s))).toBeLessThan(tripHours(5, 'haul'));
+    expect(tripEnergyKWh(5, 1, roverSpeed(s))).toBeLessThan(tripEnergyKWh(5, 1));
+  });
+
+  it('the dirt-lined oven bakes more dirt for the same sunlight', () => {
+    const baked = (oven: boolean) => {
+      const e = env(strip(), { sun: () => 1 });
+      const s = newGame('test');
+      land(s, e, '0,0', ['4,0']);
+      s.oven = oven;
+      s.rovers = [];
+      s.hopperKg = 100_000;
+      s.hopperIceKg = 5_000;
+      step(s, e);
+      return 100_000 - s.hopperKg;
+    };
+    expect(baked(true)).toBeGreaterThan(baked(false));
   });
 
   it('idle rovers scout the chosen crater, then all dig there', () => {

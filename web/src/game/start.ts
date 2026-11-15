@@ -13,7 +13,8 @@ import { SHORT, SHORT_GAME, TUTORIAL } from '../tips';
 import type { SpotGridHandle, SpotMark } from '../ui/SpotGrid';
 import type { TimeBar } from '../ui/TimeBar';
 import { craterNames, currentWindow, groundLabel, siteHasMission, spotMetrics, towerGainHours, tripFacts } from './cards';
-import { KEEPALIVE_KW, ROVER_BATTERY_KWH, SHELTER_KEEPALIVE_FACTOR } from './constants';
+import { KEEPALIVE_KW, OVEN_BAKE_FACTOR, ROADS_SPEED_FACTOR, ROVER_BATTERY_KWH, SHELTER_KEEPALIVE_FACTOR } from './constants';
+import { BUILD_INFO } from './ui/hud';
 import { buildWorld, type SeriesAt } from './env';
 import { GameClock } from './hud/clock';
 import { hostsRuns, isUnlocked, loadProgress, rankOf, recordResult, saveProgress, SITE_ORDER, starsToUnlock, totalStars, unlockedCount } from './progress';
@@ -27,7 +28,7 @@ import {
 import { clearRun, loadRun, saveRun } from './save';
 import { choicePoints, ranks, verdict } from './score';
 import { dailySeed, newSeed } from './seed';
-import { TARGET, buildCost, buy, chooseCrater, deliver, land, launch, step, type GameEvent, type PowerReport } from './sim';
+import { BUILD_ITEMS, TARGET, buildCost, buy, isBuilt, type BuildItem, chooseCrater, deliver, land, launch, step, type GameEvent, type PowerReport } from './sim';
 import { keyOf, type Key, type Rover } from './state';
 import { Chooser, revealPanel, type ChoiceOption, type RevealRow } from './ui/choose';
 import { Coach, type CoachStep } from './ui/coach';
@@ -276,11 +277,11 @@ export async function startGame(x: GameSession): Promise<void> {
   };
 
   /** A little party for things that make the base bigger. */
-  let seen: { towers: number; pads: number; shelter: boolean } | null = null;
+  let seen: { towers: number; pads: number; ups: number } | null = null;
   const celebrate = () => {
     if (!run) return;
     const s = run.game;
-    const now = { towers: s.towers.length, pads: s.pads ?? 0, shelter: !!s.shelter };
+    const now = { towers: s.towers.length, pads: s.pads ?? 0, ups: BUILD_ITEMS.filter((i) => isBuilt(s, i)).length };
     const before = seen;
     seen = now;
     if (!before) return;
@@ -298,7 +299,7 @@ export async function startGame(x: GameSession): Promise<void> {
       const at = rocket.group.getWorldPosition(new THREE.Vector3());
       x.scene.fx.blast(at.setY(at.y + 0.3 * x.scene.exaggeration), { count: 90, speedM: 6 });
     }
-    if (now.shelter && !before.shelter) {
+    if (now.ups > before.ups) {
       sfx.sparkle();
       if (plant && x.scene && s.base === here()) x.scene.fx.dust(plant.group.getWorldPosition(new THREE.Vector3()), { count: 70, speedM: 3, sizeM: 0.8 });
     }
@@ -423,15 +424,15 @@ export async function startGame(x: GameSession): Promise<void> {
       sun: world.series(at).lit[h] === 1, asleep: s.asleep, earth: env.earthVisible(at, h),
       rovers: s.rovers.map((r) => ({ id: r.id, charge: r.chargeKWh / ROVER_BATTERY_KWH, ...roverWord(r) })),
       dirtKg: s.tailingsKg,
-      builds: (['pad', 'shelter'] as const).map((item) => {
+      builds: BUILD_ITEMS.map((item) => {
         const cost = buildCost(s, env, item);
-        return { item, cost, can: cost !== null && s.tailingsKg >= cost && !blocked() };
+        return { item, cost, built: isBuilt(s, item), can: cost !== null && s.tailingsKg >= cost && !blocked() };
       }),
-      nextCost: (['pad', 'shelter'] as const)
-        .filter((item) => !(item === 'shelter' && s.shelter))
+      nextCost: BUILD_ITEMS
+        .filter((item) => !isBuilt(s, item))
         .map((item) => buildCost(s, env, item))
         .reduce<number | null>((m, c) => (c === null ? m : m === null ? c : Math.min(m, c)), null),
-      deliveries: s.deliveries ?? 0, shelter: !!s.shelter, towers: s.towers.length,
+      deliveries: s.deliveries ?? 0, towers: s.towers.length,
       sunFlipH: flipIn(world.series(at).lit, h), earthFlipH: flipIn(world.series(at).earth, h),
     };
   };
@@ -663,23 +664,32 @@ export async function startGame(x: GameSession): Promise<void> {
   };
 
   // 3. Builds, deliveries, towers
+  const BUILD_LABEL: Record<BuildItem, string> = {
+    pad: 'Earth lands one crate on it: a rover, a solar tower or a battery pack.',
+    shelter: `Pile dirt over the base: it uses ${Math.round(100 * (1 - SHELTER_KEEPALIVE_FACTOR))}% less power at night.`,
+    roads: `Pack the dirt into smooth tracks: rovers drive ${ROADS_SPEED_FACTOR}× as fast and use less charge per trip.`,
+    oven: `Wrap the ice oven in dirt so less heat leaks out: baking uses ${Math.round(100 * (1 - OVEN_BAKE_FACTOR))}% less power.`,
+  };
   const showBuild = () => {
     const r = run!;
     const items = affordable(r, world);
     markBuildsSeen(r, world);
     busy = true;
     sync();
-    const opts: ChoiceOption[] = items.map((item) => (item === 'pad'
-      ? { glyph: 'crate', title: `Landing pad · ${buildCost(r.game, env, 'pad')} kg`, label: 'Earth lands one crate on it: a rover, a solar tower or a battery pack.', chooseLabel: 'Build the pad', choose: () => { buy(r.game, env, 'pad'); afterBuy('pad'); } }
-      : { glyph: 'fire', title: `Shelter · ${buildCost(r.game, env, 'shelter')} kg`, label: `Bury the base under dirt: it needs ${Math.round(100 * (1 - SHELTER_KEEPALIVE_FACTOR))}% less power at night.`, chooseLabel: 'Build the shelter', choose: () => { buy(r.game, env, 'shelter'); afterBuy('shelter'); } }));
+    const opts: ChoiceOption[] = items.map((item) => ({
+      glyph: BUILD_INFO[item].glyph,
+      title: `${BUILD_INFO[item].name} · ${buildCost(r.game, env, item)} kg`,
+      label: BUILD_LABEL[item],
+      chooseLabel: `Build ${item === 'pad' ? 'the pad' : 'it'}`,
+      choose: () => { buy(r.game, env, item); afterBuy(item); },
+    }));
     opts.push({ glyph: 'stone', title: 'Keep the dirt', label: 'Save it for something bigger. Build any time with the Build button next to your dirt.', chooseLabel: 'Keep it', choose: () => { void after(); hud.nudgeBuild(); } });
     chooser.show('Your dry dirt can build something', `${kg(r.game.tailingsKg)} of dry dirt is piled up next to the plant. You don't have to wait for this: press Build in the dock whenever you have enough.`, opts);
   };
 
-  const afterBuy = (item: 'pad' | 'shelter') => {
+  const afterBuy = (item: BuildItem) => {
     if (!run) return;
-    if (item === 'shelter') comms.say(SHORT_GAME.shelter, 'happy');
-    else comms.say(SHORT_GAME.pad, 'cheer');
+    comms.say(SHORT_GAME[item], item === 'pad' ? 'cheer' : 'happy');
     markBuildsSeen(run, world);
     void after();
     hud.nudgeBuild(); // show where building lives for next time

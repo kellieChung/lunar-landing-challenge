@@ -6,7 +6,7 @@
 import { ELECTROLYSIS_KWH_PER_KG_WATER, H2_PER_KG_WATER, O2_PER_KG_WATER, bakeKwhPerKg, fuelTarget } from './chemistry';
 import {
   BATTERY_PACK_KWH, BATTERY_RESERVE, CABLE_REACH_KM, DIG_HOURS, KEEPALIVE_KW, PAD_COSTS_KG, PLANT_MAX_KW, PROSPECT_HOURS,
-  SHELTER_KEEPALIVE_FACTOR, SHELTER_KG,
+  SHELTER_KEEPALIVE_FACTOR, SHELTER_KG, ROADS_KG, ROADS_SPEED_FACTOR, OVEN_KG, OVEN_BAKE_FACTOR,
   ROVER_BATTERY_KWH, ROVER_CHARGE_KW, ROVER_KW, ROVER_PARK_KW, ROVER_PAYLOAD_KG, ROVER_RESERVE_KWH, ROVER_SPEED_KMH,
   UNLOAD_HOURS, WAKE_LEVEL,
 } from './constants';
@@ -58,14 +58,14 @@ const OK: Result = { ok: true };
 // ---- Player actions -------------------------------------------------------
 
 /** Hours a round trip takes with the Earth link up: driving both ways plus the work there. */
-export function tripHours(km: number, kind: Job['kind']): number {
-  return Math.ceil((2 * km) / ROVER_SPEED_KMH) + (kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS) + 1;
+export function tripHours(km: number, kind: Job['kind'], speed = ROVER_SPEED_KMH): number {
+  return Math.ceil((2 * km) / speed) + (kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS) + 1;
 }
 
 /** Round-trip energy (kWh) for a job from `from`, or null if there is no drivable route. */
-export function tripNeedKWh(env: Env, from: Key, to: Key, kind: Job['kind']): number | null {
+export function tripNeedKWh(env: Env, from: Key, to: Key, kind: Job['kind'], speed = ROVER_SPEED_KMH): number | null {
   const path = env.route(from, to);
-  return path ? tripEnergyKWh(path.km, kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS) : null;
+  return path ? tripEnergyKWh(path.km, kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS, speed) : null;
 }
 
 /** Craters (or any spots in `targets`) a rover could drive to and back from `spot` on one battery charge. */
@@ -96,8 +96,13 @@ export function hasEarthLink(s: GameState, env: Env): boolean {
   return s.base !== null && !s.asleep && env.earthVisible(s.base, s.hour);
 }
 
-export function tripEnergyKWh(km: number, workHours: number): number {
-  return ROVER_KW * ((2 * km) / ROVER_SPEED_KMH + workHours);
+export function tripEnergyKWh(km: number, workHours: number, speed = ROVER_SPEED_KMH): number {
+  return ROVER_KW * ((2 * km) / speed + workHours);
+}
+
+/** Rover top speed (km/h): faster once packed roads are built. */
+export function roverSpeed(s: GameState): number {
+  return ROVER_SPEED_KMH * (s.roads ? ROADS_SPEED_FACTOR : 1);
 }
 
 export function orderRover(s: GameState, env: Env, roverId: number, job: Job): Result {
@@ -109,7 +114,7 @@ export function orderRover(s: GameState, env: Env, roverId: number, job: Job): R
   if (!env.isCrater(job.target)) return no('Ice can only last where sunlight never or barely reaches. Pick a dark crater.');
   if (!env.route(s.base, job.target)) return no('No drivable route: a slope on the way is steeper than the rover can handle.');
   if (job.kind === 'haul' && !s.prospected.includes(job.target)) return no('Prospect this spot first to find out if there is ice.');
-  const need = tripNeedKWh(env, s.base, job.target, job.kind)!;
+  const need = tripNeedKWh(env, s.base, job.target, job.kind, roverSpeed(s))!;
   if (need + ROVER_RESERVE_KWH > ROVER_BATTERY_KWH) {
     return no(`Too far: the round trip needs ${need.toFixed(1)} kWh but a rover battery holds ${ROVER_BATTERY_KWH}. It would be stranded in the dark.`);
   }
@@ -134,7 +139,12 @@ export function recallRover(s: GameState, roverId: number): void {
 
 // ---- Building with Moon dirt ----------------------------------------------
 
-export type BuildItem = 'pad' | 'shelter';
+export type BuildItem = 'pad' | 'shelter' | 'roads' | 'oven';
+export type Upgrade = Exclude<BuildItem, 'pad'>;
+export const BUILD_ITEMS: BuildItem[] = ['pad', 'shelter', 'roads', 'oven'];
+export const UPGRADES: Upgrade[] = ['shelter', 'roads', 'oven'];
+const UPGRADE_KG: Record<Upgrade, number> = { shelter: SHELTER_KG, roads: ROADS_KG, oven: OVEN_KG };
+export const isBuilt = (s: GameState, item: BuildItem): boolean => item !== 'pad' && !!s[item];
 export type Delivery = 'rover' | 'tower' | 'battery';
 
 /** Moon dirt (kg) the next build of this kind costs, or null if it can't be built now. */
@@ -145,7 +155,7 @@ export function buildCost(s: GameState, env: Env, item: BuildItem): number | nul
     return PAD_COSTS_KG[n] ?? PAD_COSTS_KG[PAD_COSTS_KG.length - 1] + 300 * (n - PAD_COSTS_KG.length + 1);
   }
   void env;
-  return s.shelter ? null : SHELTER_KG;
+  return s[item] ? null : UPGRADE_KG[item];
 }
 
 export function buy(s: GameState, env: Env, item: BuildItem): Result {
@@ -156,7 +166,7 @@ export function buy(s: GameState, env: Env, item: BuildItem): Result {
   if (item === 'pad') {
     s.pads = (s.pads ?? 0) + 1;
     s.deliveries = (s.deliveries ?? 0) + 1;
-  } else s.shelter = true;
+  } else s[item] = true;
   return OK;
 }
 
@@ -185,7 +195,7 @@ export function deliver(s: GameState, env: Env, kind: Delivery, spot?: Key): Res
 export function chooseCrater(s: GameState, env: Env, target: Key): Result {
   if (!s.base) return no('Land first.');
   if (!env.isCrater(target)) return no('Ice can only last where sunlight never or barely reaches.');
-  const need = tripNeedKWh(env, s.base, target, 'prospect');
+  const need = tripNeedKWh(env, s.base, target, 'prospect', roverSpeed(s));
   if (need === null || need + ROVER_RESERVE_KWH > ROVER_BATTERY_KWH) return no('Too far or too steep for a rover.');
   s.crater = target;
   for (const r of s.rovers) {
@@ -250,9 +260,9 @@ function drain(r: Rover, kWh: number): void {
 }
 
 /** Drive along the route for one hour, using battery per km. True when the rover has arrived. */
-function drive(r: Rover, env: Env): boolean {
+function drive(r: Rover, env: Env, speed: number): boolean {
   let driven = 0;
-  let left = ROVER_SPEED_KMH;
+  let left = speed;
   while (left > 0 && r.route.length > 0) {
     const leg = env.legKm(r.at, r.route[0]) ?? 0;
     const need = leg - r.legKm;
@@ -267,7 +277,7 @@ function drive(r: Rover, env: Env): boolean {
       left = 0;
     }
   }
-  drain(r, (ROVER_KW * driven) / ROVER_SPEED_KMH);
+  drain(r, (ROVER_KW * driven) / speed);
   return r.route.length === 0;
 }
 
@@ -281,7 +291,7 @@ function stepRover(s: GameState, env: Env, r: Rover, events: GameEvent[], earthN
   }
   switch (r.phase) {
     case 'out':
-      if (drive(r, env)) {
+      if (drive(r, env, roverSpeed(s))) {
         r.phase = 'working';
         r.workLeftH = r.job!.kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS;
       }
@@ -302,7 +312,7 @@ function stepRover(s: GameState, env: Env, r: Rover, events: GameEvent[], earthN
       r.legKm = 0;
       break;
     case 'back':
-      if (drive(r, env)) {
+      if (drive(r, env, roverSpeed(s))) {
         r.phase = 'unloading';
         r.workLeftH = UNLOAD_HOURS;
       }
@@ -393,7 +403,7 @@ export function step(s: GameState, env: Env): { events: GameEvent[]; power: Powe
       r.phase = 'idle';
       continue;
     }
-    const need = tripEnergyKWh(path.km, r.job.kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS) + ROVER_RESERVE_KWH;
+    const need = tripEnergyKWh(path.km, r.job.kind === 'prospect' ? PROSPECT_HOURS : DIG_HOURS, roverSpeed(s)) + ROVER_RESERVE_KWH;
     const want = Math.max(0, Math.min(ROVER_CHARGE_KW, need - r.chargeKWh));
     const sun = Math.min(want, surplus);
     const spare = Math.max(0, s.batteryKWh - BATTERY_RESERVE * s.batteryCapKWh);
@@ -403,7 +413,7 @@ export function step(s: GameState, env: Env): { events: GameEvent[]; power: Powe
     r.chargeKWh += sun + batt;
     power.roverKw += sun + batt;
     // Leave only with enough charge, and only if the trip can finish before Earth sets.
-    if (r.chargeKWh >= need - 1e-9 && env.earthHoursLeft(s.base, hour) >= tripHours(path.km, r.job.kind)) {
+    if (r.chargeKWh >= need - 1e-9 && env.earthHoursLeft(s.base, hour) >= tripHours(path.km, r.job.kind, roverSpeed(s))) {
       r.phase = 'out';
       r.route = path.keys.slice(1);
       r.legKm = 0;
@@ -416,7 +426,7 @@ export function step(s: GameState, env: Env): { events: GameEvent[]; power: Powe
     // Bake regolith: ice -> water vapour -> water tank; dry regolith is left over.
     if (s.hopperKg > 1e-9 && energy > 0) {
       const share = s.hopperIceKg / s.hopperKg;
-      const perKg = bakeKwhPerKg(share);
+      const perKg = bakeKwhPerKg(share) * (s.oven ? OVEN_BAKE_FACTOR : 1);
       const kg = Math.min(s.hopperKg, energy / perKg);
       const water = kg * share;
       s.hopperKg -= kg;
