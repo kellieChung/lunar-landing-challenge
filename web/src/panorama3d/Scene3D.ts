@@ -346,6 +346,8 @@ export class Scene3D implements PanoramaView {
     const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, this.site.landerAz);
     this.lander.group.position.set(...place.pos);
     this.lander.group.scale.setScalar(place.scale);
+    // Turn its front (+z) toward the eye, so the panel mast stands beside it, not in front.
+    this.lander.group.rotation.y = Math.atan2(-place.pos[0], -place.pos[2]);
     this.placeProps();
 
     // Shadow camera: an ortho box around the bounding sphere of the stretched mesh.

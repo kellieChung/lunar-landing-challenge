@@ -1,8 +1,9 @@
-// A simple low-poly lander standing in front of the viewer. Its solar panel
-// shows the physics result (lit or dark); it is never lit "by the renderer".
+// The lander standing in front of the viewer: NASA's Apollo LM. Its solar
+// panel shows the physics result (lit or dark); it is never lit "by the renderer".
 
 import * as THREE from 'three';
 import { heightOnMesh, type Heightmap } from './heightmap';
+import { fitTo, nasaModel } from './nasaModels';
 
 const RAD = Math.PI / 180;
 
@@ -16,41 +17,46 @@ export interface Lander {
   facePanels(azDeg: number): void;
 }
 
-/** Built at true size in metres, standing on y = 0, about 3 m tall. */
+/** Real Apollo LM height, legs extended (m). */
+const LM_HEIGHT_M = 7.0;
+/** The sun-tracking panel stands on its own mast beside the LM, clear of its footpads (~4.5 m out). */
+const PANEL_MAST_X = 6.2;
+
+/**
+ * NASA's Apollo Lunar Module at true size in metres, standing on y = 0, with a
+ * slim sun-tracking solar panel beside it. Falls back to a simple shape if the
+ * NASA models are not loaded.
+ */
 export function buildLander(): Lander {
   const group = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({ color: 0xd0d5dd, roughness: 0.35, metalness: 0.8, flatShading: true });
-  const foil = new THREE.MeshStandardMaterial({ color: 0xd4a038, roughness: 0.28, metalness: 0.85, flatShading: true });
-
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 1.2, 8), foil);
-  body.position.y = 1.3;
-  group.add(body);
-
-  for (let i = 0; i < 4; i++) {
-    const a = (i * 90 + 45) * RAD;
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 5), metal);
-    leg.position.set(Math.sin(a) * 1.15, 0.6, Math.cos(a) * 1.15);
-    leg.rotation.set(Math.cos(a) * 0.45, 0, -Math.sin(a) * 0.45);
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 6), metal);
-    pad.position.set(Math.sin(a) * 1.45, 0.03, Math.cos(a) * 1.45);
-    group.add(leg, pad);
-  }
-
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 5), metal);
-  mast.position.y = 2.45;
-  group.add(mast);
+  const descent = nasaModel('lm-descent');
+  const ascent = nasaModel('lm-ascent');
+  const nasa = descent && ascent;
+  const metal = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.4, metalness: 0.3 });
 
   const panelMat = new THREE.MeshStandardMaterial({
     color: PANEL_DARK, emissive: PANEL_DARK, emissiveIntensity: 0.4, roughness: 0.4, flatShading: true,
   });
   const panels = new THREE.Group();
-  panels.position.y = 2.6;
+  if (nasa) {
+    group.add(fitTo([descent, ascent], { height: LM_HEIGHT_M }));
+    const mast = new THREE.Group();
+    mast.position.x = PANEL_MAST_X;
+    mast.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.25, 10), metal), 0, 0.125, 0));
+    mast.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 3.0, 8), metal), 0, 1.6, 0));
+    panels.position.y = 3.3;
+    mast.add(panels);
+    group.add(mast);
+  } else {
+    buildFallbackBody(group, metal);
+    panels.position.y = 2.6;
+    group.add(panels);
+  }
   for (const side of [-1, 1]) {
     const p = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 0.04), panelMat);
     p.position.set(side * 0.8, 0, 0);
     panels.add(p);
   }
-  group.add(panels);
 
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) {
@@ -61,12 +67,13 @@ export function buildLander(): Lander {
 
   // Soft dark patch under the lander so it reads as standing on the ground
   // even when there is no sunlight to cast a real shadow.
-  const contact = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshBasicMaterial({
+  const contact = new THREE.Mesh(new THREE.CircleGeometry(nasa ? 5.2 : 2.2, 32), new THREE.MeshBasicMaterial({
     map: contactTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
   }));
   contact.rotation.x = -Math.PI / 2;
   contact.position.y = 0.03;
   contact.renderOrder = 1;
+  contact.castShadow = false;
   group.add(contact);
 
   return {
@@ -77,10 +84,30 @@ export function buildLander(): Lander {
       panelMat.emissiveIntensity = lit ? 0.9 : 0.4;
     },
     facePanels(azDeg) {
-      // Panel faces +z by default; point its face toward the azimuth.
-      panels.rotation.y = Math.PI - azDeg * RAD;
+      // Panel faces +z by default; point its face toward the azimuth (in world
+      // terms, so undo however the lander itself is turned).
+      panels.rotation.y = Math.PI - azDeg * RAD - group.rotation.y;
     },
   };
+}
+
+function at<T extends THREE.Object3D>(o: T, x: number, y: number, z: number): T {
+  o.position.set(x, y, z);
+  return o;
+}
+
+/** The simple low-poly lander, used only if the NASA models failed to load. */
+function buildFallbackBody(group: THREE.Group, metal: THREE.Material): void {
+  const foil = new THREE.MeshStandardMaterial({ color: 0xd4a038, roughness: 0.28, metalness: 0.35, flatShading: true });
+  group.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 1.2, 8), foil), 0, 1.3, 0));
+  for (let i = 0; i < 4; i++) {
+    const a = (i * 90 + 45) * RAD;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 5), metal);
+    leg.position.set(Math.sin(a) * 1.15, 0.6, Math.cos(a) * 1.15);
+    leg.rotation.set(Math.cos(a) * 0.45, 0, -Math.sin(a) * 0.45);
+    group.add(leg, at(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 6), metal), Math.sin(a) * 1.45, 0.03, Math.cos(a) * 1.45));
+  }
+  group.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 5), metal), 0, 2.45, 0));
 }
 
 function contactTexture(): THREE.Texture {

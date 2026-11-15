@@ -3,6 +3,7 @@
 // 2D strip plus the stats panel.
 
 import { loadMastFile, loadSite, loadSiteIndex, loadTerrain } from '../data/load';
+import { loadNasaModels } from '../panorama3d/nasaModels';
 import type { GridPoint, MastPoint, SiteData } from '../data/types';
 import { Panorama } from '../panorama/Panorama';
 import { maskAt, vecToAzEl } from '../panorama/geometry';
@@ -105,6 +106,9 @@ function showBadge(data: SiteData): void {
 }
 
 export async function openSite(id: string): Promise<void> {
+  // NASA's 3D models (lander, base, rovers) load alongside the site data; the
+  // 3D view waits for them so its props never pop in. Never rejects.
+  const models = loadNasaModels();
   // sites.json holds the full-year numbers for every grid point (the sidebar grid's colors).
   const summaries = loadSiteIndex()
     .then((all) => all.find((s) => s.id === id)?.grid ?? null)
@@ -268,6 +272,7 @@ export async function openSite(id: string): Promise<void> {
 
   const flat = new Panorama(canvas2d);
   let scene: Scene3D | null = null;
+  await models;
   try {
     scene = new Scene3D(canvas3d);
   } catch (err) {
