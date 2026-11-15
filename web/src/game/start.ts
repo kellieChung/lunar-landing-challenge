@@ -174,6 +174,13 @@ export async function startGame(x: GameSession): Promise<void> {
   });
   const exploreBtn = document.getElementById('mode-explore') as HTMLButtonElement | null;
   if (exploreBtn) exploreBtn.onclick = () => exitTo(exploreUrl());
+  // Always-on way out: sits above every panel (brief, chooser, coach, launch), so a stray
+  // click into the game never traps the player.
+  const quit = el('button', 'g-b g-quit', '\u2190 Explore') as HTMLButtonElement;
+  quit.type = 'button';
+  quit.title = 'Leave the game and go back to Explore';
+  quit.onclick = () => exitTo(exploreUrl());
+  document.body.append(quit);
   window.addEventListener('pagehide', () => { if (!leaving && run && run.endedHour === null && run.game.base) saveRun(run); });
 
   // ---- Where we stand, and the 3D props there (rendering only) ----

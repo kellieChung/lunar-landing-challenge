@@ -461,3 +461,7 @@ body:has(#pano-screen.game-ready) .topbar,
   letter-spacing: .12em; text-shadow: 0 0 10px #f00; animation: g-crash-alarm .5s infinite steps(2); white-space: nowrap; }
 .g-crash.down .g-crash-alarm, .g-crash.down .g-crash-warn { animation: none; opacity: 0; transition: opacity .6s; }
 @media (prefers-reduced-motion: reduce) { .g-crash * { animation: none !important; } }
+
+/* Exit to Explore: always reachable, above every game layer (modal 41, chooser 40). */
+.g-quit { position: fixed; left: 8px; top: 6px; z-index: 999; min-height: 28px; padding: 4px 10px; font-size: 12px; opacity: 0.85; }
+.g-quit:hover, .g-quit:focus-visible { opacity: 1; }
