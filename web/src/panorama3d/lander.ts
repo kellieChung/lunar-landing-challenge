@@ -17,6 +17,8 @@ export interface Lander {
   setPanelLit(lit: boolean): void;
   /** Turn the panels to face an azimuth (deg). */
   facePanels(azDeg: number): void;
+  /** Things that stand on the ground (solar mast, jacks, contact shadow): hidden while it flies. */
+  groundParts(): THREE.Object3D[];
 }
 
 /** Real Apollo LM height, legs extended (m). */
@@ -65,6 +67,9 @@ export function buildLander(): Lander {
     }
   }
 
+  // What flies: the LM (with its own panels on the fallback). Everything added after stays on the ground.
+  const flies = new Set(group.children.filter((o) => o !== array?.group));
+
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.castShadow = true;
@@ -95,6 +100,7 @@ export function buildLander(): Lander {
 
   return {
     group,
+    groundParts: () => group.children.filter((o) => !flies.has(o)),
     setPanelLit(lit) {
       array?.setLit(lit);
       panelMat.color.setHex(lit ? PANEL_LIT : PANEL_DARK);

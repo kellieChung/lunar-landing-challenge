@@ -47,6 +47,10 @@ export function playCrash(scene: Scene3D | null, stage: HTMLElement, root: HTMLE
   const out = new THREE.Vector3(pad.x, 0, pad.z).normalize();
   const leakSide = new THREE.Vector3(pad.z, 0, -pad.x).normalize(); // sideways as seen from the eye
 
+  // The solar mast and jacks are set up after landing, not flown in.
+  const ground = scene.landerGroundParts().filter((o) => o.visible);
+  for (const o of ground) o.visible = false;
+
   scene.cinematic = true;
   let t = 0;
   let heightM = DROP_M;
@@ -110,6 +114,19 @@ export function playCrash(scene: Scene3D | null, stage: HTMLElement, root: HTMLE
     scene!.shake(0.8, 1.2);
     sfx.rumble(0.8);
     overlay.classList.add('down');
+    // Then the crew unfolds the solar mast: it grows up out of the ground.
+    window.setTimeout(() => {
+      const full = ground.map((o) => o.scale.y);
+      for (const o of ground) { o.visible = true; o.scale.y = 0.001; }
+      let g = 0;
+      scene!.addTicker((dt) => {
+        g = Math.min(1, g + dt / 0.8);
+        const e = 1 - (1 - g) ** 3;
+        ground.forEach((o, i) => { o.scale.y = full[i] * Math.max(0.001, e); });
+        scene!.shadowsMoved();
+        return g < 1;
+      });
+    }, 500);
     const done = landing!.done;
     window.setTimeout(() => {
       scene!.cinematic = false;

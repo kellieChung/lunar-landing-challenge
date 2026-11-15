@@ -449,6 +449,11 @@ export class Scene3D implements PanoramaView {
     return this.lander.group;
   }
 
+  /** The lander's ground-standing parts (solar mast, jacks, shadow patch). */
+  landerGroundParts(): THREE.Object3D[] {
+    return this.lander.groundParts();
+  }
+
   /** The current view, to tween from or restore later. */
   getView(): ViewState {
     return { yaw: this._yaw, pitch: this.pitch, zoom: this.zoom };
