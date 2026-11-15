@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 
 WEB_DATA = Path(__file__).resolve().parents[2] / "web" / "public" / "data"
-SHIPPED = sorted(p.stem for p in WEB_DATA.glob("*.json") if p.stem not in ("sites", "fake"))
+SHIPPED = sorted(p.stem for p in WEB_DATA.glob("*.json")
+                 if p.stem not in ("sites", "fake") and "_mast" not in p.stem)
 
 
 def _reject_nan(token):
@@ -73,7 +74,7 @@ def test_bands_max_to_mask(site):
         bands = np.array(p["mask_bands_deg"])
         assert bands.shape == (3, 360)
         np.testing.assert_array_equal(bands.max(axis=0), p["mask_deg"])
-    assert site["grid"]["mask_bands_km"] == [[0, 5], [5, 30], [30, 150]]
+    assert site["grid"]["mask_bands_km"] == [[0, 5], [5, 30], [30, 250]]
 
 
 def test_terrain_file_matches_header(site):
@@ -135,3 +136,25 @@ def test_precomputed_year_metrics(site):
     assert 0 <= m["longest_dark_h"] <= m["samples"]
     flux = m["mean_flux_w_m2"]
     assert 0 <= flux["horizontal"] <= flux["vertical"] <= flux["tracking"] < 1500
+
+
+def test_mast_masks(site):
+    """Taller masts at every grid point: never below 3 m, horizon never higher, more Sun and Earth."""
+    mast = site["mast"]
+    assert mast["heights_m"] == [3.0, 5.0, 10.0, 20.0, 30.0]
+    files = [json.loads((WEB_DATA / mast["files"][f"{h:g}"]).read_text()) for h in mast["heights_m"][1:]]
+    pre = {m["height_m"]: {(p["i"], p["j"]): p["year"] for p in m["points"]} for m in site["precomputed"]["mast"]}
+    pre[3.0] = {(p["i"], p["j"]): p["year"] for p in site["precomputed"]["points"]}
+    masks = {3.0: {(p["i"], p["j"]): p["mask_deg"] for p in site["grid"]["points"]}}
+    for f, h in zip(files, mast["heights_m"][1:]):
+        assert f["height_m"] == h and len(f["points"]) == len(site["grid"]["points"])
+        masks[h] = {(p["i"], p["j"]): p["mask_deg"] for p in f["points"]}
+        for p in f["points"]:
+            np.testing.assert_array_equal(np.array(p["mask_bands_deg"]).max(axis=0), p["mask_deg"])
+    hs = mast["heights_m"]
+    for ij in masks[3.0]:
+        for lo, hi in zip(hs, hs[1:]):
+            # A higher eye sees every terrain point at a lower angle (0.01 deg rounding).
+            assert np.all(np.array(masks[hi][ij]) <= np.array(masks[lo][ij]) + 0.0051), (ij, hi)
+            assert pre[hi][ij]["sunlit_pct"] >= pre[lo][ij]["sunlit_pct"] - 0.006
+            assert pre[hi][ij]["earth_pct"] >= pre[lo][ij]["earth_pct"] - 0.006

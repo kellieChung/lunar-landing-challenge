@@ -57,12 +57,22 @@ export interface SpotGridOptions {
   current: GridPoint; // where we stand now
   summaries: GridSummary[] | null; // from sites.json (colors and numbers); null = uncolored
   onPick: (p: GridPoint) => void; // a square was clicked (not the current one)
+  /** Game mode: a short mark, extra class names and a note for a square (see refresh). */
+  decorate?: (p: GridPoint) => SpotMark | null;
+}
+
+export interface SpotMark {
+  text?: string; // one or two characters drawn on the square
+  cls?: string; // extra class names
+  note?: string; // added to the readout line
 }
 
 export interface SpotGridHandle {
   el: HTMLElement;
   /** Move the "you are here" outline (after onPick, once the view has moved). */
   setCurrent(p: GridPoint): void;
+  /** Redraw the marks from `decorate` (game mode). */
+  refresh(): void;
 }
 
 /** Build the "Your spot" sidebar section. */
@@ -93,7 +103,8 @@ export function spotGrid(opts: SpotGridOptions): SpotGridHandle {
     const nums = s
       ? `${s.sunlit_pct.toFixed(0)}% sunlit · Earth ${s.earth_pct.toFixed(0)}% · longest night ${(s.longest_dark_h / 24).toFixed(1)} d`
       : '';
-    return { where: where + ground, nums };
+    const note = opts.decorate?.(p)?.note;
+    return { where: where + ground, nums: note ? `${nums}${nums ? ' · ' : ''}${note}` : nums };
   };
 
   const wrap = el('div', 'sg-wrap');
@@ -166,5 +177,20 @@ export function spotGrid(opts: SpotGridOptions): SpotGridHandle {
     else if (document.activeElement === cell || cell?.matches(':hover')) show(p, true);
   };
   setCurrent(current);
-  return { el: section, setCurrent };
+
+  const refresh = () => {
+    if (!opts.decorate) return;
+    for (const p of points) {
+      const cell = cells.get(key(p));
+      if (!cell) continue;
+      const mark = opts.decorate(p);
+      cell.textContent = mark?.text ?? '';
+      cell.className = `sg-cell${summary.get(key(p)) ? '' : ' no-data'}${isHere(p) ? ' current' : ''}${mark?.cls ? ` ${mark.cls}` : ''}`;
+      const d = describe(p);
+      cell.setAttribute('aria-label', `${d.where}${d.nums ? `, ${d.nums}` : ''}`);
+    }
+    if (!section.querySelector('.sg-cell:hover')) showCurrent();
+  };
+  refresh();
+  return { el: section, setCurrent, refresh };
 }

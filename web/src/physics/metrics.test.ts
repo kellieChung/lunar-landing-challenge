@@ -10,20 +10,21 @@ import haworthRaw from '../../public/data/haworth.json?raw';
 import type { SiteData } from '../data/types';
 import { earthVisibleAt, nextChange, sunLitAt } from './events';
 import { pointVectors } from './grid';
-import { fluxWm2, siteSeries, windowMetrics, type SunSeries, type WindowMetrics } from './metrics';
-import type { VectorSeries } from './time';
+import { fluxWm2, siteSeries, windowMetrics, type EarthSeries, type SunSeries, type WindowMetrics } from './metrics';
+import { eclipseShare } from './visibility';
 
 interface Case {
   name: string;
   step_hours: number;
   mask: number[];
   sun: SunSeries;
-  earth: VectorSeries;
+  earth: EarthSeries;
   windows: [number, number][];
   events: [number, 'sun' | 'earth', boolean][];
   tilt?: [number, number]; // off-center grid point: rotate the vectors first
   expected: {
     fraction: number[];
+    eclipse: number[];
     earth_margin: number[];
     windows: WindowMetrics[];
     events: (number | null)[];
@@ -52,6 +53,7 @@ describe.each(cases)('parity: $name', (c) => {
   it('sunlit fraction and Earth margin per sample', () => {
     c.expected.fraction.forEach((f, i) => expect(Math.abs(s.fraction[i] - f)).toBeLessThanOrEqual(1e-12));
     c.expected.earth_margin.forEach((m, i) => expect(Math.abs(s.earthMargin[i] - m)).toBeLessThanOrEqual(1e-9));
+    c.expected.eclipse.forEach((x, i) => expect(Math.abs(s.eclipse[i] - x)).toBeLessThanOrEqual(1e-12));
   });
 
   it('window metrics', () => {
@@ -97,5 +99,30 @@ describe('fluxWm2', () => {
     expect(f.vertical).toBeCloseTo(1361 * Math.cos(Math.PI / 6), 9);
     expect(f.horizontal).toBeCloseTo(1361 * 0.5, 9);
     expect(fluxWm2(1, 1, -1).horizontal).toBe(0);
+  });
+});
+
+describe('eclipseShare', () => {
+  const RAD = Math.PI / 180;
+  const at = (azDeg: number): [number, number, number] => [Math.sin(azDeg * RAD), Math.cos(azDeg * RAD), 0];
+  const share = (sepDeg: number) => eclipseShare(...at(100), 1, ...at(100 + sepDeg), 384_400);
+  it('is 1 with no overlap and 0 when Earth covers the Sun', () => {
+    expect(share(5)).toBe(1);
+    expect(share(0)).toBe(0);
+    expect(share(0.6)).toBe(0);
+  });
+  it('is a little over half with Earth\'s edge through the Sun\'s center', () => {
+    const b = Math.asin(6371 / 384_400) / RAD;
+    expect(share(b)).toBeGreaterThan(0.5);
+    expect(share(b)).toBeLessThan(0.6);
+  });
+  it('2027-08-17: Earth covers about 45% of the Sun (the parity fixture\'s eclipse case)', () => {
+    const c = cases.find((x) => x.name.includes('5440'))!;
+    expect(Math.min(...c.expected.eclipse)).toBeGreaterThan(0.5);
+    expect(Math.min(...c.expected.eclipse)).toBeLessThan(0.6);
+    expect(c.expected.eclipse.filter((x) => x < 1).length).toBeGreaterThanOrEqual(2);
+  });
+  it('scales the flux', () => {
+    expect(fluxWm2(1, 1, 0, 0.55).tracking).toBeCloseTo(1361 * 0.55, 9);
   });
 });

@@ -79,7 +79,11 @@ def grid_summary(site_file) -> list[dict] | None:
         p, y = by_ij[(pre["i"], pre["j"])], pre["year"]
         out.append({"i": p["i"], "j": p["j"], "dx_km": p["dx_km"], "dy_km": p["dy_km"],
                     "lat": p["lat"], "lon": p["lon"], "ground_m": p["ground_m"],
-                    "sunlit_pct": round(y["sunlit_pct"], 2), "earth_pct": round(y["earth_pct"], 2),
+                    "sunlit_pct": round(y["sunlit_pct"], 2),
+                    # 0 only if no part of the Sun's disk shows in any hour (the Moon Base
+                    # game's "always dark" test); one sliver-hour already gives ~1e-5.
+                    "mean_sunlit_fraction": y.get("mean_sunlit_fraction"),
+                    "earth_pct": round(y["earth_pct"], 2),
                     "both_pct": round(y["both_pct"], 2), "longest_dark_h": y["longest_dark_h"],
                     "longest_blackout_h": y["longest_blackout_h"]})
     return out

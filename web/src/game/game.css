@@ -1,0 +1,319 @@
+/* ==========================================================================
+   Moon Base (game.MD v3 §7). Loaded with the game only; Explore never sees it.
+
+   Visual rules:
+   - Frames are 9-sliced Sprout Lands sprites at 2x (one sprite pixel = 2 px).
+     They arrive as CSS variables (--s-*) set by ui/sprites.ts, and only when
+     #pano-screen has .g-sprites; otherwise plain 2 px frames are used.
+   - No rounded corners, drop shadows, gradients or blur. No overshoot easing:
+     motion is stepped sprite frames, and off under reduced motion.
+   - Text is the pack's pixel font at 16 px (24 px for headings), with a 1 px
+     hard text shadow for legibility over the terrain.
+   ========================================================================== */
+
+#pano-screen.game-ready {
+  --g-ink: #e4e7ef;
+  --g-muted: #a9afc2;
+  --g-shadow: #12141c;
+  --g-blue: #5aa9ff;
+  --g-purple: #b49bff;
+  --g-sun: #ffc845;
+  --g-green: #4fd18b;
+  --g-red: #ff6b6b;
+  --g-plain: #0d0f16;
+  --g-rail: #4a4f62;
+  --g-font: "Sprout", var(--mono);
+}
+#pano-screen.g-no-timeline #timebar { display: none; }
+
+/* ---------- Sprites ---------- */
+.spr { display: inline-block; flex: none; vertical-align: middle; background-repeat: no-repeat; background-position: 0 0; image-rendering: pixelated; }
+.spr-anim { animation: g-spr var(--spr-dur, 1s) steps(var(--spr-steps, 2)) infinite; }
+@keyframes g-spr { from { background-position-x: 0; } to { background-position-x: var(--spr-end); } }
+.g-word { font: 12px var(--g-font); color: var(--g-muted); letter-spacing: 0.5px; text-transform: uppercase; }
+
+/* ---------- Frames ---------- */
+.g-dlg { border: 2px solid var(--g-rail); background: var(--g-plain); }
+.g-sprites .g-dlg {
+  border-style: solid; border-width: 6px; border-image: var(--s-card) 3 fill; background: none;
+  image-rendering: pixelated;
+}
+.g-sprites .g-modal-box.g-dlg,
+.g-sprites .g-card.g-dlg,
+.g-sprites .g-reveal.g-dlg { border-width: 16px; border-image: var(--s-panel) 8 fill; }
+/* The panel sprite's middle is see-through; big panels get a solid backing inside the frame. */
+.g-sprites .g-modal-box.g-dlg, .g-sprites .g-reveal.g-dlg, .g-sprites .g-lookbar.g-dlg { background: #0b0d14; background-clip: padding-box; }
+.g-hud.quiet .g-comms { visibility: hidden; }
+.g-sprites .g-comms-box.g-dlg { border-width: 8px 8px 10px 18px; border-image: var(--s-dlg) 4 4 5 9 fill; }
+
+/* ---------- Text ---------- */
+.g-hud, .g-chooser, .g-lookbar, .g-modal, .g-reveal-slot {
+  font: 16px/1.3 var(--g-font); color: var(--g-ink); text-shadow: 1px 1px 0 var(--g-shadow);
+}
+.g-h { margin: 0 0 4px; font: 24px/1.15 var(--g-font); color: var(--g-ink); font-weight: normal; }
+.g-kicker { margin: 0; font: 12px var(--g-font); color: var(--g-purple); text-transform: uppercase; letter-spacing: 1px; }
+.g-sub, .g-small { margin: 0; color: var(--g-muted); }
+.g-small { font-size: 12px; line-height: 1.4; }
+.g-lede { margin: 8px 0; }
+
+/* ---------- Buttons ---------- */
+.g-b {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; padding: 4px 12px; border: 2px solid var(--g-rail); background: #1c1f2a;
+  font: 16px var(--g-font); color: var(--g-ink); text-shadow: 1px 1px 0 var(--g-shadow); text-decoration: none; cursor: pointer;
+}
+.g-b:hover:not(:disabled), .g-b:focus-visible { border-color: var(--g-purple); outline: none; }
+.g-b:focus-visible { outline: 2px solid var(--g-sun); outline-offset: 2px; }
+.g-b:disabled { opacity: 0.45; cursor: not-allowed; }
+.g-b-go { background: #1a2f5a; border-color: var(--g-blue); }
+.g-b-link { min-height: 0; border: 0; background: none; padding: 4px 0; color: var(--g-muted); text-decoration: underline; text-underline-offset: 3px; }
+.g-b-round { min-height: 0; width: 40px; height: 40px; padding: 0; }
+.g-big { min-height: 56px; font-size: 16px; padding: 4px 28px; }
+
+.g-sprites .g-b-sq, .g-sprites .g-b-round {
+  border-style: solid; border-width: 8px 8px 12px; border-image: var(--s-btn) 4 4 6 4 fill; background: none; padding: 0 6px;
+}
+.g-sprites .g-b-round { border-image: var(--s-round) 6 fill; border-width: 12px; width: 36px; height: 38px; }
+.g-sprites .g-b-sq:hover:not(:disabled), .g-sprites .g-b-sq:focus-visible { border-image-source: var(--s-btn-hover); }
+.g-sprites .g-b-sq:active:not(:disabled) { border-width: 12px 8px 8px; border-image: var(--s-btn-pressed) 6 4 4 4 fill; }
+.g-sprites .g-b-sq[aria-pressed="true"] { border-width: 12px 8px 8px; border-image: var(--s-btn-on) 6 4 4 4 fill; }
+.g-sprites .g-b-round:active, .g-sprites .g-b-round.on { border-image-source: var(--s-round-down); }
+.g-sprites .g-b-plate, .g-sprites .g-b-go {
+  border-style: solid; border-width: 8px 8px 12px; border-image: var(--s-plate) 4 4 6 4 fill; background: none; padding: 0 14px;
+}
+.g-sprites .g-b-go { border-image-source: var(--s-plate-go); }
+.g-sprites .g-b-plate:hover:not(:disabled), .g-sprites .g-b-plate:focus-visible { border-image-source: var(--s-plate-hover); }
+.g-sprites .g-b-go:hover:not(:disabled), .g-sprites .g-b-go:focus-visible { border-image-source: var(--s-plate-hover); }
+.g-sprites .g-b-go:active:not(:disabled), .g-sprites .g-b-plate:active:not(:disabled) { border-width: 12px 8px 8px; border-image: var(--s-plate-down) 6 4 4 4 fill; }
+
+/* Pixel cursors over the game's own chrome. */
+.g-sprites .g-hud, .g-sprites .g-chooser, .g-sprites .g-modal, .g-sprites .g-lookbar, .g-sprites .g-reveal-slot { cursor: var(--s-cursor) 2 2, default; }
+.g-sprites .g-b:not(:disabled), .g-sprites .g-tag, .g-sprites .g-comms-box { cursor: var(--s-cursor-hover) 2 2, pointer; }
+.g-sprites .g-b:active:not(:disabled) { cursor: var(--s-cursor-down) 2 2, pointer; }
+
+/* ---------- Meters: rows of pips ---------- */
+.g-meter { display: inline-flex; gap: 2px; align-items: center; }
+.g-pip { display: inline-block; width: 6px; height: 14px; background: #23262f; outline: 1px solid #0b0d14; }
+.g-pip.on.green { background: var(--g-green); }
+.g-pip.on.sun { background: var(--g-sun); }
+.g-pip.on.blue { background: var(--g-blue); }
+.g-pip.on.purple { background: var(--g-purple); }
+.g-pip.on.red { background: var(--g-red); }
+.g-sprites .g-pip { width: 8px; height: 24px; outline: 0; background: var(--s-pip-off) 0 0 / 8px 24px no-repeat; image-rendering: pixelated; }
+.g-sprites .g-pip.on.green { background-image: var(--s-pip-green); }
+.g-sprites .g-pip.on.sun { background-image: var(--s-pip-sun); }
+.g-sprites .g-pip.on.blue { background-image: var(--s-pip-blue); }
+.g-sprites .g-pip.on.purple { background-image: var(--s-pip-purple); }
+.g-sprites .g-pip.on.red { background-image: var(--s-pip-red); }
+
+/* ---------- Tags ---------- */
+.g-tag {
+  position: relative; display: inline-block; margin-left: 6px; padding: 1px 4px; border: 2px solid currentColor; background: none;
+  font: 10px var(--g-font); letter-spacing: 0.5px; vertical-align: middle; cursor: help; text-shadow: none;
+}
+.g-tag-real { color: var(--g-green); }
+.g-tag-estimate { color: var(--g-sun); }
+.g-tag-hypothetical { color: var(--g-red); }
+.g-tag-rule { color: var(--g-purple); }
+.g-tag.open::after {
+  content: attr(data-help); position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: 240px; padding: 8px;
+  background: var(--g-plain); border: 2px solid currentColor; color: var(--g-ink); font: 12px/1.4 var(--g-font); letter-spacing: 0; white-space: normal; text-align: left;
+}
+
+/* ==========================================================================
+   HUD: one status bar on top; the view keeps the rest of the screen
+   ========================================================================== */
+.g-hud { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.g-hud > * { pointer-events: auto; }
+.g-hud [hidden] { display: none !important; }
+.pano-stage.moving > .g-hud, .pano-stage.moving > .g-reveal-slot, .pano-stage.moving > .g-lookbar { opacity: 1; }
+.g-hud:not(.landed) .g-stat:not(.g-day), .g-hud:not(.landed) .g-map-btn { display: none; }
+
+.g-bar {
+  position: absolute; top: 8px; left: 12px; right: 12px;
+  display: flex; align-items: center; gap: 18px; padding: 2px 8px; min-height: 44px; font-size: 14px;
+}
+.g-stat { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.g-k { font-size: 12px; color: var(--g-muted); text-transform: uppercase; letter-spacing: 1px; }
+.g-v { color: var(--g-muted); }
+.g-gap { flex: 1; }
+.g-stat .spr { width: 28px !important; height: 28px !important; background-size: auto 100% !important; }
+.g-stat .g-sun-glyph .spr, .g-stat.g-link .spr { width: 26px !important; height: 26px !important; background-size: 100% 100% !important; }
+.g-sun-glyph { display: inline-flex; }
+.g-sun-glyph .when-on, .g-sun-glyph.on .when-off { display: none; }
+.g-sun-glyph.on .when-on { display: inline-block; }
+.g-link.off .spr { filter: grayscale(1) brightness(0.45); }
+.g-stat.alert .g-v { color: var(--g-red); }
+.g-rov .g-rov-word { max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+.g-fuel-pct { min-width: 2.6em; }
+.g-day { flex-direction: column; align-items: flex-end; gap: 0; line-height: 1.1; }
+.g-date { font-size: 11px; color: var(--g-muted); }
+.g-bar .g-b-sq { min-height: 32px; font-size: 12px; }
+.g-sprites .g-bar .g-b-sq { border-width: 6px 6px 9px; }
+.g-bar .g-b-round { width: 32px; height: 32px; }
+.g-sprites .g-bar .g-b-round { width: 30px; height: 32px; border-width: 10px; }
+.g-build-btn:not(.ready) { opacity: 0.6; }
+.g-build-btn.ready .g-b-label { color: var(--g-sun); }
+.g-speed { min-width: 6.5em; }
+.g-hud.slowed .g-speed .g-b-label { color: var(--g-sun); }
+
+/* Pop-overs under the bar. */
+.g-pop { position: absolute; top: 64px; right: 12px; z-index: 4; padding: 6px; }
+.g-tray { right: auto; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+.g-slot { flex-direction: column; gap: 0; min-width: 120px; min-height: 64px; font-size: 12px; }
+.g-slot .g-b-label { font-size: 12px; }
+.g-slot-cost { font-size: 12px; color: var(--g-sun); }
+.g-slot.built .g-slot-cost { color: var(--g-green); }
+.g-mapbox { width: 252px; }
+.g-mapbox .sg-wrap { margin: 0; }
+.g-mapbox .sg-where { font: 12px var(--g-font); }
+.g-mapbox .sg-legend, .g-mapbox .sg-nums { display: none; } /* the numbers stay hidden until the reveal */
+.g-routes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.g-route { fill: none; stroke: var(--g-sun); stroke-width: 2; stroke-dasharray: 4 3; }
+.g-dot { fill: var(--g-ink); stroke: var(--g-shadow); stroke-width: 2; }
+.g-dot.loaded { fill: var(--g-blue); }
+
+/* The Explore overlay's Sun / Earth arrows sit under the bar on the right. */
+#pano-screen.game-ready .ov-arrow { top: 70px; }
+#pano-screen.game-ready .ov-arrow.ov-earth { top: 98px; }
+#pano-screen.game-ready .ov-arrow.right { right: 12px; }
+
+/* While time runs, only this month's timeline shows; the whole year comes back for choices. */
+#pano-screen.g-calm .tb-year, #pano-screen.g-calm .tb-months { display: none; }
+
+/* Game mode: no chrome above the view. The site title, coordinates and mode switch
+   move into the menu (Explore, Moon map); the compass shows only while choosing,
+   and the status bar only while time runs. */
+body:has(#pano-screen.game-ready) .topbar,
+#pano-screen.game-ready .pano-nav { display: none; }
+#pano-screen.g-calm .ov-compass { display: none; }
+#pano-screen.game-ready:not(.g-calm) .g-bar,
+#pano-screen.game-ready:not(.g-calm) .g-pop { visibility: hidden; }
+.g-stat:empty, .g-v:empty { display: none; }
+
+/* Map marks (letters on squares). */
+#pano-screen.game .sg-cell { font: 12px/1 var(--g-font); color: #fff; text-decoration: none; display: flex; align-items: center; justify-content: center; overflow: hidden; text-shadow: 1px 1px 0 #000; }
+.sg-cell.gm-dark { box-shadow: inset 0 0 0 2px var(--g-blue); background: #0b1a33 !important; }
+.sg-cell.gm-far { box-shadow: none; opacity: 0.6; }
+.sg-cell.gm-current { box-shadow: inset 0 0 0 3px var(--g-sun); }
+.sg-cell.gm-base { box-shadow: inset 0 0 0 2px var(--g-green); background: #2f7a4c !important; }
+.sg-cell.gm-tower { box-shadow: inset 0 0 0 2px var(--g-sun); }
+.sg-cell.gm-choice { box-shadow: inset 0 0 0 2px #fff; background: var(--g-purple) !important; color: #111; text-shadow: none; animation: g-tick 1s steps(1) infinite; }
+@keyframes g-tick { 50% { background: #5a43a0 !important; color: #fff; } }
+
+/* Mission control: shows only while it has something to say. */
+.g-comms { position: absolute; left: 12px; bottom: 12px; z-index: 5; display: flex; align-items: flex-end; max-width: min(520px, calc(100% - 24px)); cursor: pointer; }
+.g-portrait { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; flex: none; }
+.g-face { font-size: 12px; }
+.g-comms-box { position: relative; flex: 1; min-height: 56px; padding: 6px 30px 6px 10px; display: flex; align-items: center; }
+.g-comms-line { margin: 0; font-size: 15px; line-height: 1.3; }
+.g-cont { position: absolute; right: 8px; bottom: 6px; }
+.g-comms.blocking .g-comms-box { --g-rail: var(--g-sun); }
+.g-sprites .g-comms.blocking .g-comms-box { border-image-source: var(--s-dlg-hi); }
+.g-comms.blocking { z-index: 8; }
+.g-log { margin: 0; padding-left: 20px; max-height: 50vh; overflow: auto; font-size: 14px; color: var(--g-muted); }
+.g-log li + li { margin-top: 4px; }
+
+/* ---------- Ridge flash: bracket the Sun marker where the ridge hides it ---------- */
+.pano-stage.g-flash .ov-pin.ov-sun .ov-ring {
+  width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 0; border: 4px solid var(--g-sun);
+  animation: g-tick 0.8s steps(1) infinite;
+}
+.g-sprites .pano-stage.g-flash .ov-pin.ov-sun .ov-ring { border-width: 18px; border-image: var(--s-select-on) 9; border-style: solid; }
+.pano-stage.g-flash .ov-pin.ov-sun .ov-label { font: 12px var(--g-font); }
+
+/* ==========================================================================
+   Choosing: full screen, cards that give no numbers away
+   ========================================================================== */
+.g-chooser { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(5, 7, 10, 0.78); }
+.g-chooser-box { width: min(880px, 100%); display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
+.g-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; width: 100%; margin-top: 6px; }
+.g-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; text-align: center; }
+.g-card-glyph { margin: 2px 0 4px; }
+.g-card-title { margin: 0; font: 16px var(--g-font); font-weight: normal; color: var(--g-ink); }
+.g-card-label { margin: 0 0 4px; font-size: 14px; color: var(--g-muted); min-height: 2.6em; }
+.g-card-btns { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto; }
+
+.g-lookbar { position: absolute; z-index: 6; left: 50%; top: 36px; transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 6px 10px; max-width: calc(100% - 24px); font: 16px var(--g-font); color: var(--g-ink); }
+.g-look-what { color: var(--g-purple); }
+.g-look-hint { font-size: 12px; color: var(--g-muted); flex-basis: 100%; text-align: center; order: 9; }
+
+/* ---------- Reveal (docked at the bottom; the view stays visible) ---------- */
+/* Docked to the left so the middle of the view (where the ridge flash is) stays clear. */
+.g-reveal-slot { position: absolute; left: 12px; top: 36px; bottom: 12px; width: min(620px, 48%); z-index: 7; display: flex; align-items: flex-end; pointer-events: none; }
+.g-reveal { pointer-events: auto; width: 100%; max-height: 100%; overflow: auto; padding: 2px 6px; display: flex; flex-direction: column; gap: 6px; }
+.g-reveal-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; background: #0b0d14; padding-bottom: 4px; }
+.g-reveal-head .g-h { flex: 1; margin: 0; }
+.g-points { display: inline-flex; gap: 8px; align-items: baseline; color: var(--g-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.g-points b { font: 24px var(--g-font); color: var(--g-sun); letter-spacing: 0; }
+.g-reveal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.g-reveal .g-h { font-size: 16px; }
+.g-reveal-table th, .g-reveal-table td { padding: 2px 6px; border-bottom: 2px solid #23262f; text-align: left; font-weight: normal; }
+.g-reveal-table tr:first-child th { color: var(--g-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.g-reveal-table td .spr { margin-right: 4px; }
+.g-reveal-table .picked { background: rgba(90, 169, 255, 0.12); }
+.g-reveal-table td.win { color: var(--g-green); }
+.g-reveal-table tr.g-proj td { font-size: 16px; }
+.g-yours { display: block; font-size: 10px; color: var(--g-blue); letter-spacing: 1px; }
+.g-why { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--g-ink); font-size: 14px; }
+
+/* ==========================================================================
+   Modals: brief, report, menu
+   ========================================================================== */
+.g-modal { position: fixed; inset: 0; z-index: 41; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(5, 7, 10, 0.8); }
+.g-modal-box { width: min(600px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+.g-modal-box > .g-b { width: 100%; }
+.g-modal-box > .g-b-link { width: auto; align-self: center; }
+.g-brief-head, .g-report-head { display: flex; align-items: center; gap: 14px; }
+.g-how { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.g-how li { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 8px; }
+.g-how li .spr { justify-self: center; max-width: 40px; }
+.g-mods { margin: 4px 0; padding: 6px 8px; border: 2px solid #23262f; display: flex; flex-direction: column; gap: 4px; }
+.g-mods legend { padding: 0 6px; font-size: 12px; color: var(--g-muted); text-transform: uppercase; letter-spacing: 1px; }
+.g-switch { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; padding: 4px; border: 0; background: none; color: var(--g-ink); font: 16px var(--g-font); text-align: left; cursor: pointer; text-shadow: 1px 1px 0 var(--g-shadow); }
+.g-switch:focus-visible { outline: 2px solid var(--g-sun); }
+.g-switch[aria-checked="true"] .g-switch-name { color: var(--g-green); }
+.g-switch .g-word { min-width: 3em; }
+.g-switch[aria-checked="true"] .g-word::after { content: " on"; }
+.g-stars { display: flex; gap: 4px; margin-top: 4px; }
+.g-star-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.g-star-list li { display: grid; grid-template-columns: 32px 7em 1fr; align-items: center; gap: 6px; font-size: 14px; color: var(--g-muted); }
+.g-star-list li b { font-weight: normal; color: var(--g-ink); }
+.g-star-list li.ok b { color: var(--g-green); }
+.g-nearmiss { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; padding: 8px; border: 2px solid #23262f; }
+.g-nearmiss p { margin: 0; }
+.g-unlock { margin: 0; color: var(--g-green); }
+.g-row { display: flex; gap: 8px; }
+.g-row > .g-b { flex: 1; }
+.g-fact summary { cursor: pointer; padding: 4px 0; }
+.g-fact p { margin: 4px 0 8px; font-size: 14px; color: var(--g-muted); }
+.g-real { width: 100%; border-collapse: collapse; font-size: 14px; }
+.g-real td { padding: 4px 6px; border-bottom: 2px solid #23262f; }
+.g-real td:last-child { text-align: right; white-space: nowrap; }
+.g-modal a { color: var(--g-blue); }
+
+/* ---------- Small screens: the bar keeps the essentials ---------- */
+@media (max-width: 1100px) {
+  .g-k, .g-date { display: none; }
+  .g-bar { gap: 12px; }
+}
+@media (max-width: 760px) {
+  .g-reveal-slot { width: auto; right: 12px; }
+  .g-rov, .g-dirt .g-dirt-kg { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spr-anim, .sg-cell.gm-choice, .pano-stage.g-flash .ov-pin.ov-sun .ov-ring { animation: none !important; }
+}
+
+/* Pause glyph: two pixel bars. */
+.g-pause { display: inline-block; width: 10px; height: 12px; border-left: 4px solid var(--g-ink); border-right: 4px solid var(--g-ink); }
+/* Text fallbacks (no pack): keep words apart. */
+.g-word { margin-right: 4px; }
+
+/* Reveal: one legend for where each row's numbers come from. */
+.g-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 12px; color: var(--g-muted); }
+.g-legend .g-tag { margin: 0 4px 0 0; }
+/* Brief: folded extras. */
+.g-fold > summary { cursor: pointer; padding: 4px 0; color: var(--g-muted); font-size: 14px; }
+.g-fold[open] > summary { color: var(--g-ink); }

@@ -5,15 +5,18 @@
 import { vecToAzEl } from '../panorama/geometry';
 import { SOLAR_CONSTANT_W_M2 } from './constants';
 import type { VectorSeries } from './time';
-import { LIT_THRESHOLD, marginDeg, sunlitFraction } from './visibility';
+import { eclipseShare, LIT_THRESHOLD, marginDeg, sunlitFraction } from './visibility';
 
 const RAD = Math.PI / 180;
 
 export type SunSeries = VectorSeries & { r_au: ArrayLike<number> };
+/** Earth directions; with r_km (Earth distance) eclipses of the Sun by Earth are counted. */
+export type EarthSeries = VectorSeries & { r_km?: ArrayLike<number> };
 
 export interface SiteSeries {
   count: number;
-  fraction: Float64Array; // sunlit fraction 0..1
+  fraction: Float64Array; // sunlit fraction 0..1 (terrain only)
+  eclipse: Float64Array; // share of the Sun not covered by Earth: 1 = no eclipse (scales flux only)
   sunEl: Float64Array; // deg
   earthMargin: Float64Array; // deg above the horizon (< 0 hidden)
   rAu: Float64Array;
@@ -38,19 +41,23 @@ export interface WindowMetrics {
   mean_flux_w_m2: Flux;
 }
 
-/** Solar power per square metre of panel for the three panel types. */
-export function fluxWm2(rAu: number, fraction: number, sunElDeg: number): Flux {
-  const full = (SOLAR_CONSTANT_W_M2 / (rAu * rAu)) * fraction;
+/**
+ * Solar power per square metre of panel for the three panel types.
+ * eclipse: share of the Sun not covered by Earth (eclipseShare); 1 = none.
+ */
+export function fluxWm2(rAu: number, fraction: number, sunElDeg: number, eclipse = 1): Flux {
+  const full = (SOLAR_CONSTANT_W_M2 / (rAu * rAu)) * fraction * eclipse;
   const el = sunElDeg * RAD;
   return { tracking: full, vertical: full * Math.cos(el), horizontal: full * Math.max(0, Math.sin(el)) };
 }
 
 /** Per-sample visibility for one grid point. */
-export function siteSeries(sun: SunSeries, earth: VectorSeries, mask: number[]): SiteSeries {
+export function siteSeries(sun: SunSeries, earth: EarthSeries, mask: number[]): SiteSeries {
   const count = sun.e.length;
   const s: SiteSeries = {
     count,
     fraction: new Float64Array(count),
+    eclipse: new Float64Array(count).fill(1),
     sunEl: new Float64Array(count),
     earthMargin: new Float64Array(count),
     rAu: Float64Array.from(sun.r_au),
@@ -61,6 +68,9 @@ export function siteSeries(sun: SunSeries, earth: VectorSeries, mask: number[]):
     s.sunEl[k] = vecToAzEl(sun.e[k], sun.n[k], sun.u[k]).el;
     s.fraction[k] = sunlitFraction(sun.e[k], sun.n[k], sun.u[k], sun.r_au[k], mask);
     s.earthMargin[k] = marginDeg(earth.e[k], earth.n[k], earth.u[k], mask);
+    if (earth.r_km) {
+      s.eclipse[k] = eclipseShare(sun.e[k], sun.n[k], sun.u[k], sun.r_au[k], earth.e[k], earth.n[k], earth.u[k], earth.r_km[k]);
+    }
     s.lit[k] = s.fraction[k] >= LIT_THRESHOLD ? 1 : 0;
     s.earth[k] = s.earthMargin[k] > 0 ? 1 : 0;
   }
@@ -95,7 +105,7 @@ export function windowMetrics(s: SiteSeries, start: number, length: number, step
     earth += s.earth[i];
     both += s.lit[i] & s.earth[i];
     frac += s.fraction[i];
-    const f = fluxWm2(s.rAu[i], s.fraction[i], s.sunEl[i]);
+    const f = fluxWm2(s.rAu[i], s.fraction[i], s.sunEl[i], s.eclipse[i]);
     flux.tracking += f.tracking;
     flux.vertical += f.vertical;
     flux.horizontal += f.horizontal;

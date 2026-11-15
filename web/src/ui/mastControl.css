@@ -1,0 +1,43 @@
+/* "Raise the mast" control in the stats panel (src/ui/MastControl.ts). */
+
+.mast { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.mast-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mast-value { font: 600 15px var(--mono); color: var(--sun); }
+
+.mast-range {
+  width: 100%;
+  margin: 10px 0 2px;
+  accent-color: var(--sun);
+  cursor: pointer;
+  min-height: 24px; /* easy to grab on touch screens */
+}
+.mast-range:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* Tick labels line up with the slider's 5 stops. */
+.mast-ticks {
+  display: flex;
+  justify-content: space-between;
+  font: 11px var(--mono);
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.mast-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+.mast-presets button {
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 4px 8px;
+  font: 12px var(--mono);
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.mast-presets button:hover:not([aria-pressed="true"]) { color: var(--fg); }
+.mast-presets button[aria-pressed="true"] { color: var(--bg); background: var(--sun); border-color: var(--sun); }
+.mast-presets button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+.mast-effect { color: var(--fg); line-height: 1.45; }
+.mast-note { margin-top: 4px; line-height: 1.4; }
+.mast.loading .mast-effect { color: var(--muted); }

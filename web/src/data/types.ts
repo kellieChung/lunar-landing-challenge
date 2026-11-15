@@ -21,6 +21,30 @@ export interface GridPoint {
   mask_bands_deg?: number[][]; // 3 x 360: same, per distance band (3D rendering only)
 }
 
+/** One grid point's horizon with the mast raised (use with that point's up_tilt, like mask_deg). */
+export interface MastPoint {
+  i: number;
+  j: number;
+  mask_deg: number[];
+  mask_bands_deg: number[][];
+}
+
+/** <site_id>_mast<h>.json: every grid point's horizon at one raised mast height (>= 5 m). */
+export interface MastFile {
+  site: string;
+  height_m: number;
+  points: MastPoint[];
+}
+
+/** Year numbers kept for every grid point and raised mast height (precomputed.mast). */
+export interface MastYear {
+  sunlit_pct: number;
+  earth_pct: number;
+  both_pct: number;
+  longest_dark_h: number;
+  longest_blackout_h: number;
+}
+
 /** Header of <site_id>_terrain.bin, the near-field heightmap (rendering only). */
 export interface TerrainHeader {
   file: string;
@@ -55,6 +79,8 @@ export interface SiteData {
   sun: Vectors & { r_au: number[] };
   earth: Vectors & { r_km?: number[] };
   grid: { spacing_km: number; size: number; mask_bands_km?: number[][]; points: GridPoint[] };
+  /** Raised masts for every grid point: heights_m[0] is the main 3 m data; files["10"] holds 10 m. */
+  mast?: { description: string; heights_m: number[]; files: Record<string, string> };
   terrain?: TerrainHeader;
   terrain_detail?: TerrainHeader; // 10 m heightmap around the grid, cropped to a patch around the chosen point
   precomputed: Record<string, unknown>;
@@ -70,6 +96,7 @@ export interface GridSummary {
   lon: number;
   ground_m: number;
   sunlit_pct: number;
+  mean_sunlit_fraction?: number; // 0 = no part of the Sun's disk showed in any hour of the year
   earth_pct: number;
   both_pct: number;
   longest_dark_h: number;

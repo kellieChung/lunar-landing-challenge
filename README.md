@@ -6,6 +6,8 @@ NASA Space Apps 2026 · Team **T^2 = Ka^3**
 
 > Work in progress. Sun/Earth positions (validated against JPL Horizons) and horizons from LOLA elevation maps are real for all nine sites: Malapert Massif, Mons Mouton, Mons Mouton Plateau, Nobile Rim 1, Nobile Rim 2, de Gerlache Rim 2, Haworth, Peak near Cabeus B and Slater Plain, using LOLA 5 m site maps where available (10 m crops for Cabeus B and Slater Plain). Each has an 11 × 11 grid of spots 1 km apart: pick a site on the 3D Moon and stand there, then move between spots from the grid in the sidebar. Press play to watch a month go by: the time bar, power, Earth contact and statistics all update.
 
+**Moon Base mode** (game, ages ~9–13): switch any site from **Explore** to **Moon Base** in the top bar (or `&mode=game`). Short runs about Moon ice: compare three landing spots by going to look at them in 3D and on the timeline, land, and see what each spot really had, how each would have turned out (a replay on the real sky) and which ridge hid the Sun. Then pick a crater (ice lasts only on floors the Sun never or barely reaches), let rovers driven from Earth dig while Earth is in view, and spend the leftover dry dirt on landing pads (Earth sends a rover, a solar tower or a battery) and a shelter. Fill the sample capsule within three Sun circuits for up to three stars; sites unlock as you earn them. Sunlight, Earth contact and slopes are the app's real physics; ice amounts and the machines are labelled hypothetical. Design: `game.MD`; numbers: `docs/METHODS.md` (Moon Base mode).
+
 ## Develop
 
 Python (offline precompute, Python ≥ 3.11):
@@ -26,10 +28,11 @@ Web (static site):
 ```sh
 cd web
 npm install
-npm run skin     # optional pixel UI skin: needs the Sprout Lands UI Basic pack unzipped in ~/Downloads
+npm run skin     # optional pixel art + sounds: needs the Sprout Lands packs unzipped in ~/Downloads
                  #  (or SPROUT_DIR=...); without it the app uses the plain CSS look
 npm run dev      # http://localhost:5173  (a site: /?site=nobile-rim-2; &pt=i,j stands i km east, j km north of its center;
-                 #  &hour=N opens at hour N of 2027, &view=2d for the strip; the picker zoomed onto a site: /?focus=haworth)
+                 #  &hour=N opens at hour N of 2027, &view=2d for the strip;
+                 #  &mast=5|10|20|30 raises the solar panel and antenna at the site center; the picker zoomed onto a site: /?focus=haworth)
 npm test
 npm run build    # -> web/dist
 ```
@@ -38,7 +41,10 @@ See `spec.MD` for the full brief, `docs/METHODS.md` and `docs/VALIDATION.md` for
 
 ## Credits
 
-UI sprites come from the [Sprout Lands UI Pack (Basic)](https://cupnooble.itch.io) by Cup Nooble,
-free for non-commercial use. Its licence forbids redistributing the sprites, so they are not in this repo:
-`npm run skin` (`web/scripts/build-sprout-skin.mjs`) crops and recolours them from your own copy of the pack
-into the gitignored `web/src/assets/ui-sprout/`, and `web/src/skin.css` 9-slices them.
+Assets from Sprout Lands by [Cup Nooble](https://cupnooble.itch.io): the UI Pack (Basic), the Sprites
+pack (Basic) and the Sorry pack (frames, icons, the mascot, chests, ice, fire and sounds), free for
+non-commercial use. The licences forbid redistributing them, so they are not in this repo:
+`npm run skin` (`web/scripts/build-sprout-skin.mjs`) crops and recolours them from your own copies
+(`SPROUT_DIR`, `SPROUT_SPRITES_DIR`, `SPROUT_SORRY_DIR`, default `~/Downloads/...`) into the gitignored
+`web/src/assets/ui-sprout/`. `web/src/skin.css` and `web/src/game/game.css` 9-slice them; without them the
+app and the game fall back to plain frames and words.

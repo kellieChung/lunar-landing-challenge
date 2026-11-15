@@ -107,8 +107,9 @@ def test_plain_functions_as_layers():
 
 def test_sample_steps():
     s = sample_distances_km()
-    assert s[0] == pytest.approx(0.1) and s[-1] == pytest.approx(150.0)
-    np.testing.assert_allclose(np.diff(s[s <= 2.0 + 1e-9]), 0.01, atol=1e-9)  # 10 m to 2 km
+    assert s[0] == pytest.approx(0.01) and s[-1] == pytest.approx(250.0)
+    np.testing.assert_allclose(np.diff(s[s <= 0.1 + 1e-9]), 0.005, atol=1e-9)  # 5 m to 100 m
+    np.testing.assert_allclose(np.diff(s[(s >= 0.1 - 1e-9) & (s <= 2.0 + 1e-9)]), 0.01, atol=1e-9)  # 10 m to 2 km
     mid = s[(s >= 2.0 - 1e-9) & (s <= 5.0 + 1e-9)]
     np.testing.assert_allclose(np.diff(mid), 0.05, atol=1e-9)  # 50 m to 5 km
     assert np.all(np.diff(s) > 0)

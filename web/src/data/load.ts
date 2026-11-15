@@ -1,5 +1,5 @@
 import { parseTerrain, type Heightmap } from '../panorama3d/heightmap';
-import type { SiteData, SiteIndexEntry, TerrainHeader } from './types';
+import type { MastFile, SiteData, SiteIndexEntry, TerrainHeader } from './types';
 
 function dataUrl(path: string): string {
   return `${import.meta.env.BASE_URL}${path}`;
@@ -20,6 +20,11 @@ export function loadSite(id: string): Promise<SiteData> {
 
 export async function loadSiteIndex(): Promise<SiteIndexEntry[]> {
   return (await getJson<{ sites: SiteIndexEntry[] }>('data/sites.json')).sites;
+}
+
+/** Every grid point's horizon at one raised mast height (file named in SiteData.mast.files). */
+export function loadMastFile(file: string): Promise<MastFile> {
+  return getJson<MastFile>(`data/${file}`);
 }
 
 /** The near-field heightmap for the 3D view. */

@@ -1,8 +1,8 @@
 """Horizon masks: how high the surrounding terrain reaches in each direction.
 
 For one observer point and each of 360 azimuths (1 deg steps, in the site
-frame), walk outward along the surface from 0.1 km to 150 km (10 m steps to
-2 km, 50 m steps to 5 km, then 1% of the distance), look up the
+frame), walk outward along the surface from 10 m to 250 km (5 m steps to
+100 m, 10 m steps to 2 km, 50 m steps to 5 km, then 1% of the distance), look up the
 terrain height, and keep the largest elevation angle. That angle is the
 horizon in that direction: the Sun or Earth is hidden when it is lower.
 
@@ -21,22 +21,30 @@ import numpy as np
 from lunar.dem import R_MOON_M
 from lunar.ephemeris import site_frame
 
+# Start 10 m out (two pixels of the 5 m maps): with a 3 m mast, a 3 m rise
+# 50 m away is a 3 deg obstacle, so the ground right around the lander counts.
+CLOSE_START_KM = 0.01
+CLOSE_STEP_KM = 0.005
 NEAR_START_KM = 0.1
 FINE_STEP_KM = 0.01  # 10 m: resolves the 5 m site maps close to the observer
 FINE_LIMIT_KM = 2.0
 NEAR_STEP_KM = 0.05
 NEAR_LIMIT_KM = 5.0
 FAR_GROWTH = 0.01  # beyond 5 km each step is 1% of the distance
-MAX_KM = 150.0
+# From a 6 km high site the bare-sphere horizon is 145 km away and peaks
+# beyond it still show (201 km at Mons Mouton), so 150 km was too short.
+MAX_KM = 250.0
 
 # Distance bands for the 3D view's layered skyline rings (rendering only).
 # A sample at distance d belongs to band (lo, hi] when lo < d <= hi.
-BAND_EDGES_KM = (0.0, 5.0, 30.0, 150.0)
+BAND_EDGES_KM = (0.0, 5.0, 30.0, MAX_KM)
 NO_TERRAIN_DEG = -90.0  # band value when a band has no samples with data
 
 
 def sample_distances_km(max_km: float = MAX_KM) -> np.ndarray:
     """Distances along each azimuth where terrain is sampled."""
+    n_close = int(round((NEAR_START_KM - CLOSE_START_KM) / CLOSE_STEP_KM))
+    close = CLOSE_START_KM + CLOSE_STEP_KM * np.arange(n_close)  # 0.010, 0.015, ... 0.095
     n_fine = int(round((FINE_LIMIT_KM - NEAR_START_KM) / FINE_STEP_KM)) + 1
     fine = NEAR_START_KM + FINE_STEP_KM * np.arange(n_fine)  # 0.10, 0.11, ... 2.00
     n_near = int(round((NEAR_LIMIT_KM - FINE_LIMIT_KM) / NEAR_STEP_KM))
@@ -46,7 +54,7 @@ def sample_distances_km(max_km: float = MAX_KM) -> np.ndarray:
     while d < max_km:
         d = min(d * (1 + FAR_GROWTH), max_km)
         far.append(d)
-    return np.concatenate([fine, near, far])
+    return np.concatenate([close, fine, near, far])
 
 
 def unit_vector(lat_deg, lon_deg) -> np.ndarray:
@@ -57,7 +65,7 @@ def unit_vector(lat_deg, lon_deg) -> np.ndarray:
 @dataclass
 class Horizon:
     mask_deg: np.ndarray  # (360,) horizon elevation per degree of azimuth
-    bands_deg: np.ndarray  # (3, 360) same, keeping only 0-5, 5-30, 30-150 km (rendering only)
+    bands_deg: np.ndarray  # (3, 360) same, keeping only 0-5, 5-30, 30-250 km (rendering only)
     ground_m: float  # terrain height at the observer (relative to the datum sphere)
     skipped: int  # samples with no terrain data in any map (ignored, never set to 0)
 

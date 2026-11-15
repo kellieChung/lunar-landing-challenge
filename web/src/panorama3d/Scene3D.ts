@@ -74,6 +74,13 @@ export interface SiteInput {
   landerAz: number; // deg
 }
 
+/** An extra object standing on the ground near the viewer (game mode buildings, rovers). */
+export interface SceneProp {
+  object: THREE.Object3D; // built at true size in metres, standing on y = 0
+  azDeg: number; // direction from the viewer
+  distM: number; // true distance from the viewer
+}
+
 export interface TimeInput extends Omit<SkyState, 'sunGlow'> {
   sunLit: boolean; // from physics (horizon mask)
   earthMarginDeg: number; // from physics: Earth's center above (+) or below (-) the horizon
@@ -279,6 +286,46 @@ export class Scene3D implements PanoramaView {
     this.terrainMeshes.push(mesh);
   }
 
+  private props: SceneProp[] = [];
+
+  /** Replace the extra objects (rendering only; they never affect the physics). */
+  setProps(props: SceneProp[]): void {
+    for (const p of this.props) this.near.remove(p.object);
+    this.props = props;
+    for (const p of props) this.near.add(p.object);
+    this.placeProps();
+    this.renderer.shadowMap.needsUpdate = true;
+    this.requestRender();
+  }
+
+  /** Turn the view toward the props (game mode): their mean direction, slightly above them. */
+  lookAtProps(): void {
+    if (this.props.length === 0) return;
+    let se = 0;
+    let ce = 0;
+    let el = 0;
+    for (const p of this.props) {
+      se += Math.sin((p.azDeg * Math.PI) / 180);
+      ce += Math.cos((p.azDeg * Math.PI) / 180);
+      const { x, y, z } = p.object.position;
+      el += (Math.atan2(y, Math.hypot(x, z)) * 180) / Math.PI;
+    }
+    this._yaw = (((Math.atan2(se, ce) * 180) / Math.PI) % 360 + 360) % 360;
+    this.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, el / this.props.length + 6));
+    this.applyProjection();
+    this.changed();
+  }
+
+  /** Stand each prop on the drawn ground, scaled with the stretch like the lander. */
+  private placeProps(): void {
+    if (!this.site) return;
+    for (const p of this.props) {
+      const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, p.azDeg, p.distM);
+      p.object.position.set(...place.pos);
+      p.object.scale.setScalar(place.scale);
+    }
+  }
+
   setTime(time: TimeInput): void {
     this.time = time;
     this.applyTime();
@@ -299,6 +346,7 @@ export class Scene3D implements PanoramaView {
     const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, this.site.landerAz);
     this.lander.group.position.set(...place.pos);
     this.lander.group.scale.setScalar(place.scale);
+    this.placeProps();
 
     // Shadow camera: an ortho box around the bounding sphere of the stretched mesh.
     const box = new THREE.Box3().setFromObject(this.terrainGroup);

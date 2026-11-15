@@ -2,8 +2,8 @@
 // current time (moved by the time bar), and shows it in the 3D scene or the
 // 2D strip plus the stats panel.
 
-import { loadSite, loadSiteIndex, loadTerrain } from '../data/load';
-import type { GridPoint, SiteData } from '../data/types';
+import { loadMastFile, loadSite, loadSiteIndex, loadTerrain } from '../data/load';
+import type { GridPoint, MastPoint, SiteData } from '../data/types';
 import { Panorama } from '../panorama/Panorama';
 import { maskAt, vecToAzEl } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
@@ -13,10 +13,14 @@ import { Scene3D } from '../panorama3d/Scene3D';
 import { earthRadiusDeg, sunRadiusDeg } from '../physics/constants';
 import { earthVisibleAt, nextChange, stateSince, sunLitAt } from '../physics/events';
 import { describeOffset, findPoint, pointVectors } from '../physics/grid';
-import { fluxWm2, siteSeries, windowMetrics } from '../physics/metrics';
+import { fluxWm2, siteSeries, windowMetrics, type SiteSeries } from '../physics/metrics';
 import { batteryState, signalBars } from '../physics/status';
 import { sampleDate, valueAt, vectorAt, type VectorSeries } from '../physics/time';
-import { LIT_THRESHOLD, marginDeg, sunlitFraction } from '../physics/visibility';
+import { eclipseShare, LIT_THRESHOLD, marginDeg, sunlitFraction } from '../physics/visibility';
+import { seriesCache } from '../game/env';
+import type { GameSession } from '../game/start';
+import { startExploreTour } from '../ui/exploreTour';
+import { BASE_MAST_M, mastControl, mastFromUrl, mastHeights, mastRows, mastSummaries } from '../ui/MastControl';
 import { spotGrid } from '../ui/SpotGrid';
 import { StatsPanel } from '../ui/StatsPanel';
 import { formatUtc, PAGE_SAMPLES, TimeBar } from '../ui/TimeBar';
@@ -45,6 +49,28 @@ function setUrlParam(key: string, value: string): void {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const shortDate = (d: Date) => `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+
+/** ?mode=game: the Moon Base game on top of the same view (default: Explore, the Navigator). */
+function gameFromUrl(): boolean {
+  return new URLSearchParams(window.location.search).get('mode') === 'game';
+}
+
+/** The Explore | Moon Base switch in the nav bar: same site and spot, full reload. */
+function wireModeSwitch(game: boolean): void {
+  const go = (toGame: boolean) => {
+    const params = new URLSearchParams(window.location.search);
+    if (toGame) params.set('mode', 'game');
+    else params.delete('mode');
+    window.location.assign(`${window.location.pathname}?${params.toString().replace('%2C', ',')}`);
+  };
+  const explore = document.getElementById('mode-explore') as HTMLButtonElement | null;
+  const base = document.getElementById('mode-game') as HTMLButtonElement | null;
+  explore?.setAttribute('aria-pressed', String(!game));
+  base?.setAttribute('aria-pressed', String(game));
+  if (explore) explore.onclick = () => game && go(false);
+  if (base) base.onclick = () => !game && go(true);
+  document.getElementById('pano-screen')?.classList.toggle('game', game);
+}
 
 function modeFromUrl(): Mode {
   return new URLSearchParams(window.location.search).get('view') === '2d' ? '2d' : '3d';
@@ -85,6 +111,9 @@ export async function openSite(id: string): Promise<void> {
     .catch((err) => { console.error(err); return null; });
   const data = await loadSite(id);
   showBadge(data);
+  const game = gameFromUrl();
+  wireModeSwitch(game);
+  const seriesAt = seriesCache(data); // hourly lit / Earth per grid point, shared with the game
 
   // Whole heightmaps, loaded once; each spot crops and re-levels its own piece
   // (rendering only). The 10 m one arrives later (3.4 MB); the view opens with
@@ -122,18 +151,49 @@ export async function openSite(id: string): Promise<void> {
   const earthRMax = data.earth.r_km ? earthRadiusDeg(Math.min(...data.earth.r_km)) : EARTH_RADIUS_FALLBACK_DEG;
   const earthRAt = (t: number) => (data.earth.r_km ? earthRadiusDeg(valueAt(data.earth.r_km, t)) : EARTH_RADIUS_FALLBACK_DEG);
 
-  /** Everything that depends on which grid point we stand on. */
-  const spotAt = (point: GridPoint) => {
-    const mask = point.mask_deg;
+  // Raised masts (every grid point): one file of horizons per height, loaded
+  // when that height is first picked; series cached per height and spot.
+  const isCenter = (p: GridPoint) => p.dx_km === 0 && p.dy_km === 0;
+  const ijKey = (p: { i: number; j: number }) => `${p.i},${p.j}`;
+  const mastMasks = new Map<number, Map<string, MastPoint>>();
+  const mastLoads = new Map<number, Promise<boolean>>();
+  /** Load one height's horizons (once); false if it could not be loaded. */
+  const ensureMast = (h: number): Promise<boolean> => {
+    if (h === BASE_MAST_M || mastMasks.has(h)) return Promise.resolve(true);
+    const file = data.mast?.files[String(h)];
+    if (!file) return Promise.resolve(false);
+    let p = mastLoads.get(h);
+    if (!p) {
+      p = loadMastFile(file).then((f) => {
+        mastMasks.set(h, new Map(f.points.map((q) => [ijKey(q), q])));
+        return true;
+      }).catch((err) => { console.error(err); mastLoads.delete(h); return false; });
+      mastLoads.set(h, p);
+    }
+    return p;
+  };
+  const mastSeries = new Map<string, SiteSeries>();
+
+  /** Everything that depends on which grid point we stand on and the mast height. */
+  const spotAt = (point: GridPoint, mastH = BASE_MAST_M) => {
+    const raised = mastH > BASE_MAST_M ? mastMasks.get(mastH)?.get(ijKey(point)) : undefined;
+    const raisedH = raised ? mastH : mastM;
+    const mask = raised?.mask_deg ?? point.mask_deg;
     // Sun/Earth as seen from this point (the file holds them for the site center).
     const sunV = pointVectors(data.sun, point.up_tilt);
     const earthV = pointVectors(data.earth, point.up_tilt);
     // ---- Physics (the only source of lit / visible) ----
-    const series = siteSeries(sunV, earthV, mask);
+    let series = seriesAt(point);
+    if (raised) {
+      const k = `${raisedH}:${ijKey(point)}`;
+      series = mastSeries.get(k) ?? siteSeries(sunV, earthV, mask);
+      mastSeries.set(k, series);
+    }
     return {
       point, mask, sunV, earthV, series,
-      bands: point.mask_bands_deg ?? null,
-      atCenter: point.dx_km === 0 && point.dy_km === 0,
+      bands: raised?.mask_bands_deg ?? point.mask_bands_deg ?? null,
+      mastM: raisedH,
+      atCenter: isCenter(point),
       label: describeOffset(point.dx_km, point.dy_km),
       year: windowMetrics(series, 0, count, step),
       litAt: (t: number) => sunLitAt(sunV, mask, t),
@@ -144,8 +204,12 @@ export async function openSite(id: string): Promise<void> {
     };
   };
 
-  // The grid point we stand on (?pt=i,j; default the site center).
-  let cur = spotAt(findPoint(data.grid.points, new URLSearchParams(window.location.search).get('pt')));
+  // The grid point we stand on (?pt=i,j; default the site center), and the
+  // mast height (?mast=N; never below 3 m; the game always uses 3 m).
+  const mastHs = game ? [] : mastHeights(data);
+  const startPoint = findPoint(data.grid.points, new URLSearchParams(window.location.search).get('pt'));
+  const startMast = mastFromUrl(mastHs);
+  let cur = spotAt(startPoint, (await ensureMast(startMast)) ? startMast : BASE_MAST_M);
 
   /** Everything about one moment t (fractional sample index), at the current spot. */
   const physicsAt = (t: number) => {
@@ -157,12 +221,14 @@ export async function openSite(id: string): Promise<void> {
     const sunFraction = sunlitFraction(...sunEnu, rAu, cur.mask);
     const sunLit = sunFraction >= LIT_THRESHOLD; // same rule as litAt(t)
     const earthMargin = marginDeg(...earthEnu, cur.mask);
+    // Share of the Sun not covered by Earth (1 except during an eclipse); scales the power only.
+    const eclipse = data.earth.r_km ? eclipseShare(...sunEnu, rAu, ...earthEnu, valueAt(data.earth.r_km, t)) : 1;
     return {
-      sunEnu, earthEnu, sun, earth, sunFraction, sunLit, earthMargin,
+      sunEnu, earthEnu, sun, earth, sunFraction, sunLit, earthMargin, eclipse,
       earthVisible: earthMargin > 0,
       sunR: sunRadiusDeg(rAu),
       earthR: earthRAt(t),
-      flux: fluxWm2(rAu, sunFraction, sun.el),
+      flux: fluxWm2(rAu, sunFraction, sun.el, eclipse),
     };
   };
 
@@ -217,19 +283,21 @@ export async function openSite(id: string): Promise<void> {
     if (atCenter) {
       if (new URLSearchParams(window.location.search).has('pt')) setUrlParam('pt', '0,0');
     } else setUrlParam('pt', `${point.i},${point.j}`);
+    if (cur.mastM !== mastM || new URLSearchParams(window.location.search).has('mast')) setUrlParam('mast', String(cur.mastM));
     document.title = `${data.site.name}${atCenter ? '' : ` (${label.replace(' of the site center', '')})`} · Lunar Landing Site Navigator`;
     if (spotLabel) {
       const dz = point.ground_m !== undefined && data.site.ground_height_m !== undefined
         ? point.ground_m - data.site.ground_height_m : null;
-      spotLabel.textContent = atCenter ? `${data.site.name} · site center`
-        : `${data.site.name} · ${label}${dz === null ? '' : ` · ground ${dz >= 0 ? '+' : '−'}${Math.abs(dz).toFixed(0)} m`}`;
+      const mastNote = cur.mastM !== mastM ? ` · ${cur.mastM} m mast` : '';
+      spotLabel.textContent = atCenter ? `${data.site.name} · site center${mastNote}`
+        : `${data.site.name} · ${label}${dz === null ? '' : ` · ground ${dz >= 0 ? '+' : '−'}${Math.abs(dz).toFixed(0)} m`}${mastNote}`;
     }
 
     flat.setMask(cur.mask, cur.bands);
     flat.fitElevations(...cur.elRange);
     if (scene) {
       const terrain = terrainAround(point);
-      scene.setSite({ mask: cur.mask, bands: cur.bands, terrain, mastM, elRange: cur.elRange, earthYear: cur.earthYear, landerAz });
+      scene.setSite({ mask: cur.mask, bands: cur.bands, terrain, mastM: cur.mastM, elRange: cur.elRange, earthYear: cur.earthYear, landerAz });
       const token = ++detailToken;
       const s3 = scene;
       if (terrain) {
@@ -252,7 +320,7 @@ export async function openSite(id: string): Promise<void> {
     const { sun, earth } = now;
     const mask = cur.mask;
     readout.textContent =
-      `${data.site.name} · ${cur.label}   ${formatUtc(sampleDate(data.time.start, step, t))} (hour ${t.toFixed(2)})   view ${fmt(active.yaw)}°   ${mode.toUpperCase()}   vertical ×${active.exaggeration.toFixed(1)}\n` +
+      `${data.site.name} · ${cur.label} · mast ${cur.mastM} m   ${formatUtc(sampleDate(data.time.start, step, t))} (hour ${t.toFixed(2)})   view ${fmt(active.yaw)}°   ${mode.toUpperCase()}   vertical ×${active.exaggeration.toFixed(1)}\n` +
       `sun   az ${fmt(sun.az)}° el ${fmt(sun.el)}°  (horizon there ${fmt(maskAt(mask, sun.az))}°)  ${state(now.sunLit, 'LIT', 'behind terrain')}  disk ${Math.round(now.sunFraction * 100)}%\n` +
       `earth az ${fmt(earth.az)}° el ${fmt(earth.el)}°  (horizon there ${fmt(maskAt(mask, earth.az))}°)  ${state(now.earthVisible, 'VISIBLE', 'behind terrain')}`;
   };
@@ -285,6 +353,7 @@ export async function openSite(id: string): Promise<void> {
     const darkSince = now.sunLit ? t : stateSince(cur.litAt, cur.series.lit, t);
     stats.setNow({
       sunFraction: now.sunFraction,
+      eclipse: now.eclipse,
       sunLit: now.sunLit,
       earthVisible: now.earthVisible,
       earthMarginDeg: now.earthMargin,
@@ -295,8 +364,10 @@ export async function openSite(id: string): Promise<void> {
       fluxNow: now.flux,
     });
     update();
+    session?.onTime?.(t);
   };
 
+  let session: GameSession | null = null;
   const timebar = new TimeBar(document.getElementById('timebar')!, cur.series, data.time.start, step, {
     onTime: showTime,
     onSettle: (s) => setUrlParam('hour', String(Math.round(s * 100) / 100)),
@@ -308,23 +379,84 @@ export async function openSite(id: string): Promise<void> {
   // ---- Moving to another grid spot: same time, same view direction; a quick
   // dip to black so the jump reads as a move, not a glitch.
   let moveTimer = 0;
-  const moveTo = (point: GridPoint) => {
+  /** Rebuild everything for a spot and mast height (no fade). */
+  const standAt = (point: GridPoint, mastH: number) => {
+    cur = spotAt(point, mastH);
+    trackFrom = -1;
+    monthFrom = -1;
+    showSpot();
+    timebar.setSeries(cur.series);
+    showTime(t);
+    mast?.set(cur.mastM, mastRows(data, point.i, point.j));
+  };
+  /** Moving to another spot: a quick fade; the mast height stays. */
+  const moveTo = (point: GridPoint, mastH = cur.mastM) => {
     window.clearTimeout(moveTimer);
     stage.classList.add('moving');
     moveTimer = window.setTimeout(() => {
-      cur = spotAt(point);
-      trackFrom = -1;
-      monthFrom = -1;
-      showSpot();
-      timebar.setSeries(cur.series);
-      showTime(t);
+      standAt(point, mastH);
+      session?.onMove?.(point);
       requestAnimationFrame(() => stage.classList.remove('moving'));
     }, MOVE_FADE_MS);
     grid.setCurrent(point);
   };
+  /** The mast control: same spot, new height, no fade (smooth while dragging). */
+  let wantMast = cur.mastM;
+  const pickMast = async (h: number) => {
+    wantMast = h;
+    if (h === cur.mastM) return;
+    if (!mastMasks.has(h) && h !== BASE_MAST_M) mast?.setLoading(h);
+    const ok = await ensureMast(h);
+    if (wantMast !== h) return; // the slider moved on while this height loaded
+    if (!ok) {
+      mast?.set(cur.mastM, mastRows(data, cur.point.i, cur.point.j));
+      return;
+    }
+    window.clearTimeout(moveTimer); // a pending move keeps its spot but takes the new height
+    standAt(cur.point, h);
+    showGrid(h);
+  };
+  let mast: ReturnType<typeof mastControl> | null = null;
 
-  const grid = spotGrid({ points: data.grid.points, current: cur.point, summaries: await summaries, onPick: moveTo });
-  statsRoot.prepend(grid.el);
+  const gridSummaries = await summaries;
+  /** The spot map, colored by the year at mast height h. */
+  const makeGrid = (h: number) => spotGrid({
+    points: data.grid.points, current: cur.point,
+    summaries: gridSummaries && mastSummaries(data, gridSummaries, h),
+    onPick: (p) => moveTo(p),
+    decorate: game ? (p) => session?.decorate?.(p) ?? null : undefined,
+  });
+  let grid = makeGrid(cur.mastM);
+  let gridShownFor = cur.mastM;
+  /** Recolor the spot map for a new height (rebuilt in place; it keeps open/closed). */
+  const showGrid = (h: number) => {
+    if (game || h === gridShownFor) return;
+    gridShownFor = h;
+    const next = makeGrid(h);
+    grid.el.replaceWith(next.el);
+    grid = next;
+  };
+  if (game) {
+    session = {
+      data, summaries: gridSummaries, seriesAt, timebar, scene, grid, stage, landerAz,
+      side: document.querySelector('#pano-screen .side') as HTMLElement,
+      main: document.querySelector('#pano-screen .pano-main') as HTMLElement,
+      current: () => cur.point, moveTo: (p) => moveTo(p, BASE_MAST_M),
+      onTime: null, onMove: null, decorate: null,
+    };
+  } else {
+    if (mastHs.length > 1) {
+      mast = mastControl(mastHs, cur.mastM, mastRows(data, cur.point.i, cur.point.j), (h) => void pickMast(h));
+      const nowBox = statsRoot.querySelector('.st-now');
+      if (nowBox) nowBox.after(mast.el);
+      else statsRoot.prepend(mast.el);
+    }
+    const gridMore = document.createElement('details');
+    gridMore.className = 'more';
+    gridMore.innerHTML = '<summary>Pick a spot on the map</summary>';
+    gridMore.append(grid.el);
+    statsRoot.append(gridMore);
+  }
 
   const setMode = (next: Mode) => {
     if (next === '3d' && !scene) next = '2d';
@@ -369,4 +501,10 @@ export async function openSite(id: string): Promise<void> {
   flat.setYaw(now.sun.az);
   scene?.setYaw(now.sun.az);
   setMode(mode);
+  if (session) (await import('../game/start')).startGame(session);
+  else {
+    const tourBtn = document.getElementById('tour-btn');
+    if (tourBtn) tourBtn.onclick = () => startExploreTour(true);
+    window.setTimeout(() => startExploreTour(), 400); // first visit only; after the layout settles
+  }
 }

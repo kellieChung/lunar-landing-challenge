@@ -61,3 +61,19 @@ def test_paper_sites_cite_their_paper():
     for sid, paper in [("nobile-rim-1", "paper 2"), ("haworth", "paper 2"),
                        ("nobile-rim-2", "paper 1"), ("de-gerlache-rim-2", "paper 1")]:
         assert get_site(sid).source.startswith(paper), sid
+
+
+def test_grid_summary_keeps_mean_sunlit_fraction(tmp_path):
+    """sites.json carries the mean sunlit fraction: 0 means no part of the Sun ever showed."""
+    import json
+
+    from lunar.sites import grid_summary
+
+    point = {"i": 0, "j": 0, "dx_km": 0, "dy_km": 0, "lat": -85.0, "lon": 0.0, "ground_m": 1.0}
+    year = {"sunlit_pct": 0.0, "mean_sunlit_fraction": 0.000558, "earth_pct": 50.0, "both_pct": 0.0,
+            "longest_dark_h": 8760, "longest_blackout_h": 10}
+    f = tmp_path / "x.json"
+    f.write_text(json.dumps({"grid": {"points": [point]}, "precomputed": {"points": [{"i": 0, "j": 0, "year": year}]}}))
+    (row,) = grid_summary(f)
+    assert row["sunlit_pct"] == 0.0
+    assert row["mean_sunlit_fraction"] == 0.000558  # a sliver of the Sun: not "always dark"

@@ -27,9 +27,9 @@ coordinate (−83.661°, −69.014°) is on the peak's flank, not its top: a 17.
 slope at 4259 m, with the summit (about 4600 m) 2–3 km to the northeast.
 That ridge rises 10–12° above the center's horizon in Earth's direction, so
 Earth is never visible from the center (0.0%); grid spot (2, 2), near the
-summit, sees Earth 82.6% of the time and is sunlit 58.0%. The 20 m map alone
-gives the same result (0.0% Earth, 30.0% sunlit), so this comes from the
-coordinate, not the 10 m data (`TODO(astronomer)`: confirm the intended point).
+summit, sees Earth 82.6% of the time and is sunlit 55.0%. When this was first
+checked (with the original 0.1–150 km ray walk), the 20 m map alone gave the
+same result (0.0% Earth, 30.0% sunlit), so this comes from the coordinate, not the 10 m data (`TODO(astronomer)`: confirm the intended point).
 
 **Check flagged for the astronomer: Mons Mouton Plateau.** The team's list
 pairs it with the Mons Mouton tile (`Site20v2_final_adj_5mpp_surf.tif`), but
@@ -40,7 +40,7 @@ is centered on Mons Mouton itself. It is built on the 20 m map
 **Resolved: de Gerlache Rim 2 longitude.** An earlier copy of the brief had
 +61.16732°, where the site center is a deep low spot (ground −3,193 m, 0%
 sunlit in 2027). Paper 1 gives 298.832680556° E, i.e. −61.167319444°: a rim
-at +580 m, 19.0% sunlit, inside the team's 5 m tile for this site
+at +580 m, 18.6% sunlit, inside the team's 5 m tile for this site
 (`SL2_final_adj_5mpp_surf.tif`). The data now uses the paper's value.
 
 ## 1. Horizon tests (synthetic terrain)
@@ -102,7 +102,7 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
 ### Nobile Rim 2 horizon (site center, 3 m mast)
 
 - Ground height: 1,122 m above the 1737.4 km sphere.
-- Horizon from −1.82° (azimuth 170°) to +7.09° (azimuth 303°).
+- Horizon from −1.82° (azimuth 170°) to +7.10° (azimuth 302°).
 - The highest ridge (northwest, around 300°) is in the same direction as
   Earth (azimuth about 291°–307° over 2027), so terrain hides Earth much of
   the time. Detailed percentages come with the metrics in milestone 4.
@@ -127,19 +127,62 @@ Full year 2027, 3 m mast. "Best spot" gives grid (i, j): i km east, j km north o
 
 | site | center ground | center sunlit | grid min | grid max (best spot) | center Earth visible | grid Earth visible | grid ground |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| nobile-rim-1 | 6119 m | 78.3% | 0.0% | 78.3% (0, 0) | 60.0% | 0.0–63.3% | 3833 to 6175 m |
+| nobile-rim-1 | 6119 m | 77.8% | 0.0% | 77.8% (0, 0) | 60.0% | 0.0–63.3% | 3833 to 6175 m |
 | nobile-rim-2 | 1121 m | 32.1% | 0.0% | 51.9% (−3, 2) | 24.5% | 0.0–75.2% | −605 to 1453 m |
-| de-gerlache-rim-2 | 580 m | 19.0% | 0.0% | 83.0% (−5, −5) | 49.9% | 0.0–55.0% | −219 to 1812 m |
-| haworth | 1819 m | 48.7% | 0.0% | 50.4% (2, 1) | 60.5% | 0.0–65.1% | 1124 to 1929 m |
-| malapert-massif | 4784 m | 28.1% | 22.5% | 65.8% (1, 0) | 46.9% | 0.0–100.0% | 3110 to 5169 m |
-| mons-mouton | 6400 m | 40.3% | 0.0% | 76.5% (−5, −2) | 67.5% | 0.0–99.4% | 4997 to 6422 m |
+| de-gerlache-rim-2 | 580 m | 18.6% | 0.0% | 82.1% (−5, −5) | 49.9% | 0.0–55.0% | −219 to 1812 m |
+| haworth | 1819 m | 48.7% | 0.0% | 50.3% (2, 1) | 60.5% | 0.0–65.1% | 1124 to 1929 m |
+| malapert-massif | 4784 m | 27.0% | 22.0% | 65.5% (1, 0) | 46.9% | 0.0–100.0% | 3110 to 5169 m |
+| mons-mouton | 6400 m | 40.3% | 0.0% | 76.0% (−5, −2) | 67.5% | 0.0–99.4% | 4997 to 6422 m |
 | mons-mouton-plateau | 5077 m | 36.6% | 0.0% | 51.3% (−3, 2) | 100.0% | 0.0–100.0% | 4566 to 5536 m |
-| cabeus-b-peak | 4259 m | 30.0% | 3.3% | 58.0% (2, 2) | 0.0% | 0.0–82.6% | 2098 to 4579 m |
-| slater-plain | 23 m | 3.7% | 0.0% | 58.3% (2, −3) | 36.7% | 0.0–43.7% | −527 to 525 m |
+| cabeus-b-peak | 4259 m | 29.8% | 3.2% | 55.0% (2, 2) | 0.0% | 0.0–82.6% | 2098 to 4579 m |
+| slater-plain | 23 m | 3.7% | 0.0% | 57.4% (2, −3) | 36.7% | 0.0–43.7% | −527 to 525 m |
 
 Each site has spots that never see the Sun within 5 km of its center: small
 craters and pits next to the high ground. Moving a lander 1 km can change
 the sunlit share by tens of percent.
+
+### 1b. Is the ray walk fine enough? (convergence check)
+
+Site centers, 2027, each setting changed on its own against the original
+walk (0.1–150 km, 1° azimuths, 1% far steps):
+
+| change | effect on % sunlit | notes |
+| --- | --- | --- |
+| far steps 1% → 0.2% | at most 0.04 points (6 sites) | horizon rises by at most 0.05° |
+| azimuths 1° → 0.25° | at most 0.06 points | interpolating the 1° mask is off by 0.01° rms, 0.10° worst |
+| hourly → 10-minute samples | at most 0.03 points | longest night within 1 h |
+| 9-point Sun disk → 432 points | mean disk fraction within 0.0002 | lit / dark agrees for 99.99% of hours |
+| range 150 → 500 km | −0.46 points at Nobile Rim 1, −0.06 Malapert, 0 at low sites | horizon up to 0.63° higher; farthest horizon point 201 km (Mons Mouton). **Adopted: 250 km**; 250 → 500 km then changes nothing at any of the nine centers (≤ 0.005°, ≤ 0.02 points) |
+| start 100 m → 10 m | usually 0; worst spots −2.9 points sunlit (Cabeus B), −13.8 points Earth (one Mons Mouton spot) | **Adopted: 10 m** |
+
+
+### 1c. Raising the mast (site centers, 2027)
+
+Extra horizon masks for every grid point at 5, 10, 20 and 30 m
+(`<site>_mast<h>.json`), with antenna and panel at the same height. The
+table shows the site centers. Each cell: % sunlit / % Earth
+visible / longest night. Tests check that a taller mast never raises the
+horizon and never loses Sun or Earth at any of the 121 points, and that the
+browser recomputes the same numbers (`web/src/physics/mast.test.ts`).
+
+| site | 3 m | 5 m | 10 m | 20 m | 30 m |
+| --- | --- | --- | --- | --- | --- |
+| cabeus-b-peak | 29.8% / 0.0% / 568 h | 30.5% / 0.0% / 565 h | 32.4% / 0.0% / 548 h | 35.7% / 0.0% / 525 h | 37.6% / 0.0% / 511 h |
+| haworth | 48.7% / 60.5% / 421 h | 49.2% / 60.7% / 420 h | 49.7% / 61.0% / 419 h | 51.1% / 61.7% / 416 h | 52.5% / 62.3% / 412 h |
+| malapert-massif | 27.0% / 46.9% / 2807 h | 36.2% / 48.7% / 2797 h | 46.4% / 53.2% / 675 h | 58.0% / 61.2% / 399 h | 64.0% / 67.2% / 348 h |
+| mons-mouton-plateau | 36.6% / 100.0% / 464 h | 36.8% / 100.0% / 462 h | 37.3% / 100.0% / 459 h | 38.2% / 100.0% / 453 h | 39.1% / 100.0% / 445 h |
+| mons-mouton | 40.3% / 67.5% / 525 h | 44.3% / 72.7% / 520 h | 50.9% / 81.6% / 509 h | 64.8% / 87.9% / 489 h | 73.3% / 96.8% / 467 h |
+| nobile-rim-1 | 77.8% / 60.0% / 317 h | 80.0% / 61.1% / 306 h | 82.9% / 61.3% / 224 h | 83.1% / 61.6% / 223 h | 83.3% / 61.9% / 223 h |
+| nobile-rim-2 | 32.1% / 24.5% / 540 h | 33.4% / 24.9% / 502 h | 34.7% / 25.7% / 487 h | 36.3% / 27.3% / 476 h | 37.8% / 28.7% / 468 h |
+| de-gerlache-rim-2 | 18.6% / 49.9% / 703 h | 19.7% / 49.9% / 695 h | 21.4% / 49.9% / 688 h | 22.2% / 50.0% / 686 h | 22.6% / 50.0% / 683 h |
+| slater-plain | 3.7% / 36.7% / 4941 h | 3.8% / 36.7% / 4940 h | 4.0% / 36.9% / 4937 h | 4.5% / 37.0% / 4908 h | 4.9% / 37.2% / 4904 h |
+
+The biggest effect is at Malapert Massif. Part of its 3 m horizon is set by
+ground under 100 m away (only a few metres higher than the site), so a
+10 m mast cuts the 2027 longest night from about 117 days to 28. The 3 m
+figure is knife-edge (see §4), but the size of the change is not.
+The Sun/Earth vectors are the 3 m ones (raising the eye 27 m moves Earth's
+direction by about 4e-6°).
 
 ## 2. Ephemeris vs JPL Horizons
 
@@ -217,8 +260,95 @@ Full year 2027, hourly, elevations relative to a flat horizon (no terrain).
   `TODO(astronomer)`: confirm and cite.
 - Far-side check ("Earth never visible") waits for the Chang'e-4 coordinates.
 
-## 4. Published illumination
-TODO(astronomer): papers and points.
+## 4. Long-term averages, published illumination and eclipses
+
+Reproduce all tables here: `python/.venv/bin/python python/scripts/validate_multiyear.py`
+
+### 2027 against 2026–2044 (site centers, 3 m mast, 6-hour step)
+
+Published illumination values are long-term averages. The Moon's orbit takes
+18.6 years to return to the same tilt, so we ran 19 years. "Any part of the
+Sun" counts a sample as lit when at least one of the 9 disk points is up,
+the usual definition in published maps; ours ("sunlit") needs half the disk.
+
+| site | sunlit 2027 | sunlit 2026–2044 (min / mean / max per year) | any part of the Sun, mean | Earth 2027 | Earth 2026–2044 (min / mean / max) | longest night in 19 y |
+| --- | --- | --- | --- | --- | --- | --- |
+| cabeus-b-peak | 29.8% | 27.3 / 28.2 / 29.9% | 29.5% | 0.0% | 0.0 / 0.0 / 0.0% | 570 h |
+| haworth | 48.7% | 46.3 / 48.4 / 50.5% | 50.9% | 60.5% | 56.1 / 60.2 / 64.7% | 426 h |
+| malapert-massif | 27.0% | 24.7 / 26.3 / 28.6% | 29.7% | 46.9% | 44.5 / 48.5 / 53.3% | 3486 h |
+| mons-mouton-plateau | 36.6% | 36.6 / 37.7 / 39.4% | 38.1% | 100.0% | 93.6 / 98.5 / 100.0% | 468 h |
+| mons-mouton | 40.3% | 38.8 / 40.6 / 42.6% | 42.7% | 67.5% | 66.8 / 70.7 / 74.6% | 528 h |
+| nobile-rim-1 | 77.8% | 74.1 / 76.8 / 77.9% | 79.3% | 60.0% | 56.8 / 60.9 / 65.0% | 318 h |
+| nobile-rim-2 | 32.1% | 31.2 / 32.3 / 34.2% | 33.3% | 24.5% | 23.5 / 27.0 / 31.3% | 546 h |
+| de-gerlache-rim-2 | 18.6% | 18.0 / 18.9 / 21.2% | 20.4% | 49.9% | 49.2 / 52.4 / 58.2% | 2112 h |
+| slater-plain | 3.7% | 3.3 / 3.7 / 4.3% | 4.3% | 36.7% | 34.2 / 38.0 / 42.9% | 5622 h |
+
+**Knife-edge long nights.** The 19-year longest nights at de Gerlache Rim 2
+(2112 h, from June 2041) and Malapert Massif (3486 h) are several monthly
+nights joined because the Sun's brief monthly peek no longer clears the
+horizon. With the original ray walk (starting 100 m out) the Sun's center
+cleared it by 0.42° (de Gerlache, 18 h) and 0.08° (Malapert, 18 h) and split
+these nights (de Gerlache then: 702 h). Ground 75–80 m from the mast now
+blocks it, by just 0.02° at de Gerlache and 0.15° at Malapert. That is inside
+our 0.10° interpolation error and the map's own accuracy, so treat these
+numbers (and Malapert's 2807 h in 2027) as "one to four months, depending on
+a few metres of ground right beside the lander", not as precise values.
+
+2027 is a typical year for sunlight (within about 1 point of the mean, 1.6
+at Cabeus B) but a below-average year for Earth visibility at most sites
+(up to 3.2 points under the mean).
+
+### A published point: the Shackleton–de Gerlache connecting ridge
+
+One-off check with the 20 m map (no 5 m tile loaded), old 150 km range: the
+best spot within 1.5 km of (−89.45°, 222.69° E), found at (−89.473°,
+222.69° E), ground 1949 m, over 2026–2044:
+
+| mast | sunlit (half the disk) | any part of the Sun | longest night |
+| --- | --- | --- | --- |
+| 2 m | 86.6% | 89.8% | 132 h |
+| 10 m | 90.0% | 92.8% | 102 h |
+
+`TODO(astronomer)`: this is the area Mazarico et al. (2011, *Icarus* 211,
+1066) report as the most illuminated near the south pole; fill in their
+published percentages for this point and height from the paper (do not
+quote from memory) and add the difference. More points to add: Gläser et al.
+(2014, 2018), Speyerer & Robinson (2013).
+
+### Eclipses of the Sun by Earth (seen from Nobile Rim 1, 10-minute step)
+
+| eclipse begins (UTC) | lasts | most of the Sun covered | fully covered for |
+| --- | --- | --- | --- |
+| 2026-03-03 09:30 | 4.2 h | 100% | 1.2 h |
+| 2026-08-28 02:00 | 4.8 h | 100% | 2.5 h |
+| 2027-08-17 05:50 | 3.2 h | 45% | 0.0 h |
+| 2028-01-12 02:30 | 3.7 h | 100% | 0.7 h |
+| 2028-07-06 17:10 | 2.7 h | 34% | 0.0 h |
+| 2028-12-31 14:30 | 4.8 h | 100% | 2.5 h |
+| 2029-06-26 01:20 | 4.5 h | 100% | 2.5 h |
+| 2029-12-20 20:30 | 4.5 h | 100% | 1.2 h |
+| 2030-06-15 16:40 | 4.0 h | 100% | 2.0 h |
+
+**Checked against NASA's lunar eclipse catalogue** (F. Espenak, GSFC,
+eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html): all nine dates are lunar
+eclipses there, and each catalogue time of greatest eclipse falls inside our
+window. The catalogue also lists three penumbral eclipses we don't flag:
+2027 Feb 20, 2027 Jul 18 and 2030 Dec 09. Checking them with SPICE at the
+catalogue's greatest-eclipse times shows why they don't reach the south pole:
+
+| eclipse (catalogue) | Sun covered at the south pole | at the north pole | at the sub-Earth point |
+| --- | --- | --- | --- |
+| 2027 Feb 20, penumbral | 0% (misses by 0.05°) | 95% | 36% |
+| 2027 Jul 18, penumbral (grazing) | 0% (misses by 0.50°) | 0% (misses by 0.01°) | 0% |
+| 2030 Dec 09, penumbral | 0% (misses by 0.04°) | 87% | 32% |
+| 2027 Aug 17, penumbral (we flag it) | 45% | 0% | 0% |
+
+In the first and third, the Moon passes north of Earth's shadow, so only its
+northern part is in the penumbra; on 17 August 2027 it passes south, so the
+south pole gets the deepest part (seen from the Moon, Earth covers 45% of
+the Sun there, while the catalogue still calls it penumbral because no part
+of the Moon reaches the umbra). So at the south-pole sites 2027 has exactly
+one eclipse: 17 August.
 
 ## 5. Python ↔ TypeScript parity
 
@@ -237,6 +367,7 @@ Python answers; `python/tests/test_metrics.py` and
 | same, 3 windows | mean flux per panel type | 1e-6 W/m² | pass |
 | same, 7 queries | next sunrise / sunset / Earthrise / Earthset | 1e-6 h (< 4 ms) | pass |
 | Synthetic: Sun crossing a ridge at north (azimuth 359° → 0°) | all of the above | same | pass |
+| Nobile Rim 1, 80 h around the 2027-08-17 eclipse | eclipse share per hour, window flux | 1e-12 / 1e-6 W/m² | pass |
 | Shipped `nobile-rim-2.json`, all 8,760 h | browser year metrics vs `precomputed.center.year` (rounded to 6 decimals) | 1e-6 | pass |
 
 Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
@@ -250,15 +381,21 @@ Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
 - **Map resolution:** 5 m/pixel inside site tiles, 20 m/pixel near field
   elsewhere, 240 m far field. Features
   smaller than that (boulders, small craters) are not in the horizon.
+- **Closest 10 m:** the ray walk starts 10 m from the mast. Rocks and bumps
+  closer than that, and the lander itself, are not in the horizon.
 - **Distant sampling:** beyond 5 km, samples are spaced at 1% of the distance
   (about 1 km apart at 100 km), so a narrow distant peak can fall between
   samples. This follows the spec's design.
-- **Fixed 150 km range:** terrain further away is ignored.
+- **Fixed 250 km range:** terrain further away is ignored. Rerunning all nine
+  site centers out to 500 km changes no mask value by more than the 0.005°
+  rounding (see §1b).
+- **One year (2027):** yearly numbers drift over the 18.6-year cycle (§4).
+- **Eclipses** scale the power but not "lit"; Earth's atmosphere is ignored.
 - **Grid points share the center's Sun/Earth directions:** moving 7 km
   shifts the direction to Earth by at most 0.001° (and the Sun far less).
   Each point's own "up" is accounted for exactly.
-- **Mast height:** one fixed 3 m observer height for both solar panel and
-  antenna.
+- **Mast height:** 3 m for both solar panel and antenna by default; 5, 10, 20
+  and 30 m at every grid spot (§1c), nothing in between.
 - **1-hour sampling:** statistics count whole hours. Rise and set times are
   refined to well under a second between samples, but a rise and set that
   both fall inside the same hour are missed.

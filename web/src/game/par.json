@@ -1,0 +1,20 @@
+{
+  "order": [
+    "mons-mouton-plateau",
+    "haworth",
+    "slater-plain",
+    "mons-mouton",
+    "nobile-rim-1",
+    "de-gerlache-rim-2",
+    "nobile-rim-2"
+  ],
+  "days": {
+    "haworth": 44.7,
+    "mons-mouton-plateau": 16,
+    "mons-mouton": 65.4,
+    "nobile-rim-1": 67.1,
+    "nobile-rim-2": 93.6,
+    "de-gerlache-rim-2": 68.9,
+    "slater-plain": 46.4
+  }
+}

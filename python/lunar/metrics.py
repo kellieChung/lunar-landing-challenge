@@ -16,9 +16,12 @@ Definitions
 - Lit: sunlit fraction >= 0.5.
 - Earth visible: Earth's center is above the horizon (margin > 0). The
   margin (deg) tells the UI when Earth is only partly visible.
-- Flux (W/m^2): 1361 / r_au^2 x sunlit fraction x panel factor, where the
-  panel factor is 1 (Sun-tracking), sin(el) (horizontal) or cos(el)
-  (vertical, facing the Sun).
+- Flux (W/m^2): 1361 / r_au^2 x sunlit fraction x eclipse share x panel
+  factor, where the panel factor is 1 (Sun-tracking), sin(el) (horizontal)
+  or cos(el) (vertical, facing the Sun).
+- Eclipse share: the part of the Sun's disk NOT covered by Earth's disk
+  (1 almost always; less during what Earth calls a lunar eclipse, e.g.
+  0.55 on 2027-08-17). It scales the flux only; "lit" stays a terrain test.
 
 Times are "sample indices": t = 0 is the first sample, t = 1 the next one
 (one hour later for hourly data); fractions of a sample are allowed.
@@ -32,6 +35,7 @@ from lunar.ephemeris import AU_KM, az_el
 
 SOLAR_CONSTANT_W_M2 = 1361.0  # TODO(astronomer): cite (e.g. IAU 2015 nominal total solar irradiance)
 R_SUN_KM = 695_700.0  # IAU 2015 nominal solar radius, same as web/src/physics/constants.ts
+R_EARTH_KM = 6371.0  # mean Earth radius, same as web/src/physics/constants.ts
 LIT_THRESHOLD = 0.5  # sunlit fraction that counts as "lit"
 DISK_RING = 1.0 / math.sqrt(2.0)  # ring radius of the disk sample points, as a fraction of r
 RING_ANGLES_DEG = (0, 45, 90, 135, 180, 225, 270, 315)  # 0 = top of the disk, clockwise
@@ -76,9 +80,39 @@ def sunlit_fraction(e, n, u, r_au, mask):
     return count / N_DISK_POINTS
 
 
-def flux_w_m2(r_au, fraction, sun_el_deg) -> dict:
-    """Solar power per square metre of panel for the three panel types."""
-    full = SOLAR_CONSTANT_W_M2 / np.asarray(r_au, float) ** 2 * np.asarray(fraction, float)
+def eclipse_share(sun: dict, earth: dict):
+    """Share of the Sun's disk not covered by Earth's disk: 1 = no eclipse, 0 = total.
+
+    sun: {"e","n","u","r_au"}, earth: {"e","n","u","r_km"} (site frame).
+    Both are treated as flat disks of angular radius a (Sun) and b (Earth),
+    their centers d apart; the covered part is the lens where they overlap.
+    Earth's atmosphere (which bends a little red light into the shadow) is ignored.
+    """
+    s = np.stack([np.asarray(sun[k], float) for k in "enu"])
+    q = np.stack([np.asarray(earth[k], float) for k in "enu"])
+    cos_d = (s * q).sum(axis=0) / (np.sqrt((s * s).sum(axis=0)) * np.sqrt((q * q).sum(axis=0)))
+    d = np.arccos(np.clip(cos_d, -1.0, 1.0))
+    a = np.arcsin(R_SUN_KM / (np.asarray(sun["r_au"], float) * AU_KM))
+    b = np.arcsin(R_EARTH_KM / np.asarray(earth["r_km"], float))
+    d, a, b = np.broadcast_arrays(d, a, b)
+    out = np.ones(d.shape)
+    out[d <= b - a] = 0.0
+    part = (d < a + b) & (d > b - a)
+    dp, ap, bp = d[part], a[part], b[part]
+    lens = (ap * ap * np.arccos((dp * dp + ap * ap - bp * bp) / (2 * dp * ap))
+            + bp * bp * np.arccos((dp * dp + bp * bp - ap * ap) / (2 * dp * bp))
+            - 0.5 * np.sqrt((-dp + ap + bp) * (dp + ap - bp) * (dp - ap + bp) * (dp + ap + bp)))
+    out[part] = 1.0 - lens / (math.pi * ap * ap)
+    return out
+
+
+def flux_w_m2(r_au, fraction, sun_el_deg, eclipse=1.0) -> dict:
+    """Solar power per square metre of panel for the three panel types.
+
+    eclipse: share of the Sun not covered by Earth (eclipse_share); 1 = none.
+    """
+    full = (SOLAR_CONSTANT_W_M2 / np.asarray(r_au, float) ** 2 * np.asarray(fraction, float)
+            * np.asarray(eclipse, float))
     el = np.radians(sun_el_deg)
     return {
         "tracking": full,
@@ -92,15 +126,18 @@ def flux_w_m2(r_au, fraction, sun_el_deg) -> dict:
 def site_series(sun: dict, earth: dict, mask) -> dict:
     """Per-sample visibility for one grid point.
 
-    sun: {"e","n","u","r_au"} arrays; earth: {"e","n","u"} arrays (site frame).
+    sun: {"e","n","u","r_au"} arrays; earth: {"e","n","u"} arrays (site frame),
+    plus "r_km" (Earth distance) if eclipses should be counted.
     """
     e, n, u = (np.asarray(sun[k], float) for k in "enu")
     r_au = np.asarray(sun["r_au"], float)
     _, sun_el = az_el(e, n, u)
     fraction = sunlit_fraction(e, n, u, r_au, mask)
     earth_margin = margin_deg(*(np.asarray(earth[k], float) for k in "enu"), mask)
+    eclipse = eclipse_share(sun, earth) if "r_km" in earth else np.ones(len(r_au))
     return {
         "fraction": fraction,
+        "eclipse": eclipse,
         "sun_el": sun_el,
         "earth_margin": earth_margin,
         "r_au": r_au,
@@ -126,7 +163,8 @@ def window_metrics(series: dict, start: int, length: int, step_hours: float = 1.
     """
     s = slice(start, start + length)
     lit, earth, frac = series["lit"][s], series["earth"][s], series["fraction"][s]
-    flux = flux_w_m2(series["r_au"][s], frac, series["sun_el"][s])
+    eclipse = series["eclipse"][s] if "eclipse" in series else 1.0
+    flux = flux_w_m2(series["r_au"][s], frac, series["sun_el"][s], eclipse)
     count = len(lit)
     return {
         "samples": count,

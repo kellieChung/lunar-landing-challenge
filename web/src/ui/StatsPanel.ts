@@ -7,6 +7,7 @@ import { BATTERY_HOURS, type Battery } from '../physics/status';
 
 export interface NowStatus {
   sunFraction: number; // 0..1
+  eclipse?: number; // share of the Sun not covered by Earth (1 = no eclipse)
   sunLit: boolean;
   earthVisible: boolean;
   earthMarginDeg: number;
@@ -60,13 +61,15 @@ const TEMPLATE = `
         <rect x="4" y="16" width="6" height="5" /><rect x="14" y="12" width="6" height="9" />
         <rect x="24" y="7" width="6" height="14" /><rect x="34" y="2" width="6" height="19" />
       </svg>
-      <div><div class="st-label">Earth contact</div><div class="st-value st-signal-text"></div><div class="st-sub st-signal-sub"></div></div>
+      <div><div class="st-label">Talk to Earth</div><div class="st-value st-signal-text"></div><div class="st-sub st-signal-sub"></div></div>
     </div>
     <dl class="st-countdowns">
       <div><dt class="st-sun-event"></dt><dd class="st-sun-in"></dd></div>
       <div><dt class="st-earth-event"></dt><dd class="st-earth-in"></dd></div>
     </dl>
   </section>
+  <details class="more" data-more="stats">
+  <summary>30-day &amp; year statistics</summary>
   <section aria-label="Statistics">
     <table class="st-table">
       <thead><tr><th></th><th class="st-month-label"></th><th class="st-year-label"></th></tr></thead>
@@ -80,8 +83,11 @@ const TEMPLATE = `
       </tbody>
     </table>
   </section>
+  </details>
+  <details class="more" data-more="solar">
+  <summary>Solar panel power</summary>
   <section aria-label="Solar panel comparison">
-    <h3 class="st-h">Solar panel power <span>W/m²</span></h3>
+    <h3 class="st-h">Power in <span>W/m²</span></h3>
     <table class="st-table st-flux">
       <thead><tr><th></th><th>Now</th><th>30 d avg</th><th>Year avg</th></tr></thead>
       <tbody>
@@ -90,7 +96,8 @@ const TEMPLATE = `
         <tr data-p="horizontal"><th>Flat on the ground</th><td></td><td></td><td></td></tr>
       </tbody>
     </table>
-  </section>`;
+  </section>
+  </details>`;
 
 function metricText(m: WindowMetrics, key: string): string {
   switch (key) {
@@ -143,8 +150,9 @@ export class StatsPanel {
     this.q('.st-battery-text').textContent = b.charging
       ? 'Charging'
       : b.level > 0 ? `On battery · ${formatDuration(b.hoursLeft)} left` : 'Battery empty';
+    const eclipsed = 1 - (s.eclipse ?? 1);
     this.q('.st-battery-sub').textContent = b.charging
-      ? `Sun ${Math.round(s.sunFraction * 100)}% visible`
+      ? `Sun ${Math.round(s.sunFraction * 100)}% visible${eclipsed > 0.005 ? ` · eclipse: Earth covers ${Math.round(eclipsed * 100)}% of the Sun` : ''}`
       : `Dark for ${formatDuration(b.darkHours)}${b.sinceStart ? ' (assumed full on Jan 1)' : ''} · ${BATTERY_HOURS} h battery`;
 
     // Signal

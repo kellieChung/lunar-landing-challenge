@@ -117,6 +117,7 @@ export class TimeBar {
   private speed = SPEEDS[DEFAULT_SPEED].daysPerSec;
   private frame = 0;
   private lastFrameMs = 0;
+  private locked = false;
   private readonly count: number;
 
   private el<T extends HTMLElement>(sel: string): T {
@@ -152,6 +153,7 @@ export class TimeBar {
       b.onclick = () => this.jump(b.dataset.kind as JumpKind);
     }
     this.range.addEventListener('input', () => {
+      if (this.locked) return;
       this.setPlaying(false, false);
       this.seek(Number(this.range.value), false);
     });
@@ -168,6 +170,20 @@ export class TimeBar {
 
   get time(): number {
     return this.t;
+  }
+
+  get isPlaying(): boolean {
+    return this.playing;
+  }
+
+  /**
+   * Forward-only clock (game mode): no dragging, no jumps, no replay from the
+   * start; only play / pause and speed move the time.
+   */
+  setLocked(on: boolean): void {
+    this.locked = on;
+    this.root.classList.toggle('tb-locked', on);
+    this.range.disabled = on;
   }
 
   /** Move to time t (sample index) and notify. */
@@ -210,7 +226,7 @@ export class TimeBar {
 
   private jump(kind: JumpKind): void {
     const next = this.hooks.nextEvent(kind, this.t);
-    if (next === null) return;
+    if (next === null || this.locked) return;
     this.setPlaying(false, false);
     this.seek(next);
     this.hooks.onJump?.(kind);
@@ -219,7 +235,10 @@ export class TimeBar {
   // ---- Playback ---------------------------------------------------------
 
   setPlaying(on: boolean, settle = true): void {
-    if (on && this.t >= this.count - 1) this.seek(0, false); // replay from the start
+    if (on && this.t >= this.count - 1) {
+      if (this.locked) return;
+      this.seek(0, false); // replay from the start
+    }
     if (on === this.playing) return;
     this.playing = on;
     this.playBtn.textContent = on ? '❚❚' : '▶';
@@ -312,6 +331,14 @@ export class TimeBar {
         runStart = i;
       }
     }
+    // Eclipses of the Sun by Earth: a small white notch at the top of the bar
+    // (they last a few hours, far too short to show as a run).
+    ctx.fillStyle = '#fff';
+    for (let i = from; i < to; i++) {
+      if (this.series.eclipse[i] < 1 && (i === from || this.series.eclipse[i - 1] >= 1)) {
+        ctx.fillRect(Math.round(x(i)) - 1, 0, 3, Math.max(3, Math.round(h * 0.35)));
+      }
+    }
   }
 
   /** One run as a 3-slice of the bar sprite; runs abut cleanly without overlapping so each bar finishes completely. */
@@ -391,6 +418,7 @@ export class TimeBar {
     };
     let dragging = false;
     strip.addEventListener('pointerdown', (ev) => {
+      if (this.locked) return;
       dragging = true;
       strip.setPointerCapture(ev.pointerId);
       this.setPlaying(false, false);

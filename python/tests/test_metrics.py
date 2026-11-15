@@ -143,6 +143,7 @@ def test_parity_fixture(case):
         sun, earth = point_vectors(sun, case["tilt"]), point_vectors(earth, case["tilt"])
     s = M.site_series(sun, earth, mask)
     np.testing.assert_allclose(s["fraction"], exp["fraction"], atol=1e-12)
+    np.testing.assert_allclose(s["eclipse"], exp["eclipse"], atol=1e-12)
     np.testing.assert_allclose(s["earth_margin"], exp["earth_margin"], atol=1e-9)
     for (a, n), want in zip(case["windows"], exp["windows"]):
         got = M.window_metrics(s, a, n, case["step_hours"])
@@ -161,3 +162,41 @@ def test_parity_fixture(case):
         assert (got is None) == (want is None)
         if want is not None:
             assert got == pytest.approx(want, abs=1e-6)
+
+
+# ---- Eclipses of the Sun by Earth ---------------------------------------------
+
+def _pair(sep_deg, r_au=1.0, r_km=384_400.0):
+    """Sun at azimuth 100, Earth sep_deg to its right, both at 3 deg elevation."""
+    e1, n1, u1 = enu(100.0, 3.0)
+    e2, n2, u2 = enu(100.0 + sep_deg / math.cos(math.radians(3.0)), 3.0)
+    return ({"e": [e1], "n": [n1], "u": [u1], "r_au": [r_au]},
+            {"e": [e2], "n": [n2], "u": [u2], "r_km": [r_km]})
+
+
+def test_eclipse_share_limits():
+    assert M.eclipse_share(*_pair(5.0))[0] == 1.0  # far apart: no eclipse
+    assert M.eclipse_share(*_pair(0.0))[0] == 0.0  # Earth (0.95 deg) covers the Sun (0.27 deg)
+    assert M.eclipse_share(*_pair(0.6))[0] == 0.0  # still inside Earth's disk
+    a = math.degrees(math.asin(M.R_SUN_KM / M.AU_KM))
+    b = math.degrees(math.asin(M.R_EARTH_KM / 384_400.0))
+    just_touching = M.eclipse_share(*_pair(a + b - 1e-4))[0]
+    assert 0.999 < just_touching < 1.0
+    # Earth's edge through the Sun's center: a little under half is covered
+    # (Earth's edge curves away from the Sun).
+    half = M.eclipse_share(*_pair(b))[0]
+    assert 0.5 < half < 0.6
+
+
+def test_eclipse_share_decreases_as_earth_moves_in():
+    seps = np.linspace(1.3, 0.6, 30)
+    shares = [M.eclipse_share(*_pair(s))[0] for s in seps]
+    assert all(x >= y for x, y in zip(shares, shares[1:]))
+
+
+def test_eclipse_scales_flux_not_lit():
+    sun, earth = _pair(0.95)
+    s = M.site_series(sun, earth, FLAT)
+    assert s["lit"][0] and 0 < s["eclipse"][0] < 1
+    m = M.window_metrics(s, 0, 1)
+    assert m["mean_flux_w_m2"]["tracking"] == pytest.approx(M.SOLAR_CONSTANT_W_M2 * s["eclipse"][0])

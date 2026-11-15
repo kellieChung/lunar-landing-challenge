@@ -216,9 +216,16 @@ def site_detail_tiles(lat: float, lon: float, reach_km: float = DETAIL_REACH_KM,
     return [path for _, _, path in sorted(out)]
 
 
+FAR_RADIUS_KM = 260.0  # the 240 m map is small, so it is read out to the full ray length
+
+
 def load_site_dem(lat: float, lon: float, radius_km: float = 160.0, verbose: bool = True,
-                  dem_dir: Path = DEM_DIR) -> LayeredDEM:
-    """5 m / 10 m site tiles (if any reach the site), then the 20 m and 240 m maps."""
+                  dem_dir: Path = DEM_DIR, far_radius_km: float = FAR_RADIUS_KM) -> LayeredDEM:
+    """5 m / 10 m site tiles (if any reach the site), then the 20 m and 240 m maps.
+
+    The 20 m map is read within radius_km (about 1 GB at 160 km); beyond it
+    the 240 m map takes over, out to far_radius_km.
+    """
     detail = []
     for path in site_detail_tiles(lat, lon, dem_dir=dem_dir):
         # Read the whole tile (radius covers it) so feathering uses its true edges.
@@ -228,5 +235,5 @@ def load_site_dem(lat: float, lon: float, radius_km: float = 160.0, verbose: boo
         names = ", ".join(d.path.name for d in detail) or "none (20 m map only)"
         print(f"  site tiles (5 m / 10 m) for ({lat}, {lon}): {names}", flush=True)
     near = PolarDEM(find_dem(NEAR_NAMES, dem_dir), lat, lon, radius_km)
-    far = PolarDEM(find_dem(FAR_NAMES, dem_dir), lat, lon, radius_km)
+    far = PolarDEM(find_dem(FAR_NAMES, dem_dir), lat, lon, max(radius_km, far_radius_km))
     return LayeredDEM([*detail, near, far])

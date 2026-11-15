@@ -32,11 +32,16 @@
           <a id="back-link" href="./">← All sites</a>
           <span id="spot-label" class="spot-label"></span>
           <div class="pano-controls">
+            <div class="seg mode-switch" role="group" aria-label="Explore the site or play the Moon Base game">
+              <button type="button" id="mode-explore" aria-pressed="true" title="Look around and study sunlight and Earth contact">Explore</button>
+              <button type="button" id="mode-game" aria-pressed="false" title="Game: find ice and fuel a rocket home">Moon Base</button>
+            </div>
             <div class="seg" role="group" aria-label="View mode">
               <button type="button" id="mode-3d" aria-pressed="true">3D</button>
               <button type="button" id="mode-2d" aria-pressed="false">2D strip</button>
             </div>
-            <button type="button" id="true-scale" class="toggle" aria-pressed="false">True scale</button>
+            <button type="button" id="true-scale" class="toggle" aria-pressed="false" title="Show mountains at real height instead of exaggerated">True scale</button>
+            <button type="button" id="tour-btn" class="toggle" title="A quick tour of this view">Tour</button>
           </div>
         </nav>
         <div class="pano-body">
@@ -47,9 +52,11 @@
               <p id="pano3d-fallback" class="pano-fallback" hidden>3D view unavailable in this browser (no WebGL). Showing the 2D strip.</p>
             </div>
             <div id="timebar" class="timebar"></div>
-            <div id="readout" class="readout"></div>
+            <details class="more readout-more"><summary>Technical readout</summary><div id="readout" class="readout"></div></details>
           </div>
-          <aside id="stats" class="stats" aria-label="Site status and statistics"></aside>
+          <div class="side">
+            <aside id="stats" class="stats" aria-label="Site status and statistics"></aside>
+          </div>
         </div>
       </section>
       <pre id="error" class="error" hidden></pre>

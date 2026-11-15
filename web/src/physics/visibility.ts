@@ -3,7 +3,7 @@
 // Port of python/lunar/metrics.py (same definitions, same numbers).
 
 import { maskAt, vecToAzEl } from '../panorama/geometry';
-import { sunRadiusDeg } from './constants';
+import { AU_KM, R_EARTH_KM, R_SUN_KM, sunRadiusDeg } from './constants';
 
 const RAD = Math.PI / 180;
 
@@ -43,4 +43,28 @@ export function sunlitFraction(e: number, n: number, u: number, rAu: number, mas
     if (pEl > maskAt(mask, pAz)) count++;
   }
   return count / N_DISK_POINTS;
+}
+
+/**
+ * Share of the Sun's disk not covered by Earth's disk: 1 = no eclipse,
+ * 0 = total. (What Earth calls a lunar eclipse is, from the Moon, Earth
+ * passing in front of the Sun.) Both are flat disks of angular radius a
+ * (Sun) and b (Earth) with centers d apart; the covered part is the lens
+ * where they overlap. Port of eclipse_share in python/lunar/metrics.py.
+ */
+export function eclipseShare(
+  se: number, sn: number, su: number, rAu: number,
+  ee: number, en: number, eu: number, rKm: number,
+): number {
+  const cosD = (se * ee + sn * en + su * eu)
+    / (Math.sqrt(se * se + sn * sn + su * su) * Math.sqrt(ee * ee + en * en + eu * eu));
+  const d = Math.acos(Math.min(1, Math.max(-1, cosD)));
+  const a = Math.asin(R_SUN_KM / (rAu * AU_KM));
+  const b = Math.asin(R_EARTH_KM / rKm);
+  if (d <= b - a) return 0;
+  if (d >= a + b) return 1;
+  const lens = a * a * Math.acos((d * d + a * a - b * b) / (2 * d * a))
+    + b * b * Math.acos((d * d + b * b - a * a) / (2 * d * b))
+    - 0.5 * Math.sqrt((-d + a + b) * (d + a - b) * (d - a + b) * (d + a + b));
+  return 1 - lens / (Math.PI * a * a);
 }

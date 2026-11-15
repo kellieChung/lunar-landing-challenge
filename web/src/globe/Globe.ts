@@ -7,6 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { latLonToVec } from './coords';
 import { filterCollidingLabels, type LabelCandidate } from './collision';
 import { createDistantEarth, createStarfield, createLimbHalo, type DistantEarth } from './spaceEnvironment';
+import { PinVisualFactory, type PinVisual } from './pinMesh';
 
 export interface GlobePin {
   id: string;
@@ -22,9 +23,9 @@ interface PinObject {
   hit: THREE.Mesh; // larger invisible sphere, easier to click
   label: HTMLButtonElement;
   normal: THREE.Vector3; // outward unit vector at the pin
+  visual: PinVisual;
 }
 
-const SUN_GOLD = 0xffc845;
 const CLICK_SLOP_PX = 5;
 
 export class Globe {
@@ -44,6 +45,7 @@ export class Globe {
   private occlusionSphere: THREE.Mesh;
   private hoveredPin: PinObject | null = null;
   private selectedId: string | null = null;
+  private pinFactory = new PinVisualFactory();
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -206,6 +208,7 @@ export class Globe {
     }
     this.pins = pins.map((pin) => this.makePin(pin));
     this.placePins();
+    this.updatePinStates();
   }
 
   /** Swing the camera toward (lat, lon), tilted toward the equator so the limb shows. */
@@ -228,11 +231,17 @@ export class Globe {
 
   setSelected(id: string | null): void {
     this.selectedId = id;
+    this.updatePinStates();
+  }
+
+  private updatePinStates(): void {
     for (const p of this.pins) {
-      const on = p.pin.id === id;
-      p.head.scale.setScalar(on ? 1.6 : 1);
-      p.label.classList.toggle('selected', on);
-      p.label.setAttribute('aria-pressed', String(on));
+      const isSelected = p.pin.id === this.selectedId;
+      const isHovered = p === this.hoveredPin;
+      p.visual.setState(isSelected, isHovered);
+      p.label.classList.toggle('selected', isSelected);
+      p.label.classList.toggle('hovered', isHovered);
+      p.label.setAttribute('aria-pressed', String(isSelected));
     }
   }
 
@@ -268,20 +277,8 @@ export class Globe {
   }
 
   private makePin(pin: GlobePin): PinObject {
-    const gold = new THREE.MeshBasicMaterial({ color: SUN_GOLD });
-    const group = new THREE.Group();
-    const stalkLen = 0.07;
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, stalkLen, 8), gold);
-    stalk.position.y = stalkLen / 2;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), gold);
-    head.position.y = stalkLen;
-    const hit = new THREE.Mesh(
-      new THREE.SphereGeometry(0.05, 8, 6),
-      new THREE.MeshBasicMaterial({ visible: false }),
-    );
-    hit.position.y = stalkLen;
-    group.add(stalk, head, hit);
-    this.scene.add(group);
+    const visual = this.pinFactory.createPin();
+    this.scene.add(visual.group);
 
     const label = document.createElement('button');
     label.type = 'button';
@@ -291,9 +288,25 @@ export class Globe {
     label.addEventListener('click', () => this.onSelect?.(pin.id));
     this.labelLayer.appendChild(label);
 
-    const pinObj: PinObject = { pin, group, head, hit, label, normal: new THREE.Vector3() };
-    label.addEventListener('pointerenter', () => { this.hoveredPin = pinObj; });
-    label.addEventListener('pointerleave', () => { if (this.hoveredPin === pinObj) this.hoveredPin = null; });
+    const pinObj: PinObject = {
+      pin,
+      group: visual.group,
+      head: visual.head,
+      hit: visual.hit,
+      label,
+      normal: new THREE.Vector3(),
+      visual,
+    };
+    label.addEventListener('pointerenter', () => {
+      this.hoveredPin = pinObj;
+      this.updatePinStates();
+    });
+    label.addEventListener('pointerleave', () => {
+      if (this.hoveredPin === pinObj) {
+        this.hoveredPin = null;
+        this.updatePinStates();
+      }
+    });
     return pinObj;
   }
 
@@ -341,7 +354,7 @@ export class Globe {
 
       const lw = p.label.offsetWidth || 130;
       const lh = p.label.offsetHeight || 26;
-      const left = x + 14;
+      const left = x + 16;
       const top = y - 11;
       const isSelected = p.pin.id === this.selectedId;
       const isHovered = p === this.hoveredPin;
@@ -404,10 +417,16 @@ export class Globe {
       if (ev.buttons) return;
       const p = pinAt(ev);
       this.canvas.style.cursor = p ? 'pointer' : 'grab';
-      this.hoveredPin = p ?? null;
+      if (this.hoveredPin !== (p ?? null)) {
+        this.hoveredPin = p ?? null;
+        this.updatePinStates();
+      }
     });
     this.canvas.addEventListener('pointerleave', () => {
-      this.hoveredPin = null;
+      if (this.hoveredPin !== null) {
+        this.hoveredPin = null;
+        this.updatePinStates();
+      }
     });
   }
 

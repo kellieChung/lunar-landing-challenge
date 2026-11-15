@@ -16,6 +16,15 @@ python/data/dem, then the 20 m and 240 m maps (lunar/dem.py).
 precomputed.points[k].year holds the full-year metrics at each point (and
 precomputed.center.year at the center), computed from the rounded numbers in
 the file exactly as the browser does, so both get the same answers.
+
+Raised masts (spec stretch goal "Raise the mast"; never below 3 m): for every
+grid point, horizon masks with the antenna and solar panel at 5, 10, 20 and
+30 m go into one file per height, <site_id>_mast<h>.json (about 1 MB each,
+loaded by the browser only when that height is picked). The site file lists
+them under "mast" and keeps the small full-year numbers for every point and
+height in precomputed.mast, for the spot map's colors. They share the 3 m
+Sun/Earth vectors: raising the observer 27 m moves the direction to Earth by
+about 27 m / 384,400 km ~ 4e-6 deg, far below anything we resolve.
 """
 
 import argparse
@@ -44,6 +53,8 @@ TERRAIN_HALF_M = 10_000.0  # 20 x 20 km: >= 5 km of ground around every grid poi
 DETAIL_HALF_M = 6_500.0  # the grid (+/-5 km) plus a 1.5 km patch radius
 DETAIL_SPACING_M = 10.0
 TILT_DIGITS = 8
+MAST_EXTRA_M = (5.0, 10.0, 20.0, 30.0)  # every grid point, one file per height; 3 m is the main data
+MAST_YEAR_KEYS = ("sunlit_pct", "earth_pct", "both_pct", "longest_dark_h", "longest_blackout_h")
 
 
 def r5(values) -> list[float]:
@@ -54,9 +65,10 @@ def r2(values) -> list[float]:
     return [round(float(v), 2) for v in values]
 
 
-def grid_points(site, frame, dem, ground_c: float) -> list[dict]:
-    """Horizon masks for the 11 x 11 grid around the site center."""
+def grid_points(site, frame, dem, ground_c: float) -> tuple[list[dict], dict[float, list[dict]]]:
+    """Horizon masks for the 11 x 11 grid around the site center: (3 m points, {height: raised masks})."""
     points = []
+    raised = {h: [] for h in MAST_EXTRA_M}
     offsets = grid_offsets()
     t0 = time.time()
     for k, (i, j, dx_km, dy_km) in enumerate(offsets):
@@ -77,9 +89,17 @@ def grid_points(site, frame, dem, ground_c: float) -> list[dict]:
                        "up_tilt": [round(float(x), TILT_DIGITS) for x in tilt],
                        "mask_deg": r2(hz.mask_deg),
                        "mask_bands_deg": [r2(b) for b in hz.bands_deg]})
+        for h in MAST_EXTRA_M:  # same point, same exact lat/lon, taller mast
+            hz_h = horizon_mask(lat, lon, dem, frame=frame, observer_height_m=h)
+            raised[h].append({"i": i, "j": j, "mask_deg": r2(hz_h.mask_deg),
+                              "mask_bands_deg": [r2(b) for b in hz_h.bands_deg]})
         if (k + 1) % 11 == 0:
             print(f"  {site.id}: {k + 1}/{len(offsets)} points ({time.time() - t0:.0f} s)", flush=True)
-    return points
+    return points, raised
+
+
+def mast_file_name(site_id: str, h: float) -> str:
+    return f"{site_id}_mast{h:g}.json"
 
 
 def point_year(data: dict, p: dict) -> dict:
@@ -96,7 +116,7 @@ def build(site_id: str) -> Path:
     frame = E.site_frame(site.lat, site.lon)
     dem = load_site_dem(site.lat, site.lon)
     ground_c = float(dem(np.array([site.lat]), np.array([site.lon]))[0])
-    points = grid_points(site, frame, dem, ground_c)
+    points, raised = grid_points(site, frame, dem, ground_c)
     center = next(p for p in points if p["dx_km"] == 0 and p["dy_km"] == 0)
 
     terrain = terrain_grid(site.lat, site.lon, dem, frame=frame, ground_m=ground_c, half_m=TERRAIN_HALF_M)
@@ -127,6 +147,10 @@ def build(site_id: str) -> Path:
             "mask_bands_km": [[lo, hi] for lo, hi in zip(BAND_EDGES_KM[:-1], BAND_EDGES_KM[1:])],
             "points": points,
         },
+        "mast": {"description": "every grid point: horizon masks with the mast raised, one file per "
+                                "height; use them with that point's up_tilt, like mask_deg",
+                 "heights_m": [MAST_HEIGHT_M, *MAST_EXTRA_M],
+                 "files": {f"{h:g}": mast_file_name(site.id, h) for h in MAST_EXTRA_M}},
         "terrain": terrain.header(terrain_name),
         "terrain_detail": {**detail.header(detail_name, fmt="int16-le"), "scale_m": detail_scale,
                            "sources": [d.path.name for d in dem.detail] + [dem.near.path.name]},
@@ -137,6 +161,17 @@ def build(site_id: str) -> Path:
         "center": {"year": years[points.index(center)]},
         "points": [{"i": p["i"], "j": p["j"], "year": y} for p, y in zip(points, years)],
     }
+    tilts = {(p["i"], p["j"]): p["up_tilt"] for p in points}
+    data["precomputed"]["mast"] = []
+    for h, pts in raised.items():
+        years_h = [point_year(data, {"up_tilt": tilts[(m["i"], m["j"])], **m}) for m in pts]
+        data["precomputed"]["mast"].append({"height_m": h, "points": [
+            {"i": m["i"], "j": m["j"], "year": {k: round(y[k], 2) for k in MAST_YEAR_KEYS}}
+            for m, y in zip(pts, years_h)]})
+        name = mast_file_name(site.id, h)
+        (WEB_DATA / name).write_text(json.dumps(
+            {"site": site.id, "height_m": h, "points": pts}, separators=(",", ":"), allow_nan=False))
+        print(f"wrote {WEB_DATA / name} ({(WEB_DATA / name).stat().st_size / 1e6:.2f} MB)")
     out = WEB_DATA / f"{site.id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, separators=(",", ":"), allow_nan=False))

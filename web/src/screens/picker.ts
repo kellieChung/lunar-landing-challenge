@@ -5,6 +5,19 @@ import { loadSiteIndex } from '../data/load';
 import type { SiteIndexEntry } from '../data/types';
 import { Globe, type GlobePin } from '../globe/Globe';
 import { formatLatLon } from '../globe/coords';
+import { siteHasMission } from '../game/cards';
+import { hash01 } from '../game/deposits';
+import { hostsRuns, isUnlocked, loadProgress, rankOf, SITE_ORDER, starsToUnlock, totalStars } from '../game/progress';
+import { dailySeed } from '../game/seed';
+import { sprite } from '../game/ui/sprites';
+
+const PATCH = ['patch-pine', 'patch-pine', 'patch-silver', 'patch-golden'];
+
+/** Today's Daily Mission site: the same for everyone on a date (no server). */
+function dailySite(): string | null {
+  if (SITE_ORDER.length === 0) return null;
+  return SITE_ORDER[Math.floor(hash01(dailySeed()) * SITE_ORDER.length)];
+}
 
 const KIND_LABEL: Record<SiteIndexEntry['kind'], string> = {
   'south-pole': 'South pole',
@@ -99,6 +112,7 @@ export class Picker {
     const list = document.getElementById('site-list')!;
     list.replaceChildren();
     this.items.clear();
+    this.renderDaily();
     for (const s of this.sites) {
       const status = statusOf(s);
       const li = el('li', `site-item status-${status}`);
@@ -112,9 +126,10 @@ export class Picker {
           this.globe?.lookAt(s.lat!, s.lon!);
         });
       }
+      const best = loadProgress().best[s.id]?.stars ?? 0;
       body.append(
         el('span', 'site-name', s.name),
-        el('span', 'site-meta', `${KIND_LABEL[s.kind]} · ${STATUS_LABEL[status]}`),
+        el('span', 'site-meta', `${KIND_LABEL[s.kind]} · ${STATUS_LABEL[status]}${best ? ` · ${best} of 3 stars` : ''}`),
       );
       li.append(body);
       list.append(li);
@@ -129,13 +144,57 @@ export class Picker {
       status === 'ready'
         ? Object.assign(el('a', 'go', 'Stand here →'), { href: `?site=${s.id}` })
         : el('span', 'go disabled', STATUS_LABEL[status]);
+    const game: HTMLElement[] = status !== 'ready' || !s.grid ? [] : this.gameCard(s);
     card.replaceChildren(
       el('div', 'card-kind', KIND_LABEL[s.kind]),
       el('h3', 'card-name', s.name),
       ...(s.blurb.startsWith('TODO(') ? [] : [el('p', 'card-blurb', s.blurb)]), // never show placeholders
       el('div', 'card-coords', formatLatLon(s.lat!, s.lon!)),
       action,
+      ...game,
     );
     card.hidden = false;
+  }
+
+  /** Moon Base on the site card: the patch and stars, or why there's no run here, or the lock. */
+  private gameCard(s: SiteIndexEntry): HTMLElement[] {
+    const progress = loadProgress();
+    if (!s.grid || !hostsRuns(s.id)) {
+      const traces = !!s.grid && siteHasMission(s.grid);
+      return [
+        el('p', 'card-dark', traces
+          ? 'Every crater floor in reach sees a little Sun, so only traces of ice survive: too little to fuel the capsule in time. Good for power; no ice run.'
+          : 'No crater floor near here stays dark enough for ice to last (our cold-trap rule, from the 2027 sunlight). Good for power; no ice run.'),
+        el('span', 'go disabled card-game', 'No ice run here'),
+      ];
+    }
+    if (!isUnlocked(progress, s.id)) {
+      const need = starsToUnlock(progress, s.id);
+      const row = el('div', 'card-patch');
+      row.append(sprite('i-lock', { scale: 2, label: 'Locked' }), el('span', '', `Earn ${need} more star${need === 1 ? '' : 's'} to fly here.`));
+      return [row, el('span', 'go disabled card-game', 'Ice run locked')];
+    }
+    const best = progress.best[s.id]?.stars ?? 0;
+    const row = el('div', 'card-patch');
+    row.append(sprite(PATCH[best], { scale: 2, label: `${best} of 3 stars` }));
+    for (let i = 0; i < 3; i++) row.append(sprite(i < best ? 'star-on' : 'star-off', { scale: 2, label: i < best ? 'star' : 'no star' }));
+    row.append(el('span', 'card-patch-text', best ? `Best: ${best} of 3 stars` : 'No patch yet'));
+    return [row, Object.assign(el('a', 'go card-game', 'Start an ice run →'), { href: `?site=${s.id}&mode=game` })];
+  }
+
+  /** The Daily Mission line at the top of the panel, and the player's rank. */
+  private renderDaily(): void {
+    const id = dailySite();
+    const panel = document.querySelector('.picker-panel');
+    if (!panel || !id) return;
+    panel.querySelector('.daily')?.remove();
+    const site = this.sites.find((x) => x.id === id);
+    const box = el('div', 'daily');
+    const stars = totalStars(loadProgress());
+    box.append(
+      el('span', 'daily-rank', `${rankOf(stars)} · ${stars} stars`),
+      Object.assign(el('a', 'go daily-go', `Daily mission: ${site?.name ?? id} →`), { href: `?site=${id}&mode=game&daily=1` }),
+    );
+    panel.querySelector('h2')?.after(box);
   }
 }

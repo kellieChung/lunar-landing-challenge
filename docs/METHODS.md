@@ -3,7 +3,29 @@
 Physics write-up for the project page. Filled in at milestone 8.
 
 ## Site frame
-TODO
+Code: `site_frame` in `python/lunar/ephemeris.py`, `point_axes` in
+`python/lunar/grid.py` (ported to `web/src/physics/grid.ts`).
+- Each site has one fixed local frame at its center, built in the Moon's
+  body-fixed `MOON_ME` frame (the same frame as the LOLA maps):
+  - **up** = unit vector from the Moon's center through the site
+    (planetocentric latitude and longitude on the 1737.4 km sphere);
+  - **east** = the `MOON_ME` +Z axis (the Moon's mean rotation axis) × up,
+    normalized;
+  - **north** = up × east.
+- **Azimuth** is measured clockwise from this "grid north" toward east;
+  **elevation** is the angle above the plane perpendicular to up.
+- **Why one frame for the whole grid:** near the pole, true north turns
+  quickly as you move sideways (by `tan(|lat|) / R` radians per km: about
+  0.38° per km at 85° S, 1.3° per km at 88.5° S), so per-point azimuths would not line up. With one frame,
+  "azimuth 90°" points the same way at every grid spot, and the Sun/Earth
+  vectors (computed once at the center) can be shared by all of them.
+- **Each grid spot's own up** is tilted from the center's by about 0.033°
+  per km. Its east is the site's east with the small up part removed; its
+  north is up × east. Sun and Earth directions are rotated into these axes
+  before any elevation is compared with that spot's horizon (exact rotation,
+  so unit vectors stay unit vectors).
+- The frame is undefined exactly at a pole (east has no direction), so the
+  code refuses a site at ±90°; all nine sites lie between 83.6° S and 88.6° S.
 
 ## Ephemeris (SPICE) and lunar libration
 - Positions of the Sun and Earth come from NASA/JPL's DE440 planetary
@@ -39,9 +61,13 @@ TODO
   and Earth.
 - **Method:** from the observer (ground height + 3 m mast), for each of 360
   azimuths (1° steps, measured from the site's grid north), we walk outward
-  along the surface from 0.1 km to 150 km: every 10 m up to 2 km (fine enough
-  for the 5 m tiles), every 50 m up to 5 km, then in steps of 1% of the
-  distance. At each step we look up the terrain height and compute
+  along the surface from 10 m to 250 km: every 5 m up to 100 m, every 10 m up
+  to 2 km (fine enough for the 5 m tiles), every 50 m up to 5 km, then in
+  steps of 1% of the distance. The walk starts 10 m out because with a 3 m
+  mast even a 3 m rise 50 m away is a 3° obstacle; it goes to 250 km because
+  from a 6 km high site the horizon is over 145 km away and peaks beyond it
+  still show (201 km at Mons Mouton). The 20 m map is read to 160 km and the
+  240 m map from there to 250 km. At each step we look up the terrain height and compute
   the exact 3D elevation angle
 
   `elevation = asin( dot(P − O, up_O) / |P − O| )`
@@ -81,7 +107,7 @@ visible always comes from the horizon mask (`src/physics/visibility.ts`); if
 the picture and the numbers ever disagree, the numbers are right.
 - **Layered skyline rings:** the same ray walk that builds the horizon mask
   also keeps the highest angle within three distance bands (0–5, 5–30 and
-  30–150 km). Each band is drawn as a curtain around the viewer, far to near,
+  30–250 km). Each band is drawn as a curtain around the viewer, far to near,
   so the top edge you see is the maximum of the three, which is exactly the
   physics horizon.
 - **Near terrain:** a 10 × 10 km heightmap (101 × 101 points, 100 m apart)
@@ -115,7 +141,7 @@ the picture and the numbers ever disagree, the numbers are right.
 - **Lighting** (all display only; it never feeds a number):
   - One light along the Sun direction casts the shadows on the near
     terrain. The rings cast no shadows, so this light is switched off when
-    the physics mask (5–150 km bands) says a distant ridge hides the Sun.
+    the physics mask (5–250 km bands) says a distant ridge hides the Sun.
   - **Earthshine:** a pale blue light along Earth's direction. Its strength
     follows Earth's lit fraction (its phase) and fades out when the physics
     says Earth is below the horizon. Earthshine is real; its brightness here
@@ -139,6 +165,9 @@ the picture and the numbers ever disagree, the numbers are right.
   directions and the Sun and Earth, with arrows when they are off-screen.
   Rings pinned to the Sun and Earth make the true-size disks easy to find;
   they turn dashed with "behind terrain" when the physics says hidden.
+- **Stars and Earth's face are artistic:** the star positions are random
+  (not a real star map) and Earth's continents and clouds are generated
+  patterns that do not turn. Earth's position, size and phase are real.
 - **Sun and Earth** are drawn at their true angular size (Earth about 3.6×
   wider than the Sun). Earth's lit fraction is the true one,
   `(1 − cos θ)/2` with θ the Sun–Earth angle seen from the site.
@@ -166,12 +195,21 @@ test fixture checks both give the same numbers (see VALIDATION.md §5).
 - **Earth visible** means Earth's center is above the horizon. The margin
   (degrees above or below) is kept, so the UI can show "partly visible"
   (Earth is about 1.9° wide).
-- **Flux:** `1361 W/m² / r_AU² × sunlit fraction × panel factor`, with
+- **Eclipses:** a few times a year Earth passes in front of the Sun (what
+  Earth sees as a lunar eclipse). The **eclipse share** is the part of the
+  Sun's disk not covered by Earth's disk, from the overlap of two circles
+  (Sun radius `asin(R_sun/d)`, Earth radius `asin(6371 km / d_Earth)`, centers
+  the Sun–Earth angle apart). It is 1 almost always; in 2027 it only drops
+  once, to 0.55 on 17 August for about 3 hours. It scales the flux only:
+  "lit" stays a terrain test, so a total eclipse (none in 2027) would show as
+  lit with zero power. Earth's atmosphere, which bends a little red light
+  into the shadow, is ignored. The time bar marks eclipses with a white notch.
+- **Flux:** `1361 W/m² / r_AU² × sunlit fraction × eclipse share × panel factor`, with
   panel factor 1 for a Sun-tracking panel, `cos(el)` for a vertical panel
   facing the Sun and `sin(el)` (0 if negative) for a panel lying flat. At the
   pole the Sun is within a few degrees of the horizon, so a flat panel gets
   almost nothing: at Nobile Rim 2 in 2027, 33 W/m² on average against
-  446 W/m² for a vertical one. `TODO(astronomer)`: cite 1361 W/m².
+  436 W/m² for a vertical one. `TODO(astronomer)`: cite 1361 W/m².
 - **Between hourly samples** (smooth playback, countdowns): the Sun and Earth
   directions are interpolated linearly and re-normalized, and the Sun
   distance linearly.
@@ -188,6 +226,25 @@ test fixture checks both give the same numbers (see VALIDATION.md §5).
   The full-year numbers for the site center are also written into the site
   file by Python (`precomputed.center.year`), from the same rounded numbers
   the browser reads.
+- **One year is not the long-term average.** The Moon's orbit takes 18.6
+  years to return to the same tilt, so yearly numbers drift: over 2026–2044
+  a site's % sunlit moves by about 2–4 points and its Earth visibility by up
+  to 9 (VALIDATION.md §4). Published illumination maps are multi-year
+  averages and usually count *any* visible part of the Sun as lit, which is
+  1–3 points higher than our "at least half the disk" rule.
+
+## Raise the mast
+A slider and three presets in the side panel (Lander 3 m, Tower 10 m,
+VSAT-XL 30 m; stops at 3, 5, 10, 20 and 30 m) raise the solar panel and
+antenna together. Each height has its own horizon mask from the same ray
+walk, so the lit / Earth-visible rules and every number on screen are
+recomputed for it; the 3D camera rises to the same height. Every one of the
+121 grid spots has its own horizon at every height (one file per height,
+`<site>_mast<h>.json`, about 1 MB, downloaded the first time that height is
+picked), so the height stays as you move between spots, and the spot map
+recolors to show the year at that height. Heights below 3 m are never
+offered. The panel shows the spot's year numbers at that height against
+3 m (VALIDATION.md §1c). The Moon Base game always uses 3 m.
 
 ## Battery and signal icons (display rules, not physics)
 These are metaphors for the public; the real numbers are shown beside them.
@@ -203,3 +260,56 @@ These are metaphors for the public; the real numbers are shown beside them.
 
 ## Site Score
 TODO: formula and weights. The weights are a design choice, not physics.
+
+## Moon Base mode (game)
+Code: `web/src/game/`. The game reuses the Navigator's physics and never
+computes its own: every number about the Moon comes from `src/physics/` or
+`sites.json`. All other numbers sit in `web/src/game/constants.ts` with their
+source. In the game each number carries a tag: **REAL**, **ESTIMATE** or
+**HYPOTHETICAL**. `TODO(astronomer)`: check every value and source.
+
+| What | How | Tag |
+| --- | --- | --- |
+| Solar power | 10 kW tower × sunlit fraction × (1 AU / r)², Sun-tracking, at the tower's grid spot, every hour of 2027 (`fluxWm2`) | REAL sunlight, ESTIMATE tower size (NASA VSAT class) |
+| Earth contact | rovers are driven from Earth by radio (straight lines), so they drive and dig only while Earth's center is above the base's horizon (`siteSeries().earth`); caught out when Earth sets, they park (0.05 kW heaters) until it rises. A rover starts a trip only if it can finish before Earth sets, as rover teams plan drives around communication windows. Future lunar relay satellites would relax this. `TODO(astronomer)`: cite | REAL visibility; simplified operations |
+| Where ice can be | cold-trap tiers by the floor's mean sunlit share over 2027 (exact hourly series, 3 m mast): **rich** = no part of the Sun's disk in any hour; **trace** = above 0 up to 5%; **none** above. A one-year test of our own, **not** the official multi-year PSR maps (e.g. Mazarico et al. 2011); the 5% cut-off is a game rule | REAL sunlight, game-rule tiers |
+| How much ice | rich: a fixed value per spot spread over 5.6 ± 2.9 wt% (LCROSS, Colaprete et al. 2010); trace: at most the lowest rich value (2.7%), shrinking to 0 at the cut-off, so it is always less than any rich floor | HYPOTHETICAL |
+| Rover | 0.72 km/h and 15° max slope (NASA VIPER); routes between 8-neighbour grid spots, slope from the LOLA ground heights 1–1.4 km apart; 30 kg per trip (a NASA RASSOR study assumed 20 kg; IPEx is itself a ~30 kg-class robot) | ESTIMATE speed/slope, HYPOTHETICAL payload |
+| Rover battery | 8 kWh; driving and digging use 0.3 kW; a rover leaves only with enough charge for the round trip plus 0.5 kWh, so spots beyond one charge are out of range | HYPOTHETICAL |
+| Moon dirt (regolith) | the dry regolith left after baking out the ice is the game's building material | REAL mass balance |
+| Landing pad | packed regolith pad with a berm, so Earth can land hardware near the base without sandblasting it (Metzger et al.; NASA landing / launch pad concepts). Each pad brings one rover, solar tower or 48 kWh battery pack; 150, 250, 350 … kg | ESTIMATE idea, HYPOTHETICAL costs |
+| Thermal shelter | base hardware under heat-holding regolith ("thermal wadi", NASA NIAC): night keep-alive power × 0.5; 250 kg | ESTIMATE idea, HYPOTHETICAL numbers |
+| Baking ice out | 0.04 kWh per kg regolith + 0.78 kWh per kg ice (sublimation ≈ 2.8 MJ/kg) | ESTIMATE |
+| Electrolysis | 1 kg water → 0.112 kg H₂ + 0.888 kg O₂; 53 kWh per kg H₂ (theory ≥ 39.4) | REAL masses, ESTIMATE energy |
+| Fuel target | rocket equation, 150 kg dry (a small robotic sample capsule), Δv 2.8 km/s, Isp 450 s, O/F 6 → 133 kg (19 kg H₂ + 114 kg O₂) | REAL formula, ESTIMATE inputs, HYPOTHETICAL vehicle |
+| Battery | 0.25 kW keep-alive for the Navigator's 192 h endurance = 48 kWh; empty → the base sleeps until 10% charged | HYPOTHETICAL design |
+
+**How it plays** (full design: `game.MD`, v3). A run is one seeded draw: a
+site, a start hour within 12 h of a sunrise or sunset at the site center, and
+three landing spots chosen so none beats another on all of % sunlit, % Earth,
+longest night and distance to ice. The player compares them by *looking* (3D
+view, year timeline, Sun / Earth *windows* from `game/windows.ts`), then
+three craters, and later where a solar tower stands. After each choice an
+autopilot (`game/autopilot.ts`) replays the run on the real sky for every
+option, and the reveal shows the REAL metrics plus each option's projected
+launch day (ESTIMATE); Sky Sense scores the pick by that projection's rank,
+with outcomes within 1.5 days counted as ties. The ridge flash turns the
+camera to the Sun at the middle of the spot's longest dark stretch and says
+whether a ridge or the horizon hid it (`game/why.ts`, from the mask and the
+SPICE vector). Time runs at 1 or 3 days per second, slows near sunsets and
+Earthsets, and stops for every choice. The capsule must fill within 3 Sun
+circuits (2,124 h) of landing; ★ launch, ★★ base slept ≤ 48 h, ★★★ Sky
+Sense ≥ 80.
+
+Nothing physical is scaled for game balance; the levers are design choices
+(the capsule size, the building costs, the tier cut-off). A site hosts runs
+only if some start can launch in time (`par.test.ts`, which also orders the
+unlocks): 7 of 9 do. Malapert Massif has no cold trap; at Peak near Cabeus B
+every floor sees a little Sun, so only traces survive, too little in time.
+A strategy sweep (`balance.test.ts`) checks that no single delivery order
+is best everywhere: rovers-first launches fastest at most sites, while
+battery- or shelter-first win where keeping the lights on matters. **Not modelled:** keeping
+hydrogen liquid (cryogenics, boil-off), machine temperatures, dust, masts
+taller than 3 m, and slopes between the 1 km grid spots. Rare-earth elements
+are left out on purpose: they are concentrated in the near side's
+Procellarum KREEP Terrane, not at the south pole.
