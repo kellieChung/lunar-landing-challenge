@@ -16,7 +16,7 @@ export function outcomeValue(p: Projection): number {
 }
 
 /** Outcomes this close (days) count as a tie: the projection is an estimate, not a stopwatch. */
-export const TIE_DAYS = 1.5;
+export const TIE_DAYS = 2;
 
 /** 0-based rank of each option; outcomes within TIE_DAYS of a better one share its rank. */
 export function ranks(options: Projection[]): number[] {

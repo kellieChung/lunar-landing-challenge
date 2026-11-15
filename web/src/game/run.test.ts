@@ -53,11 +53,13 @@ describe('score', () => {
     run.game.sleepHours = LIGHTS_ON_MAX_SLEEP_H + 1;
     expect(stars(run)).toBe(1);
     run.game.sleepHours = 0;
-    record(run, 'land', [p(30), p(50), p(70)], 1); // 60 points
+    record(run, 'land', [p(30), p(50), p(70)], 2); // 20 points
     expect(stars(run)).toBe(2);
-    record(run, 'crater', [p(30), p(50)], 0); // 100 points: average 80
+    record(run, 'crater', [p(30), p(50)], 0); // 100 points: average 60
+    expect(stars(run)).toBe(2);
+    record(run, 'tower', [p(30), p(50)], 0); // 100 points: average 73
     expect(stars(run)).toBe(3);
-    expect(choicePoints(run.choices[0])).toBe(60);
+    expect(choicePoints(run.choices[0])).toBe(20);
   });
 
   it('the near-miss line names the biggest gap with real numbers', () => {

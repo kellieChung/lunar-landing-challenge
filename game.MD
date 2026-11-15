@@ -178,12 +178,12 @@ Cold trap (floor never or barely sunlit) → rovers dig icy dirt → haul home �
 
 ## 8. Scoring and progression
 
-**Sky Sense, per look-and-compare:** your option's rank by projected launch day. 1st = 100, 2nd = 60, 3rd = 20 (`TUNE`). Ties share the higher rank. "Missed" ranks last.
+**Sky Sense, per look-and-compare:** your option's rank by projected launch day. 1st = 100, 2nd = 70, 3rd = 20 (`TUNE`). Ties share the higher rank. "Missed" ranks last.
 
 **Stars:**
 - ★ **Launch:** tanks full before the deadline.
-- ★★ **Lights on:** the base slept for 48 h (2 days) or less in total (`TUNE`).
-- ★★★ **Sky Sense:** an average of 80 or more.
+- ★★ **Lights on:** the base slept for 96 h (4 days) or less in total (`TUNE`).
+- ★★★ **Sky Sense:** an average of 70 or more.
 
 Each star needs the one before it, so the order is the order of difficulty.
 
