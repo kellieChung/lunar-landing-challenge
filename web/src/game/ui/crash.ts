@@ -1,46 +1,125 @@
-// The opening cutscene: the lander drops toward the Moon, leaking fuel, while
-// Astrofrog radios the mayday. A DOM overlay under the radio box; call land()
-// when the lines are done and it touches down, kicks up dust and fades away.
+// The opening cutscene, in the 3D scene with the NASA lander: while Astrofrog
+// radios the mayday, the lander comes down out of the black sky, wobbling,
+// engine sputtering and venting fuel. It hovers low until land() is called
+// (the lines are done), then drops onto its pad: dust ring, thump, shake.
+// A thin DOM layer adds the red alarm edge and the FUEL LEAK sign.
 
-const LANDER = `
-<svg viewBox="0 0 120 120" class="g-crash-lander" aria-hidden="true">
-  <g class="g-crash-flame"><path d="M50 92 L60 118 L70 92 Z" fill="#ffb02e"/><path d="M54 92 L60 108 L66 92 Z" fill="#fff3b0"/></g>
-  <path d="M30 78 L18 104 M90 78 L102 104 M44 84 L38 104 M76 84 L82 104" stroke="#cfd6de" stroke-width="4" stroke-linecap="round"/>
-  <path d="M12 104 h14 M94 104 h14" stroke="#cfd6de" stroke-width="4" stroke-linecap="round"/>
-  <rect x="28" y="56" width="64" height="30" rx="4" fill="#d9a441" stroke="#8a6420" stroke-width="3"/>
-  <path d="M40 56 L46 26 H74 L80 56 Z" fill="#e8ecf0" stroke="#7d8894" stroke-width="3"/>
-  <circle cx="60" cy="40" r="8" fill="#5bb4ff" stroke="#2c5d86" stroke-width="3"/>
-  <rect x="44" y="86" width="32" height="8" fill="#7d8894"/>
-  <circle class="g-crash-leak-hole" cx="86" cy="72" r="3" fill="#222"/>
-</svg>`;
+import * as THREE from 'three';
+import type { Scene3D } from '../../panorama3d/Scene3D';
+import { smoothstep } from '../../panorama3d/Scene3D';
+import { el } from './dom';
+import { sfx } from './sound';
+
+const DROP_M = 70; // starts this high above the pad
+const HOVER_M = 9; // waits here for the last line
+const DESCENT_S = 7;
+const FINAL_S = 1.1; // hover to pad
 
 export interface CrashScene {
-  /** Touch down, then fade out. Resolves when the overlay is gone. */
+  /** Touch down and clean up. Resolves when the scene is back to normal. */
   land(): Promise<void>;
 }
 
-export function playCrash(stage: HTMLElement, reduced: boolean): CrashScene {
-  const el = document.createElement('div');
-  el.className = 'g-crash' + (reduced ? ' g-crash-reduced' : '');
-  const stars = Array.from({ length: 60 }, () =>
-    `<i style="left:${Math.random() * 100}%;top:${Math.random() * 70}%;animation-delay:${(Math.random() * 3).toFixed(2)}s"></i>`).join('');
-  const drops = Array.from({ length: 6 }, (_, i) => `<b style="animation-delay:${(i * 0.18).toFixed(2)}s"></b>`).join('');
-  el.innerHTML = `
-    <div class="g-crash-stars">${stars}</div>
-    <div class="g-crash-ground"></div>
-    <div class="g-crash-ship"><div class="g-crash-wobble">${LANDER}<div class="g-crash-leak">${drops}</div></div></div>
-    <div class="g-crash-dust"></div>
-    <div class="g-crash-alarm"></div>
-    <div class="g-crash-warn">⚠ FUEL LEAK ⚠</div>`;
-  stage.append(el);
+export function playCrash(scene: Scene3D | null, stage: HTMLElement, root: HTMLElement, reduced: boolean): CrashScene {
+  const overlay = el('div', 'g-crash');
+  overlay.append(el('div', 'g-crash-alarm'), el('div', 'g-crash-warn', '⚠ FUEL LEAK ⚠'));
+  stage.append(overlay);
+  root.classList.add('g-cinematic');
+  requestAnimationFrame(() => overlay.classList.add('on'));
+
+  const cleanupDom = () => {
+    overlay.classList.remove('on');
+    root.classList.remove('g-cinematic');
+    window.setTimeout(() => overlay.remove(), 500);
+  };
+  if (!scene || reduced) {
+    return { land: () => { cleanupDom(); return Promise.resolve(); } };
+  }
+
+  const lander = scene.landerGroup;
+  const pad = lander.position.clone();
+  const rot0 = lander.rotation.clone();
+  const view0 = scene.getView();
+  const u = lander.scale.x; // scene units per metre
+  const box = new THREE.Box3().setFromObject(lander);
+  const midUp = (box.max.y - box.min.y) / 2;
+  // It comes in on a slant from out past the pad, so it stays in the view instead of straight overhead.
+  const out = new THREE.Vector3(pad.x, 0, pad.z).normalize();
+  const leakSide = new THREE.Vector3(pad.z, 0, -pad.x).normalize(); // sideways as seen from the eye
+
+  scene.cinematic = true;
+  let t = 0;
+  let heightM = DROP_M;
+  let landing: { t0: number; from: number; done: () => void } | null = null;
+  let ended = false;
+
+  const place = () => {
+    const wob = landing ? 0.35 : 1;
+    lander.position.set(pad.x, pad.y + heightM * u, pad.z).addScaledVector(out, 2.2 * heightM * u);
+    lander.rotation.set(
+      rot0.x + 0.16 * wob * Math.sin(t * 2.3),
+      rot0.y + 0.25 * Math.sin(t * 0.7),
+      rot0.z + 0.2 * wob * Math.sin(t * 1.7 + 1),
+    );
+    lander.updateMatrixWorld(true);
+    scene.shadowsMoved();
+  };
+  place();
+
+  const stop = scene.addTicker((dt) => {
+    if (ended) return false;
+    t += dt;
+    if (landing) {
+      const f = Math.min(1, (t - landing.t0) / FINAL_S);
+      heightM = landing.from * (1 - f * f); // falling, faster at the end
+      if (f >= 1) touchdown();
+    } else {
+      heightM = HOVER_M + (DROP_M - HOVER_M) * (1 - smoothstep(0, DESCENT_S, t));
+    }
+    place();
+    const nozzle = lander.position.clone();
+    // Sputtering engine: on most frames, cutting out now and then.
+    if (Math.sin(t * 13) + Math.sin(t * 7.1) > -0.9) {
+      scene.fx.exhaust(nozzle, [0, -24, 0], { count: 4, sizeM: 1.1 });
+    }
+    // Fuel venting from one side: pale blue spray.
+    const leak = nozzle.clone().addScaledVector(new THREE.Vector3(0, 1, 0), midUp).addScaledVector(leakSide, 1.6 * u);
+    scene.fx.emit({
+      at: leak, count: 3, spreadM: 0.2, vel: [leakSide.x * 6, 1.5, leakSide.z * 6], jitterM: 1.4,
+      life: [0.6, 1.3], sizeM: [0.3, 1.4], color: 0xbfe6ff, alpha: 0.6, drag: 0.4,
+    });
+    // Camera follows the lander, pulled in close.
+    const aim = scene.aimAt(lander.position.clone().addScaledVector(new THREE.Vector3(0, 1, 0), midUp));
+    const v = scene.getView();
+    const k = Math.min(1, 3 * dt);
+    let dy = aim.yaw - v.yaw;
+    dy = ((dy % 360) + 540) % 360 - 180;
+    scene.setView({ yaw: v.yaw + dy * k, pitch: v.pitch + (aim.pitch - v.pitch) * k, zoom: v.zoom + (0.55 - v.zoom) * k });
+    return true;
+  });
+
+  function touchdown(): void {
+    if (ended) return;
+    ended = true;
+    stop();
+    lander.position.copy(pad);
+    lander.rotation.set(rot0.x, rot0.y, rot0.z + 0.05); // a little crooked: it was a rough one
+    lander.updateMatrixWorld(true);
+    scene!.shadowsMoved();
+    scene!.fx.blast(pad.clone().setY(pad.y + 0.3 * u), { count: 240, speedM: 14 });
+    scene!.shake(0.8, 1.2);
+    sfx.rumble(0.8);
+    overlay.classList.add('down');
+    const done = landing!.done;
+    window.setTimeout(() => {
+      scene!.cinematic = false;
+      void scene!.tweenView(view0, 1.2).done.then(() => { cleanupDom(); done(); });
+    }, 1200);
+  }
+
   return {
-    land: () => new Promise((done) => {
-      el.classList.add('g-crash-landing');
-      const wait = reduced ? 300 : 1600;
-      setTimeout(() => {
-        el.classList.add('g-crash-out');
-        setTimeout(() => { el.remove(); done(); }, reduced ? 200 : 700);
-      }, wait);
+    land: () => new Promise<void>((done) => {
+      landing = { t0: t, from: heightM, done };
     }),
   };
 }

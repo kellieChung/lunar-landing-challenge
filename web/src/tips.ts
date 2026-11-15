@@ -59,9 +59,10 @@ export const SHORT_GAME = {
 export const STORY = {
   crash: [
     'Mayday, mayday! Your fuel tank is leaking. There is not enough left to fly home!',
-    'You have to land right now, astronaut! Pick one of these three spots, fast!',
+    'You have to put it down right now, astronaut! Brace yourself!',
     'Once you are down, we will dig up ice from a dark crater and turn it into rocket fuel. Fill the tank and you can fly home.',
   ],
+  landed: 'Phew, you made it! There is just enough fuel left for one short hop. Pick your base spot well: there are three to look at.',
   resume: (day: number, site: string) => `Welcome back, astronaut. Day ${day} at ${site}. The tank still needs fuel to get you home.`,
 } as const;
 
@@ -73,7 +74,7 @@ export const STORY = {
 export const TUTORIAL = {
   /** Astrofrog, before the first landing choice. */
   intro: [
-    'Before you put it down, here is what makes a good spot. You will check four things at each spot.',
+    'Here is what makes a good base spot. You will check four things at each spot.',
     'One: Sun. Our fuel plant runs on sunlight, so more Sun means fuel sooner.',
     'Two: Earth. People on Earth drive the rovers by radio, and they can only drive while Earth is in view.',
     'Three: a short longest night. When the Sun is hidden, the base lives on its battery. A long night can drain it and put the base to sleep.',

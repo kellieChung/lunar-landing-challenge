@@ -976,14 +976,15 @@ export async function startGame(x: GameSession): Promise<void> {
     } else goTo(r.landOptions[0]);
     modal.close();
     render();
+    // New run: the lander starts high in the sky, coming down hurt (ui/crash.ts).
+    const crash = resumed && r.game.base ? null : playCrash(x.scene, x.stage, screen, reducedMotion());
+    if (crash) sfx.rumble(1.2);
     const go = async () => {
       if (resumed && r.game.base) await comms.say(STORY.resume(runDay(r), siteName), 'happy');
       else {
-        const crash = playCrash(x.stage, reducedMotion());
-        sfx.rumble(1.2);
         for (const line of STORY.crash) await comms.say(line, 'angry');
-        sfx.rumble(0.6);
-        await crash.land();
+        await crash!.land();
+        await comms.say(STORY.landed, 'happy');
       }
       if (coach.active && !r.game.base) for (const line of TUTORIAL.intro) await comms.say(line, 'talk');
       if (!nextDecision()) {

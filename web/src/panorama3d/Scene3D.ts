@@ -444,6 +444,11 @@ export class Scene3D implements PanoramaView {
     });
   }
 
+  /** The lander on its pad (the opening cutscene flies it in). */
+  get landerGroup(): THREE.Group {
+    return this.lander.group;
+  }
+
   /** The current view, to tween from or restore later. */
   getView(): ViewState {
     return { yaw: this._yaw, pitch: this.pitch, zoom: this.zoom };
