@@ -404,7 +404,7 @@ body:has(#pano-screen.game-ready) .topbar,
 /* ---------- Tutorial (ui/coach.ts): the shared tooltip in the game's look ---------- */
 .tip.g-tip {
   background: #0b0d14; color: #e4e7ef; border: 2px solid #b49bff; border-radius: 0; box-shadow: none;
-  font: 16px/1.4 "Sprout", var(--mono); text-shadow: 1px 1px 0 #12141c;
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .tip.g-tip .tip-step { font: 12px "Sprout", var(--mono); color: #b49bff; letter-spacing: 1px; }
 .tip.g-tip .tip-hint { color: #ffc845; font-weight: normal; }
@@ -420,3 +420,15 @@ body:has(#pano-screen.game-ready) .topbar,
 .g-checklist { margin-top: 10px; }
 .g-checklist ul { margin: 4px 0 0; padding-left: 18px; }
 .g-checklist li { margin: 2px 0; }
+/* ---------- Readable prose ----------
+   The pixel font stays on titles, names, labels and buttons; longer
+   sentences (dialogue, explanations, hints, tooltips) use a plain sans. */
+#pano-screen, .g-modal { --g-read: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.g-comms-line, .g-sub, .g-small, .g-lede, .g-log, .g-why, .g-how,
+.g-card-label, .g-look-hint, .g-nearmiss p, .g-fact p, .g-unlock,
+.g-star-list li, .g-fold > :not(summary), .g-tag.open::after {
+  font-family: var(--g-read, system-ui, sans-serif);
+  text-shadow: none;
+}
+.g-star-list li b, .g-how li b { font-family: var(--g-font); }
+.g-comms-line { font-size: 15px; line-height: 1.4; }

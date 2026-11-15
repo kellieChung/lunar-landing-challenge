@@ -365,3 +365,6 @@ button.site-item-body:hover::after { opacity: 0.9; }
 /* ---------- 3D overlay: Sun / Earth buttons keep their colour ---------- */
 
 .ov-arrow { box-shadow: 2px 2px 0 #000; }
+
+/* Longer prose reads in a plain sans; names and headings keep the pixel font. */
+.site-card .card-blurb, .site-card .gp-hint { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-shadow: none; }
