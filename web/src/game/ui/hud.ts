@@ -139,6 +139,11 @@ export class Hud {
     root.append(bar, this.tray, this.mapSlot);
   }
 
+  /** Fold the build tray away (a panel or a radio line is taking over). */
+  closeTray(): void {
+    this.tray.hidden = true;
+  }
+
   setClock(playing: boolean, hoursPerSec: number, slowed: boolean): void {
     this.speedH = hoursPerSec;
     this.playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');

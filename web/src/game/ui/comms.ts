@@ -3,7 +3,9 @@
 // Next (click, Space or Enter); nothing skips by itself. Lines that arrive
 // while one is showing queue up behind it, and the game clock stays stopped
 // while any line is showing or waiting, so the talk never falls behind the
-// game. Every line is kept for the menu's Radio log.
+// game. While a panel owns the screen the line is suspended: hidden, and
+// picked up again when the panel closes. Every line is kept for the menu's
+// Radio log.
 
 import { el, reducedMotion } from './dom';
 import { mascot, setMood, sprite } from './sprites';
@@ -34,6 +36,7 @@ export function setMetFrog(): void {
 interface Line {
   text: string;
   mood?: Mood;
+  tag?: string;
   done: () => void;
 }
 
@@ -43,6 +46,9 @@ export class Comms {
   private line: HTMLElement;
   private next: HTMLButtonElement;
   private typing = 0;
+  private typed = 0; // characters of the current line shown so far
+  private started = false; // the current line has begun typing (ding + log done)
+  private suspended = false;
   private resting: Mood = 'idle';
   private current: Line | null = null;
   private queue: Line[] = [];
@@ -81,17 +87,17 @@ export class Comms {
     if (!this.typing) setMood(this.face, m);
   }
 
-  /** Say a line; it waits for the player. Resolves when they press Next. */
-  say(text: string, mood?: Mood): Promise<void> {
+  /** Say a line; it waits for the player. Resolves when they press Next (or the line is dropped). */
+  say(text: string, mood?: Mood, tag?: string): Promise<void> {
     return new Promise((done) => {
-      this.queue.push({ text, mood, done });
+      this.queue.push({ text, mood, tag, done });
       if (!this.current) this.showNext();
     });
   }
 
   /** Same as say(): kept for the call sites that read as "hold here". */
-  hold(text: string, mood?: Mood): Promise<void> {
-    return this.say(text, mood);
+  hold(text: string, mood?: Mood, tag?: string): Promise<void> {
+    return this.say(text, mood, tag);
   }
 
   /** Resolves once every queued line has been read (at once if none). */
@@ -105,9 +111,57 @@ export class Comms {
     return this.current !== null;
   }
 
+  /** A line is on screen (not hidden behind a panel). */
+  get showing(): boolean {
+    return this.current !== null && !this.suspended;
+  }
+
+  /**
+   * Hide the radio while a panel owns the screen (menu, choice, reveal, launch).
+   * The line waits, untouched, and carries on typing where it stopped once the
+   * panel is gone, so talk never sits on top of a panel or is missed under one.
+   */
+  suspend(on: boolean): void {
+    if (on === this.suspended) return;
+    this.suspended = on;
+    if (on) {
+      if (this.typing) {
+        window.clearTimeout(this.typing);
+        this.typing = 0;
+      }
+      this.el.hidden = true;
+      return;
+    }
+    if (!this.current) return;
+    this.el.hidden = false;
+    if (!this.started) this.type(this.current.text);
+    else if (this.typed < this.full.length) {
+      setMood(this.face, 'talk');
+      this.tick();
+    }
+    else this.rest();
+  }
+
+  /** Forget lines that no longer apply (all of them, or those with `tag`); their promises resolve. */
+  drop(tag?: string): void {
+    const hit = (l: Line) => tag === undefined || l.tag === tag;
+    const gone = this.queue.filter(hit);
+    this.queue = this.queue.filter((l) => !hit(l));
+    for (const l of gone) l.done();
+    if (this.current && hit(this.current)) {
+      const line = this.current;
+      if (this.typing) window.clearTimeout(this.typing);
+      this.typing = 0;
+      this.current = null;
+      line.done();
+      if (this.queue.length) this.showNext();
+      else this.settle();
+    }
+  }
+
   /** Click / Space / Enter: finish typing first, then go to the next line. */
   advance(): void {
-    if (!this.current) return;
+    if (!this.current || this.suspended) return;
     if (this.typing) {
       this.finishTyping();
       return;
@@ -116,25 +170,30 @@ export class Comms {
     this.current = null;
     line.done();
     if (this.queue.length) this.showNext();
-    else {
-      this.el.hidden = true;
-      setMood(this.face, this.resting);
-      this.onBlock?.(false);
-      for (const f of this.idlers.splice(0)) f();
-    }
+    else this.settle();
+  }
+
+  /** Nothing left to say: hide, and let the clock and anyone waiting go. */
+  private settle(): void {
+    this.el.hidden = true;
+    setMood(this.face, this.resting);
+    this.onBlock?.(false);
+    for (const f of this.idlers.splice(0)) f();
   }
 
   private showNext(): void {
     const line = this.queue.shift()!;
     const was = this.current !== null || !this.el.hidden;
     this.current = line;
+    this.started = false;
     if (line.mood) this.resting = line.mood;
-    this.type(line.text);
+    if (!this.suspended) this.type(line.text);
     if (!was) this.onBlock?.(true);
   }
 
   private type(text: string): void {
     this.el.hidden = false;
+    this.started = true;
     sfx.ding();
     this.full = text;
     this.log.unshift(text);
@@ -142,28 +201,31 @@ export class Comms {
     this.next.hidden = true;
     setMood(this.face, 'talk');
     if (reducedMotion()) {
+      this.typed = text.length;
       this.line.textContent = text;
       this.rest();
       return;
     }
-    let i = 0;
+    this.typed = 0;
     this.line.textContent = '';
-    const tick = () => {
-      i = Math.min(text.length, i + 1);
-      this.line.textContent = text.slice(0, i);
-      if (i < text.length) this.typing = window.setTimeout(tick, TYPE_MS);
-      else {
-        this.typing = 0;
-        this.rest();
-      }
-    };
-    this.typing = window.setTimeout(tick, TYPE_MS);
+    this.typing = window.setTimeout(() => this.tick(), TYPE_MS);
+  }
+
+  private tick(): void {
+    this.typed = Math.min(this.full.length, this.typed + 1);
+    this.line.textContent = this.full.slice(0, this.typed);
+    if (this.typed < this.full.length) this.typing = window.setTimeout(() => this.tick(), TYPE_MS);
+    else {
+      this.typing = 0;
+      this.rest();
+    }
   }
 
   private finishTyping(): void {
     if (!this.typing) return;
     window.clearTimeout(this.typing);
     this.typing = 0;
+    this.typed = this.full.length;
     this.line.textContent = this.full;
     this.rest();
   }
@@ -171,6 +233,6 @@ export class Comms {
   private rest(): void {
     setMood(this.face, this.resting);
     this.next.hidden = false;
-    this.next.focus({ preventScroll: true });
+    if (!this.suspended) this.next.focus({ preventScroll: true });
   }
 }

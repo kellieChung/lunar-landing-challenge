@@ -36,6 +36,11 @@ export class Chooser {
     return !this.el.hidden || !this.bar.hidden;
   }
 
+  /** The full-screen cards are up (not just the slim bar while looking). */
+  get full(): boolean {
+    return !this.el.hidden;
+  }
+
   show(title: string, sub: string, opts: ChoiceOption[], extra?: { label: string; onClick: () => void }): void {
     sfx.ding();
     this.opts = opts;
@@ -73,10 +78,11 @@ export class Chooser {
       el('span', 'g-look-what', `Looking at ${o.title}`),
       el('span', 'g-look-hint', 'Drag to look around. The timeline below shows the whole year here.'),
       ...others.map(({ x, j }) => btn(x.title, () => this.look(j), 'sq', 'arrow-r')),
-      btn('All choices', () => { this.bar.hidden = true; this.el.hidden = false; }, 'sq', 'arrow-l'),
+      btn('All choices', () => { this.bar.hidden = true; this.el.hidden = false; this.onChange?.(); }, 'sq', 'arrow-l'),
       btn(o.chooseLabel, () => this.pick(i), 'go'),
     );
     this.bar.hidden = false;
+    this.onChange?.();
   }
 
   private pick(i: number): void {

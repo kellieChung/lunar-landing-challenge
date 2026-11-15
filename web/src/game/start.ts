@@ -80,12 +80,13 @@ export async function startGame(x: GameSession): Promise<void> {
   const revealSlot = el('div', 'g-reveal-slot');
   const hud = new Hud({
     menu: () => openMenu(),
-    build: (item) => { if (run && buy(run.game, world.env, item).ok) afterBuy(item); },
+    build: (item) => { if (run && !blocked() && buy(run.game, world.env, item).ok) afterBuy(item); },
     togglePlay: () => togglePlay(),
     speed: (h) => { speed = h; slowUntil = -1; sync(); },
   });
   hud.mapSlot.append(x.grid.el);
-  // Mission control goes last, on its own layer, so no pop-over or panel ever covers it.
+  // Mission control sits under the full-screen panels (see game.css) and is suspended while
+  // one is up (sync below), so a radio line never lands on top of a menu, a choice or a reveal.
   x.stage.append(hud.el, revealSlot, chooser.el, chooser.bar, modal.el, comms.el);
 
   // ---- Who may run the clock ----
@@ -103,6 +104,16 @@ export async function startGame(x: GameSession): Promise<void> {
     clock.setPlaying(want && !blocked());
     hud.setClock(clock.isPlaying || (want && !blocked()), speed, slowed);
     screen.classList.toggle('g-calm', !chooser.open && !revealing);
+    // One rule for the radio: hidden (and waiting) while anything owns the whole screen.
+    comms.suspend(modal.open || chooser.full || revealing);
+    if (blocked()) hud.closeTray();
+  };
+  /** Run `fn` once mission control has nothing left to say, holding the clock meanwhile. */
+  const whenQuiet = (fn: () => void) => {
+    if (!comms.blocking) { fn(); return; }
+    busy = true;
+    sync();
+    void comms.idle().then(() => { busy = false; fn(); });
   };
   clock.onChange = () => hud.setClock(clock.isPlaying, speed, !!run && run.game.hour < slowUntil);
   modal.onChange = () => sync();
@@ -116,7 +127,7 @@ export async function startGame(x: GameSession): Promise<void> {
   document.addEventListener('keydown', (ev) => {
     const tagName = (ev.target as HTMLElement | null)?.tagName;
     if (ev.key === 'Escape') { modal.escape(); return; }
-    if ((ev.key === ' ' || ev.key === 'Enter') && comms.blocking && tagName !== 'BUTTON') {
+    if ((ev.key === ' ' || ev.key === 'Enter') && comms.showing && tagName !== 'BUTTON') {
       ev.preventDefault();
       comms.advance();
       return;
@@ -344,10 +355,10 @@ export async function startGame(x: GameSession): Promise<void> {
   };
 
   // ---- Blocking tips: only three in a run's life (game.MD v3 §7) ----
-  const holdOnce = async (id: string, text: string, mood: Mood = 'talk') => {
+  const holdOnce = async (id: string, text: string, mood: Mood = 'talk', tag?: string) => {
     if (!run || run.blocking.includes(id)) return;
     run.blocking.push(id);
-    await comms.hold(text, mood);
+    await comms.hold(text, mood, tag);
   };
 
   // ---- Decisions ----
@@ -382,6 +393,7 @@ export async function startGame(x: GameSession): Promise<void> {
       revealing = false;
       hud.el.classList.remove('quiet');
       x.stage.classList.remove('g-flash');
+      sync();
       resolve();
     });
     revealSlot.replaceChildren(panel);
@@ -400,7 +412,7 @@ export async function startGame(x: GameSession): Promise<void> {
       label: `${groundLabel(world, k)} ground`,
       look: () => {
         goTo(k);
-        void holdOnce('look', `${SHORT_GAME.look} Is the ice close?`, 'talk');
+        void holdOnce('look', `${SHORT_GAME.look} Is the ice close?`, 'talk', 'look');
       },
       chooseLabel: 'Land here',
       choose: () => void doLand(i),
@@ -411,11 +423,11 @@ export async function startGame(x: GameSession): Promise<void> {
 
   const doLand = async (i: number) => {
     const r = run!;
+    comms.drop('look'); // the "go look" hint is moot once a spot is picked
     const k = r.landOptions[i];
     const proj = projectLandOptions(r, world);
     if (!land(r.game, env, k, world.craters).ok) {
-      comms.say('That spot didn\'t work. Try another.', 'sad');
-      showLanding();
+      void comms.say('That spot didn\'t work. Try another.', 'sad').then(showLanding);
       return;
     }
     record(r, 'land', proj, i);
@@ -474,6 +486,7 @@ export async function startGame(x: GameSession): Promise<void> {
 
   const doCrater = async (keys: Key[], i: number) => {
     const r = run!;
+    comms.drop('look');
     const proj = projectCraterOptions(r, world, keys);
     chooseCrater(r.game, env, keys[i]);
     record(r, 'crater', proj, i);
@@ -560,6 +573,7 @@ export async function startGame(x: GameSession): Promise<void> {
 
   const doTower = async (keys: Key[], i: number) => {
     const r = run!;
+    comms.drop('look');
     const gain = keys.map((k) => towerGainHours(r.game, world, k, deadlineHour(r)));
     const proj = projectTowerOptions(r, world, keys);
     deliver(r.game, env, 'tower', keys[i]);
@@ -597,6 +611,7 @@ export async function startGame(x: GameSession): Promise<void> {
   let launching = false;
   const doLaunch = () => {
     const r = run!;
+    comms.drop(); // nothing stale before the countdown or over the report card
     launch(r.game);
     busy = true;
     launching = true;
@@ -628,6 +643,7 @@ export async function startGame(x: GameSession): Promise<void> {
     const r = run!;
     if (r.endedHour !== null) return;
     r.endedHour = r.game.hour;
+    comms.drop();
     busy = true;
     want = false;
     sync();
@@ -710,12 +726,16 @@ export async function startGame(x: GameSession): Promise<void> {
       power = out.power;
       onEvents(out.events);
       afterStep();
-      stop = nextDecision();
+      if (comms.blocking) {
+        // Lines from this hour are read first; the next choice (or the end) opens after.
+        whenQuiet(() => { if (!nextDecision()) sync(); });
+        stop = true;
+      } else stop = nextDecision();
     }
     if (stop || blocked()) {
       x.timebar.seek(Math.min(run.game.hour, lastHour), false);
       sync();
-    } else if (run.game.hour >= lastHour) endRun();
+    } else if (run.game.hour >= lastHour) whenQuiet(endRun);
     if (run.game.hour - lastSave >= 24) {
       lastSave = run.game.hour;
       saveRun(run);

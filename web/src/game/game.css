@@ -43,7 +43,6 @@
 .g-sprites .g-reveal.g-dlg { border-width: 16px; border-image: var(--s-panel) 8 fill; }
 /* The panel sprite's middle is see-through; big panels get a solid backing inside the frame. */
 .g-sprites .g-modal-box.g-dlg, .g-sprites .g-reveal.g-dlg, .g-sprites .g-lookbar.g-dlg { background: #0b0d14; background-clip: padding-box; }
-.g-comms.quiet { visibility: hidden; }
 .g-comms[hidden], .g-comms [hidden] { display: none !important; }
 .g-sprites .g-comms-box.g-dlg { border-width: 8px 8px 10px 18px; border-image: var(--s-dlg) 4 4 5 9 fill; }
 
@@ -206,8 +205,9 @@ body:has(#pano-screen.game-ready) .topbar,
 @keyframes g-tick { 50% { background: #5a43a0 !important; color: #fff; } }
 
 /* Mission control: shows only while it has something to say. */
-/* Centred above the dock, on the top layer: pop-overs, choices and panels never cover it. */
-.g-comms { position: absolute; left: 50%; bottom: max(76px, 16%); transform: translateX(-50%); z-index: 45; display: flex; align-items: flex-end; width: min(600px, calc(100% - 24px)); cursor: pointer; }
+/* Centred above the dock. It is suspended (hidden) while a choice, reveal or menu owns the
+   screen; as a backstop it sits under those layers, never on top of them. */
+.g-comms { position: absolute; left: 50%; bottom: max(76px, 16%); transform: translateX(-50%); z-index: 35; display: flex; align-items: flex-end; width: min(600px, calc(100% - 24px)); cursor: pointer; }
 .g-portrait { width: 70px; height: 66px; display: flex; align-items: flex-end; justify-content: center; flex: none; }
 
 /* Astrofrog, the mascot: one pixel-art frame; moods are stepped motions. */
