@@ -3,19 +3,19 @@
     "mons-mouton-plateau",
     "mons-mouton",
     "haworth",
-    "cabeus-b-peak",
     "de-gerlache-rim-2",
-    "slater-plain",
     "nobile-rim-2",
+    "cabeus-b-peak",
+    "slater-plain",
     "nobile-rim-1"
   ],
   "days": {
-    "cabeus-b-peak": 52.7,
+    "cabeus-b-peak": 63.2,
     "haworth": 35.1,
-    "mons-mouton-plateau": 20.6,
-    "mons-mouton": 28.5,
+    "mons-mouton-plateau": 20.7,
+    "mons-mouton": 28.1,
     "nobile-rim-1": 71.7,
-    "nobile-rim-2": 66.5,
+    "nobile-rim-2": 63.1,
     "de-gerlache-rim-2": 55,
     "slater-plain": 65.5
   }

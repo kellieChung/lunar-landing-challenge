@@ -162,7 +162,7 @@ export class Picker {
       const traces = !!s.grid && siteHasMission(s.grid);
       return [
         el('p', 'card-dark', traces
-          ? 'Every crater floor in reach sees some Sun, so there is too little ice, and too few dark hours to dig it, to fill your tank in time. Good for power; no ice run.'
+          ? 'Every crater floor in reach sees some Sun, so too little ice survives to fill your tank in time. Good for power; no ice run.'
           : 'No crater floor near here stays dark enough for ice to last (our cold-trap rule, from the 2027 sunlight). Good for power; no ice run.'),
         el('span', 'go disabled card-game', 'No ice run here'),
       ];

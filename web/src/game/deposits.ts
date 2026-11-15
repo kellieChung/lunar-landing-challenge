@@ -65,14 +65,13 @@ export function iceTier(sunlit: number): IceTier {
 
 /**
  * HYPOTHETICAL ice share of a floor: the cell's fixed roll inside the LCROSS
- * range. A sunlit floor keeps less, shrinking linearly to half the roll at the
- * cut-off, so a lit floor can still beat a lean rich one (its catch is that
- * rovers cannot dig while the Sun is on it; see sim.ts).
+ * range, times the share that survives the Sun: all of it on a floor that never
+ * sees the Sun, shrinking linearly to a quarter at the cut-off.
  */
 export function tieredIce(siteId: string, i: number, j: number, sunlit: number): number {
   const tier = iceTier(sunlit);
   if (tier === 'none') return 0;
-  return iceFraction(siteId, i, j) * (1 - 0.5 * (sunlit / LIT_MAX_SUNLIT));
+  return iceFraction(siteId, i, j) * (1 - 0.75 * (sunlit / LIT_MAX_SUNLIT));
 }
 
 /** Cells whose floor holds some ice by the tier rule (from sites.json numbers only). */

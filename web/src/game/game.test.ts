@@ -19,12 +19,11 @@ function strip(heights = [0, 0, 0, 0, 0]): GridSummary[] {
   }));
 }
 
-function env(summaries: GridSummary[], opts: { sun?: (h: number) => number; earth?: (h: number) => boolean; ice?: number; floorSun?: (h: number) => boolean } = {}): Env {
+function env(summaries: GridSummary[], opts: { sun?: (h: number) => number; earth?: (h: number) => boolean; ice?: number } = {}): Env {
   const terrain = buildTerrain(summaries);
   const dark = new Set(darkSpots(summaries).map(keyOf));
   return {
-    // Dark spots see no Sun unless a test lights the floor on purpose.
-    solarKw: (spot, h) => (dark.has(spot) ? (opts.floorSun?.(h) ? SOLAR_TOWER_KW : 0) : SOLAR_TOWER_KW * (opts.sun ? opts.sun(h) : 1)),
+    solarKw: (_spot, h) => SOLAR_TOWER_KW * (opts.sun ? opts.sun(h) : 1),
     earthVisible: (_spot, h) => (opts.earth ? opts.earth(h) : true),
     route: terrain.route,
     legKm: terrain.legKm,
@@ -85,8 +84,8 @@ describe('deposits', () => {
     expect(iceTier(LIT_MAX_SUNLIT + 0.001)).toBe('none');
     const rich = tieredIce('haworth', 1, 1, 0);
     expect(rich).toBe(iceFraction('haworth', 1, 1));
-    expect(tieredIce('haworth', 1, 1, LIT_MAX_SUNLIT / 2)).toBeCloseTo(rich * 0.75, 9);
-    expect(tieredIce('haworth', 1, 1, LIT_MAX_SUNLIT)).toBeCloseTo(rich / 2, 9);
+    expect(tieredIce('haworth', 1, 1, LIT_MAX_SUNLIT / 2)).toBeCloseTo(rich * 0.625, 9);
+    expect(tieredIce('haworth', 1, 1, LIT_MAX_SUNLIT)).toBeCloseTo(rich * 0.25, 9);
     expect(tieredIce('haworth', 1, 1, 0.5)).toBe(0);
   });
 });
@@ -161,25 +160,6 @@ describe('sim', () => {
     expect(s.hopperKg + s.waterKg + s.h2Kg + s.o2Kg + s.tailingsKg).toBeCloseTo(hauled, 6);
     expect(s.o2Kg / s.h2Kg).toBeCloseTo(O2_PER_KG_WATER / H2_PER_KG_WATER, 6);
     expect(s.milestones).toEqual(expect.arrayContaining(['prospect', 'regolith', 'water']));
-  });
-
-  it('rovers do not dig while the Sun is on the floor', () => {
-    const lit = (h: number) => h >= 20 && h < 120; // the floor is sunlit for hours 20..119
-    const e = env(strip(), { ice: 0.056, floorSun: lit });
-    const s = newGame('test');
-    land(s, e, '0,0', ['4,0']);
-    s.prospected.push('4,0');
-    orderRover(s, e, 1, { kind: 'haul', target: '4,0' });
-    const trips: number[] = [];
-    for (let h = 0; h < 200; h++) {
-      const before = s.trips;
-      step(s, e);
-      if (s.trips > before) trips.push(h);
-    }
-    expect(trips.length).toBeGreaterThan(0);
-    // No load was dug in the sunlit stretch: a trip home after hour ~20 waits until 120.
-    for (const h of trips) expect(h < 40 || h >= 120).toBe(true);
-    expect(trips.some((h) => h >= 120)).toBe(true);
   });
 
   it('rover battery: never runs below empty, and far trips are refused', () => {

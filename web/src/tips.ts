@@ -47,7 +47,7 @@ export const SHORT = {
 /** Tips for the look-and-decide game (round 4). */
 export const SHORT_GAME = {
   look: 'Look around! Are hills hiding the Sun? Is Earth in view? The timeline below shows the whole year: green is best.',
-  crater: 'Floors that never see the Sun keep the most ice. A floor with some Sun keeps less, and rovers cannot dig while it is lit. Closer craters mean shorter trips.',
+  crater: 'Floors that never see the Sun keep the most ice. The more Sun a floor gets, the less ice it keeps. Closer craters mean shorter trips.',
   dirt: 'The dry dirt left over piles up by the plant (Dirt, in the dock). Spend it on a landing pad or an upgrade with Build, any time you like.',
   pad: 'Landing pad ready. Earth can land a crate near the base without sandblasting it.',
   shelter: 'Moon dirt holds heat. Under its dirt cover, the base needs less power at night.',
@@ -89,10 +89,10 @@ export const TUTORIAL = {
   revealRows: 'Here are the real numbers behind what you just looked at. A tick marks the spot that won each row. Often no spot wins them all.',
   revealProj: 'This row is what counts. The game replayed the run from each spot on the real 2027 sky to see which one would fill your tank first.',
   revealWhy: 'And this is why your spot went dark at its worst moment. The view is turned to show it.',
-  crater: 'Now pick where to dig. A floor the Sun never reaches is a cold trap with the most ice. A floor that gets some Sun keeps less, and rovers must stop digging while the Sun is on it. A close sunlit floor can still win if it stays dark for the coming weeks.',
-  craterTimeline: 'At a crater, the timeline shows the floor. Gold means Sun on the floor: no digging then. Look ahead to the deadline, not just at today.',
+  crater: 'Now pick where to dig. A floor the Sun never reaches is a cold trap with the most ice. The more Sun a floor gets, the less ice it keeps, so each load brings home less water. A close sunlit floor can still win on drive time.',
+  craterTimeline: 'At a crater, the timeline shows the floor. Gold means Sun on the floor: the more gold, the less ice.',
   craterMap: 'The dashed gold line on the map is the rovers\' route. A long route means fewer loads before the deadline, so weigh dark against close.',
-  craterReveal: 'The most ice sits on floors that saw 0% Sun all year: the cold-trap rule. Ice amount, drive, and Sun on the floor before the deadline together decide the launch day.',
+  craterReveal: 'The most ice sits on floors that saw 0% Sun all year: the cold-trap rule. More Sun, less ice. Ice amount and drive together decide the launch day.',
   done: 'That\'s the tutorial. From here on, the choices are all yours. You can replay it from Menu, Guide & facts.',
 } as const;
 

@@ -52,7 +52,7 @@ export class Modal {
 
 const HOW: [string, string][] = [
   ['e-sunrise', 'Pick a landing spot by going to look. Does a ridge hide the Sun? Is Earth in view? How far is the ice?'],
-  ['ice-rich', 'Pick a crater. Dark floors hold the most ice; sunlit floors hold less, and rovers cannot dig while the Sun is on them.'],
+  ['ice-rich', 'Pick a crater. Dark floors hold the most ice; the more Sun a floor gets, the less ice it holds.'],
   ['i-remote', 'Rovers dig by themselves, but only while Earth is in view: people drive them by radio.'],
   ['i-plant', 'The plant turns ice into hydrogen and oxygen, but only with spare sunlight.'],
   ['stone', 'Leftover dry dirt builds landing pads (Earth sends a rover, tower or battery) and upgrades that need nothing from Earth: a dirt cover (less night power), packed roads (faster rovers) and a dirt-lined oven (cheaper baking). Press Build in the dock whenever you have enough: no need to wait to be asked.'],
@@ -267,7 +267,6 @@ const REAL_ROWS: [string, Parameters<typeof tag>[0]][] = [
   ['Capsule fuel (rocket equation), tower power, rover speed (VIPER)', 'ESTIMATE'],
   ['Projected launch day (the game rules replayed on the real sky)', 'ESTIMATE'],
   ['Rich / sunlit / no ice by how dark a floor is; the 15% cut-off', 'RULE'],
-  ['No digging while the Sun is on a crater floor', 'RULE'],
   ['How much ice each crater holds (inside the LCROSS range)', 'HYPOTHETICAL'],
   ['Pads, deliveries, upgrades, battery packs, rover loads', 'HYPOTHETICAL'],
   ['The base sleeping when its battery is empty', 'RULE'],
