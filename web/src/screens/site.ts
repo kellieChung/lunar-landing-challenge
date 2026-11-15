@@ -19,6 +19,7 @@ import { batteryState, signalBars } from '../physics/status';
 import { sampleDate, valueAt, vectorAt, type VectorSeries } from '../physics/time';
 import { eclipseShare, LIT_THRESHOLD, marginDeg, sunlitFraction } from '../physics/visibility';
 import { seriesCache } from '../game/env';
+import { hostsRuns } from '../game/progress';
 import type { GameSession } from '../game/start';
 import { startExploreTour } from '../ui/exploreTour';
 import { BASE_MAST_M, mastControl, mastFromUrl, mastHeights, mastRows, mastSummaries } from '../ui/MastControl';
@@ -57,7 +58,7 @@ function gameFromUrl(): boolean {
 }
 
 /** The Explore | Moon Base switch in the nav bar: same site and spot, full reload. */
-function wireModeSwitch(game: boolean): void {
+function wireModeSwitch(game: boolean, playable: boolean): void {
   const go = (toGame: boolean) => {
     const params = new URLSearchParams(window.location.search);
     if (toGame) params.set('mode', 'game');
@@ -69,7 +70,13 @@ function wireModeSwitch(game: boolean): void {
   explore?.setAttribute('aria-pressed', String(!game));
   base?.setAttribute('aria-pressed', String(game));
   if (explore) explore.onclick = () => game && go(false);
-  if (base) base.onclick = () => !game && go(true);
+  if (base) {
+    base.onclick = () => !game && playable && go(true);
+    if (!playable && !game) {
+      base.disabled = true;
+      base.title = 'No ice run at this site: no crater floor nearby stays dark enough for ice';
+    }
+  }
   document.getElementById('pano-screen')?.classList.toggle('game', game);
 }
 
@@ -116,7 +123,7 @@ export async function openSite(id: string): Promise<void> {
   const data = await loadSite(id);
   showBadge(data);
   const game = gameFromUrl();
-  wireModeSwitch(game);
+  wireModeSwitch(game, hostsRuns(id));
   const seriesAt = seriesCache(data); // hourly lit / Earth per grid point, shared with the game
 
   // Whole heightmaps, loaded once; each spot crops and re-levels its own piece
