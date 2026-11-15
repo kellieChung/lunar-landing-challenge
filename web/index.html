@@ -3,17 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lunar Landing Site Navigator</title>
+    <title>H.A.L.O.sim — Lunar Landing Site Navigator</title>
     <meta name="description" content="Stand at a candidate landing site near the Moon's south pole, look around in 3D, and see when you'd have sunlight for power and when you could talk to Earth. Real NASA LOLA terrain and JPL-validated Sun and Earth positions." />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Lunar Landing Site Navigator" />
+    <meta property="og:title" content="H.A.L.O.sim — Lunar Landing Site Navigator" />
     <meta property="og:description" content="Can my lander survive here? Explore nine Moon south-pole landing sites: sunlight, Earth contact and a Moon Base game about lunar ice." />
     <meta name="theme-color" content="#0b1020" />
   </head>
   <body>
     <header class="topbar">
-      <h1><a href="./">Lunar Landing Site Navigator</a></h1>
+      <h1><a href="./" title="Horizon and Lunar Orbital Simulator">H.A.L.O.sim</a></h1>
       <span class="hook">Can my lander survive here?</span>
       <span id="badge" class="badge" hidden>FAKE DATA</span>
       <a class="credit" href="https://cupnooble.itch.io" target="_blank" rel="noopener">UI art: Cup Nooble (Sprout Lands), recoloured</a>
@@ -24,6 +24,17 @@
         <div class="globe-wrap">
           <canvas id="globe" aria-label="3D Moon with landing-site pins. Drag to rotate, scroll to zoom."></canvas>
           <div id="globe-labels" class="globe-labels"></div>
+          <div class="halo-hud" aria-hidden="true">
+            <div class="hud-scan"></div>
+            <span class="hud-corner tl"></span><span class="hud-corner tr"></span>
+            <span class="hud-corner bl"></span><span class="hud-corner br"></span>
+            <div class="hud-title">
+              <div class="hud-name">H.A.L.O.<span>sim</span></div>
+              <div class="hud-sub">Horizon and Lunar Orbital Simulator</div>
+              <div class="hud-status"><i></i>SYS ONLINE · NAV LINK ACTIVE</div>
+            </div>
+            <div class="hud-telemetry">TGT: LUNAR S. POLE<br />DEM: NASA LOLA · EPHEM: JPL</div>
+          </div>
           <p id="globe-fallback" class="globe-fallback" hidden>3D view unavailable in this browser. Use the site list.</p>
           <p class="globe-hint">Drag to rotate · scroll to zoom · click a pin</p>
         </div>
