@@ -11,6 +11,24 @@ import { sfx } from './sound';
 export type Mood = 'idle' | 'talk' | 'happy' | 'cheer' | 'love' | 'sad' | 'angry' | 'sleepy' | 'zzz' | 'cool';
 
 const LINGER_MS = 6000;
+const MET_KEY = 'moonbase:met-frog';
+
+/** Has the player been introduced to Astrofrog (in this browser)? */
+export function metFrog(): boolean {
+  try {
+    return window.localStorage.getItem(MET_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setMetFrog(): void {
+  try {
+    window.localStorage.setItem(MET_KEY, '1');
+  } catch {
+    // not remembered: the intro may show again
+  }
+}
 
 export class Comms {
   readonly el: HTMLElement;
@@ -37,7 +55,7 @@ export class Comms {
     this.line.setAttribute('role', 'status');
     this.more = sprite('cont', { loop: 0.8, cls: 'g-cont' });
     this.more.hidden = true;
-    box.append(this.line, this.more);
+    box.append(el('span', 'g-comms-name', 'Astrofrog · mission control'), this.line, this.more);
     this.el.append(portrait, box);
     this.el.addEventListener('click', () => this.advance());
   }

@@ -27,7 +27,7 @@ import { dailySeed, newSeed } from './seed';
 import { TARGET, buildCost, buy, chooseCrater, deliver, land, launch, step, type GameEvent, type PowerReport } from './sim';
 import { keyOf, type Key, type Rover } from './state';
 import { Chooser, revealPanel, type ChoiceOption, type RevealRow } from './ui/choose';
-import { Comms, type Mood } from './ui/comms';
+import { Comms, metFrog, setMetFrog, type Mood } from './ui/comms';
 import { dur, el, kg } from './ui/dom';
 import { Hud, SPEEDS, type HudView } from './ui/hud';
 import { briefPanel, lockedPanel, menuPanel, Modal, reportPanel } from './ui/panels';
@@ -88,9 +88,9 @@ export async function startGame(x: GameSession): Promise<void> {
     togglePlay: () => togglePlay(),
     speed: (h) => { speed = h; slowUntil = -1; sync(); },
   });
-  hud.el.append(comms.el);
   hud.mapSlot.append(x.grid.el);
-  x.stage.append(hud.el, revealSlot, chooser.el, chooser.bar, modal.el);
+  // Mission control goes last, on its own layer, so no pop-over or panel ever covers it.
+  x.stage.append(hud.el, revealSlot, chooser.el, chooser.bar, modal.el, comms.el);
 
   // ---- Who may run the clock ----
   let want = false; // the player wants time to run
@@ -380,11 +380,13 @@ export async function startGame(x: GameSession): Promise<void> {
   const showReveal = (spec: Parameters<typeof revealPanel>[0]) => new Promise<void>((resolve) => {
     revealing = true;
     hud.el.classList.add('quiet');
+    comms.el.classList.add('quiet');
     sync();
     const panel = revealPanel(spec, () => {
       panel.remove();
       revealing = false;
       hud.el.classList.remove('quiet');
+      comms.el.classList.remove('quiet');
       x.stage.classList.remove('g-flash');
       resolve();
     });
@@ -792,12 +794,19 @@ export async function startGame(x: GameSession): Promise<void> {
     } else goTo(r.landOptions[0]);
     modal.close();
     render();
-    if (resumed && r.game.base) comms.say(`Welcome back. Day ${runDay(r)} at ${siteName}.`, 'happy');
-    else comms.say(`${siteName}. Three places to land. Let's go and look.`, 'talk');
-    if (!nextDecision()) {
-      want = true;
-      sync();
-    }
+    const go = () => {
+      if (resumed && r.game.base) comms.say(`Welcome back. Day ${runDay(r)} at ${siteName}.`, 'happy');
+      else comms.say(`${siteName}. Three places to land. Let's go and look.`, 'talk');
+      if (!nextDecision()) {
+        want = true;
+        sync();
+      }
+    };
+    // The first time ever, Astrofrog says who it is before anything else.
+    if (!metFrog()) {
+      void comms.hold('Hi! I\'m Astrofrog, your mission control back on Earth. I\'ll radio you here whenever something happens. Click me or press space to carry on.', 'cheer')
+        .then(() => { setMetFrog(); go(); });
+    } else go();
   };
 
   const saved = loadRun(siteId);

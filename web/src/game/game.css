@@ -43,11 +43,12 @@
 .g-sprites .g-reveal.g-dlg { border-width: 16px; border-image: var(--s-panel) 8 fill; }
 /* The panel sprite's middle is see-through; big panels get a solid backing inside the frame. */
 .g-sprites .g-modal-box.g-dlg, .g-sprites .g-reveal.g-dlg, .g-sprites .g-lookbar.g-dlg { background: #0b0d14; background-clip: padding-box; }
-.g-hud.quiet .g-comms { visibility: hidden; }
+.g-comms.quiet { visibility: hidden; }
+.g-comms[hidden], .g-comms [hidden] { display: none !important; }
 .g-sprites .g-comms-box.g-dlg { border-width: 8px 8px 10px 18px; border-image: var(--s-dlg) 4 4 5 9 fill; }
 
 /* ---------- Text ---------- */
-.g-hud, .g-chooser, .g-lookbar, .g-modal, .g-reveal-slot {
+.g-hud, .g-comms, .g-chooser, .g-lookbar, .g-modal, .g-reveal-slot {
   font: 16px/1.3 var(--g-font); color: var(--g-ink); text-shadow: 1px 1px 0 var(--g-shadow);
 }
 .g-h { margin: 0 0 4px; font: 24px/1.15 var(--g-font); color: var(--g-ink); font-weight: normal; }
@@ -204,7 +205,8 @@ body:has(#pano-screen.game-ready) .topbar,
 @keyframes g-tick { 50% { background: #5a43a0 !important; color: #fff; } }
 
 /* Mission control: shows only while it has something to say. */
-.g-comms { position: absolute; left: 12px; bottom: 64px; z-index: 5; display: flex; align-items: flex-end; max-width: min(520px, calc(100% - 24px)); cursor: pointer; }
+/* Centred above the dock, on the top layer: pop-overs, choices and panels never cover it. */
+.g-comms { position: absolute; left: 50%; bottom: max(76px, 16%); transform: translateX(-50%); z-index: 45; display: flex; align-items: flex-end; width: min(600px, calc(100% - 24px)); cursor: pointer; }
 .g-portrait { width: 70px; height: 66px; display: flex; align-items: flex-end; justify-content: center; flex: none; }
 
 /* Astrofrog, the mascot: one pixel-art frame; moods are stepped motions. */
@@ -217,12 +219,12 @@ body:has(#pano-screen.game-ready) .topbar,
 @keyframes g-frog-hop { 33% { transform: translateY(-6px); } 66% { transform: translateY(-3px); } }
 @keyframes g-frog-shake { 50% { transform: translateX(3px); } }
 @media (prefers-reduced-motion: reduce) { .g-frog { animation: none !important; } }
-.g-comms-box { position: relative; flex: 1; min-height: 56px; padding: 6px 30px 6px 10px; display: flex; align-items: center; }
+.g-comms-box { position: relative; flex: 1; min-height: 56px; padding: 6px 30px 6px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; }
+.g-comms-name { font-size: 11px; color: var(--g-purple); text-transform: uppercase; letter-spacing: 1px; }
 .g-comms-line { margin: 0; font-size: 15px; line-height: 1.3; }
 .g-cont { position: absolute; right: 8px; bottom: 6px; }
 .g-comms.blocking .g-comms-box { --g-rail: var(--g-sun); }
 .g-sprites .g-comms.blocking .g-comms-box { border-image-source: var(--s-dlg-hi); }
-.g-comms.blocking { z-index: 8; }
 .g-log { margin: 0; padding-left: 20px; max-height: 50vh; overflow: auto; font-size: 14px; color: var(--g-muted); }
 .g-log li + li { margin-top: 4px; }
 
@@ -313,7 +315,8 @@ body:has(#pano-screen.game-ready) .topbar,
   .g-bar { left: 8px; right: 8px; transform: none; max-width: none; flex-wrap: wrap; justify-content: center; row-gap: 4px; white-space: normal; }
   .g-group { padding: 0 4px; }
   .g-group + .g-group { border-left: 0; }
-  .g-comms, .g-pop { bottom: 104px; }
+  .g-pop { bottom: 104px; }
+  .g-comms { bottom: 112px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
