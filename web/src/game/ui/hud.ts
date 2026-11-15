@@ -1,8 +1,10 @@
 // The instruments (game.MD v3 §7): ONE compact dock along the bottom, beside
 // mission control and the timeline, so the 3D view keeps the rest of the
 // screen. Readings are glyphs and short meters; details live in tooltips, and
-// at most one warning shows at a time. The build tray pops up above the dock
-// when asked for; the map always sits in the top-right corner.
+// at most one warning shows at a time. The dirt pile and the Build button sit
+// together right after Fuel, always shown once landed, so building reads as
+// something you can do any time; its tray pops up above the button. The map
+// always sits in the top-right corner.
 
 import { btn, el, kg, meter, type Meter } from './dom';
 import { sprite } from './sprites';
@@ -39,6 +41,7 @@ export interface HudView {
   rovers: RoverView[];
   dirtKg: number;
   builds: BuildView[];
+  nextCost: number | null; // the cheapest build still open, for the dirt meter
   deliveries: number;
   shelter: boolean;
   towers: number;
@@ -67,6 +70,9 @@ export class Hud {
   private playBtn: HTMLButtonElement;
   private speedBtn: HTMLButtonElement;
   private tray: HTMLElement;
+  private dirt: Meter;
+  private buildBox: HTMLElement;
+  private nudgeTimer = 0;
   private speedH = SPEEDS[0].h;
 
   constructor(on: HudHandlers) {
@@ -110,22 +116,35 @@ export class Hud {
     }, 'sq');
     this.speedBtn.classList.add('g-speed');
 
+    // Dry dirt and what it builds, side by side: Build is always there once landed.
+    this.dirt = meter(6, 'sun', 'Dry dirt toward the next build');
+    const dirt = stat('g-dirt', el('span', 'g-k', 'Dirt'), this.dirt.el, el('b', 'g-dirt-n'));
     const buildBtn = btn('Build', () => { this.tray.hidden = !this.tray.hidden; }, 'sq', 'stone');
     buildBtn.classList.add('g-build-btn');
+    buildBtn.title = 'Build with dry dirt any time. The clock keeps running.';
 
-    bar.append(
-      group(menu),
-      group(fuel),
-      group(power, earth, alert),
-      group(day, this.playBtn, this.speedBtn),
-      group(buildBtn),
-    );
-
-    // Pop-overs above the dock, shown on request.
+    // The tray pops up right above the Build button.
     this.tray = el('div', 'g-pop g-tray g-dlg');
     this.tray.hidden = true;
     this.tray.setAttribute('aria-label', 'Build with dry dirt');
     this.tray.append(el('span', 'g-dirt-kg'));
+    this.buildBox = group(dirt, buildBtn, this.tray);
+    this.buildBox.classList.add('g-build');
+
+    bar.append(
+      group(menu),
+      group(fuel),
+      this.buildBox,
+      group(power, earth, alert),
+      group(day, this.playBtn, this.speedBtn),
+    );
+
+    // A click anywhere else, or Esc, folds the tray away.
+    document.addEventListener('pointerdown', (ev) => {
+      if (!this.tray.hidden && !this.buildBox.contains(ev.target as Node)) this.tray.hidden = true;
+    });
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') this.tray.hidden = true; });
+
     for (const item of ['pad', 'shelter'] as const) {
       const b = btn(item === 'pad' ? 'Landing pad' : 'Shelter', () => { this.tray.hidden = true; on.build(item); }, 'sq', item === 'pad' ? 'crate' : 'fire');
       b.classList.add('g-slot', `g-slot-${item}`);
@@ -136,7 +155,17 @@ export class Hud {
     this.mapSlot = el('div', 'g-mapbox g-dlg');
     this.mapSlot.setAttribute('aria-label', 'Map');
 
-    root.append(bar, this.tray, this.mapSlot);
+    root.append(bar, this.mapSlot);
+  }
+
+  /** Draw the eye to the Build button for a few seconds (after a tip or a build offer). */
+  nudgeBuild(): void {
+    const b = this.q('.g-build-btn');
+    b.classList.remove('nudge');
+    void b.offsetWidth; // restart the animation
+    b.classList.add('nudge');
+    window.clearTimeout(this.nudgeTimer);
+    this.nudgeTimer = window.setTimeout(() => b.classList.remove('nudge'), 3200);
   }
 
   /** Fold the build tray away (a panel or a radio line is taking over). */
@@ -197,7 +226,7 @@ export class Hud {
     this.q('.g-alert-word').textContent = alert;
     this.q('.g-alert').title = why;
 
-    // Build: only when something is affordable.
+    // Build: always shown once landed; it lights up when the dirt pays for something.
     let any = false;
     for (const b of v.builds) {
       const slot = this.q<HTMLButtonElement>(`.g-slot-${b.item}`);
@@ -205,11 +234,20 @@ export class Hud {
       slot.disabled = !b.can;
       any ||= b.can;
       slot.classList.toggle('built', built);
-      slot.querySelector('.g-slot-cost')!.textContent = built ? 'built' : b.cost === null ? '' : `${b.cost} kg`;
+      slot.querySelector('.g-slot-cost')!.textContent = built ? 'built'
+        : b.cost === null ? 'not now'
+        : v.dirtKg >= b.cost ? `${b.cost} kg`
+        : `need ${kg(b.cost - v.dirtKg)} more`;
     }
-    this.q('.g-dirt-kg').textContent = `${kg(v.dirtKg)} dry dirt`;
-    this.q('.g-build-btn').hidden = !any;
-    if (!any) this.tray.hidden = true;
+    this.dirt.set(v.nextCost ? v.dirtKg / v.nextCost : 0, any ? 'sun' : 'purple');
+    this.q('.g-dirt-n').textContent = kg(v.dirtKg);
+    this.q('.g-dirt').title = v.nextCost === null ? `${kg(v.dirtKg)} of dry dirt left over from the plant`
+      : any ? `${kg(v.dirtKg)} of dry dirt: enough to build. Press Build.`
+      : `${kg(v.dirtKg)} of dry dirt · next build at ${kg(v.nextCost)}`;
+    this.q('.g-dirt-kg').textContent = `Build any time · ${kg(v.dirtKg)} dry dirt`;
+    const bb = this.q('.g-build-btn');
+    bb.classList.toggle('ready', any);
+    bb.querySelector('.g-b-label')!.textContent = any ? 'Build!' : 'Build';
 
     this.q('.g-day-n').textContent = v.landed ? `Day ${v.day}/${v.days}` : 'Not landed';
     this.q('.g-day').title = v.date;

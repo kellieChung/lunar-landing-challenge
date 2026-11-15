@@ -284,6 +284,7 @@ function buildFallbackRover(): THREE.Group {
 export interface Rocket {
   group: THREE.Group;
   body: THREE.Group; // the part that lifts off
+  unitsPerM: number; // body position units per true metre (the NASA model sits in a scaled group)
 }
 
 /**
@@ -298,9 +299,12 @@ export function buildRocket(withBerm: boolean): Rocket {
   const padR = nasa ? 6 : 2.2;
   group.add(at(new THREE.Mesh(new THREE.CylinderGeometry(padR, padR, 0.1, 48), paint(0x6b7079, 0.9)), 0, 0.05, 0));
   const body = new THREE.Group();
+  let unitsPerM = 1;
   if (nasa) {
     body.add(ascent);
-    group.add(fitTo([descent, body], { height: LM_HEIGHT_M }));
+    const fitted = fitTo([descent, body], { height: LM_HEIGHT_M });
+    group.add(fitted);
+    unitsPerM = 1 / fitted.children[0].scale.y;
   } else {
     buildFallbackRocketBody(body);
     group.add(body);
@@ -323,7 +327,7 @@ export function buildRocket(withBerm: boolean): Rocket {
   addFooting(group, { feet: ring(padR - 0.4, nasa ? 8 : 5, Math.PI / 8), probes: [[0, 0]], width: nasa ? 0.24 : 0.12, maxRise: 7 });
   if (berm) addFooting(group, { ...berm, sink: true });
   finish(group);
-  return { group, body };
+  return { group, body, unitsPerM };
 }
 
 function buildFallbackRocketBody(body: THREE.Group): void {

@@ -26,9 +26,9 @@ export class Tip {
   private target: Element | null = null;
   private opts: TipOptions | null = null;
 
-  constructor() {
+  constructor(cls = '') {
     this.el = document.createElement('div');
-    this.el.className = 'tip';
+    this.el.className = cls ? `tip ${cls}` : 'tip';
     this.el.setAttribute('role', 'dialog');
     this.el.hidden = true;
     this.el.innerHTML = `<div class="tip-step"></div><p class="tip-text"></p><p class="tip-hint"></p>
@@ -67,6 +67,7 @@ export class Tip {
     this.skipBtn.hidden = !opts.onSkip;
     this.el.hidden = false;
     this.place();
+    if (opts.next) this.nextBtn.focus({ preventScroll: true });
   }
 
   hide(): void {
