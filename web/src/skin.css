@@ -368,3 +368,50 @@ button.site-item-body:hover::after { opacity: 0.9; }
 
 /* Longer prose reads in a plain sans; names and headings keep the pixel font. */
 .site-card .card-blurb, .site-card .gp-hint { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-shadow: none; }
+
+/* ---------- Explore tour tooltip (src/ui/Tip.ts) ----------
+   The Moon Base tutorial's .g-tip has its own look in game/game.css. */
+.tip:not(.g-tip) {
+  border-style: solid;
+  border-width: 16px;
+  border-image: url(./assets/ui-sprout/panel.png) 8 fill;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  padding: 4px 6px;
+  color: var(--ink);
+  font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  image-rendering: pixelated;
+}
+.tip:not(.g-tip) .tip-step { font: 12px var(--pixel); color: var(--accent-purple); letter-spacing: 1px; text-transform: uppercase; }
+.tip:not(.g-tip) .tip-hint { color: #ffe08a; font-weight: normal; }
+.tip:not(.g-tip) .tip-skip { font: 14px var(--pixel); color: var(--ink-muted); }
+.tip:not(.g-tip) .tip-skip:hover, .tip:not(.g-tip) .tip-skip:focus-visible { color: #fff; }
+.tip:not(.g-tip) .tip-next {
+  border-style: solid;
+  border-width: 8px 8px 12px;
+  border-image: url(./assets/ui-sprout/btn.png) 4 4 6 4 fill;
+  border-radius: 0;
+  padding: 0 10px;
+  background: none;
+  color: var(--ink);
+  font: 16px var(--pixel);
+  line-height: 16px;
+  text-shadow: 1px 1px 0 var(--ink-shadow);
+  image-rendering: pixelated;
+}
+.tip:not(.g-tip) .tip-next:hover, .tip:not(.g-tip) .tip-next:focus-visible {
+  border-image-source: url(./assets/ui-sprout/btn-hover.png);
+  background: none;
+  color: #fff;
+  outline: none;
+}
+.tip:not(.g-tip) .tip-next:active {
+  border-width: 12px 8px 8px;
+  border-image: url(./assets/ui-sprout/btn-pressed.png) 6 4 4 4 fill;
+}
+.tip-pulse:not(#pano-screen *) { border-radius: 0; animation-timing-function: steps(2); }
+@keyframes tip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(180, 155, 255, 0); }
+  50% { box-shadow: 0 0 0 4px var(--accent-purple); }
+}
