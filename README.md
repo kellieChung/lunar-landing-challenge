@@ -44,7 +44,7 @@ Vercel project: Root Directory `web`, preset Vite (`web/vercel.json`). **Every p
 One-time setup:
 
 1. On GitHub, create an empty **private** repo `lunar-landing-skin` (no README).
-2. `cd web && npm run skin && npm run skin:publish` pushes the generated skin to it. Run the same after any skin change.
+2. `cd web && npm run skin && npm run skin:publish` pushes the generated skin into its `ui-sprout/` folder (anything else in the repo, e.g. the raw packs, is left alone and ignored by the build). Run the same after any skin change.
 3. GitHub → Settings → Developer settings → Fine-grained tokens: give it access to *only* `lunar-landing-skin`, with **Contents: Read-only**.
 4. Vercel project → Settings → Environment Variables: `SKIN_TOKEN` = that token (Production + Preview). Then redeploy.
 

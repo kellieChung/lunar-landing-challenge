@@ -5,7 +5,8 @@
 //
 //   SKIN_TOKEN  fine-grained GitHub token, Contents: read-only on the skin repo
 //   SKIN_REPO   owner/name of that repo (default below)
-import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,12 +40,20 @@ if (!res.ok) {
   console.error(`fetch-skin: GitHub answered ${res.status} for ${repo}. Check SKIN_REPO and that SKIN_TOKEN can read it.`);
   process.exit(1);
 }
-rmSync(dest, { recursive: true, force: true });
-mkdirSync(dest, { recursive: true });
-const tar = spawnSync('tar', ['-xz', '--strip-components=1', '-C', dest], { input: Buffer.from(await res.arrayBuffer()) });
+// The repo holds the generated skin in ui-sprout/ (other files are ignored).
+const tmp = mkdtempSync(join(tmpdir(), 'skin-'));
+const tar = spawnSync('tar', ['-xz', '--strip-components=1', '-C', tmp], { input: Buffer.from(await res.arrayBuffer()) });
 if (tar.status !== 0) {
   console.error(`fetch-skin: could not unpack the skin: ${tar.stderr}`);
   process.exit(1);
 }
+if (!existsSync(join(tmp, 'ui-sprout', 'index.css'))) {
+  console.error(`fetch-skin: ${repo} has no ui-sprout/index.css. Run \`npm run skin && npm run skin:publish\` on a machine with the packs.`);
+  process.exit(1);
+}
+rmSync(dest, { recursive: true, force: true });
+mkdirSync(dirname(dest), { recursive: true });
+cpSync(join(tmp, 'ui-sprout'), dest, { recursive: true });
+rmSync(tmp, { recursive: true, force: true });
 const check = spawnSync(process.execPath, [join(here, 'check-skin.mjs')], { stdio: 'inherit' });
 process.exit(check.status ?? 1);
