@@ -37,6 +37,22 @@ function iceRunLabel(s: SiteIndexEntry): string {
   return isUnlocked(loadProgress(), s.id) ? 'Ice run open' : 'Ice run locked';
 }
 
+/** List order: open ice runs, then locked ones in unlock order, then the rest. */
+function sortSites(sites: SiteIndexEntry[]): SiteIndexEntry[] {
+  const progress = loadProgress();
+  const rank = (s: SiteIndexEntry): number => {
+    const status = statusOf(s);
+    const i = SITE_ORDER.indexOf(s.id);
+    if (status === 'ready' && s.grid && i >= 0) return isUnlocked(progress, s.id) ? i : SITE_ORDER.length + i;
+    const base = 2 * SITE_ORDER.length;
+    return base + (status === 'ready' ? 0 : status === 'no-data' ? 1 : 2);
+  };
+  return sites
+    .map((s, n) => ({ s, n, r: rank(s) }))
+    .sort((a, b) => a.r - b.r || a.n - b.n)
+    .map((x) => x.s);
+}
+
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,
@@ -57,7 +73,7 @@ export class Picker {
 
   static async create(initial: string | null = null): Promise<Picker> {
     const picker = new Picker();
-    picker.sites = await loadSiteIndex();
+    picker.sites = sortSites(await loadSiteIndex());
     picker.renderList();
 
     const pins: GlobePin[] = picker.sites
