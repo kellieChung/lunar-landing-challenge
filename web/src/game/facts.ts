@@ -72,7 +72,7 @@ export const FACTS: Record<string, Fact> = {
   sleep: {
     id: 'sleep',
     title: 'Good night, base',
-    text: 'The battery ran out during a long dark stretch, so your base went to sleep. It will wake up when the Sun returns and the battery has charged a little. Real Moon robots do this too: after landing in 2019, China\'s Yutu-2 rover slept through dozens of two-week lunar nights.',
+    text: 'The battery ran out during a long dark stretch, so your base went to sleep. It will wake up when the Sun returns and the battery has charged a little. Real Moon robots do this too: some rovers have slept through dozens of two-week lunar nights.',
     tag: 'REAL',
     source: 'Dark stretches: this app\'s physics. Tip: a dirt cover, or a solar tower on a spot that is sunny at other times, helps.',
   },
