@@ -19,11 +19,6 @@ function dailySite(): string | null {
   return SITE_ORDER[Math.floor(hash01(dailySeed()) * SITE_ORDER.length)];
 }
 
-const KIND_LABEL: Record<SiteIndexEntry['kind'], string> = {
-  'south-pole': 'South pole',
-  reference: 'Reference',
-};
-
 type Status = 'ready' | 'no-data' | 'no-coords';
 
 function statusOf(s: SiteIndexEntry): Status {
@@ -31,11 +26,16 @@ function statusOf(s: SiteIndexEntry): Status {
   return s.has_data ? 'ready' : 'no-data';
 }
 
-const STATUS_LABEL: Record<Status, string> = {
-  ready: 'Ready',
+const STATUS_LABEL: Record<Exclude<Status, 'ready'>, string> = {
   'no-data': 'Data not built yet',
   'no-coords': 'Coordinates pending',
 };
+
+/** Can the player start an Ice Run here? The line under each site's name. */
+function iceRunLabel(s: SiteIndexEntry): string {
+  if (statusOf(s) !== 'ready' || !s.grid || !hostsRuns(s.id)) return 'No ice run';
+  return isUnlocked(loadProgress(), s.id) ? 'Ice run open' : 'Ice run locked';
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -129,7 +129,7 @@ export class Picker {
       const best = loadProgress().best[s.id]?.stars ?? 0;
       body.append(
         el('span', 'site-name', s.name),
-        el('span', 'site-meta', `${KIND_LABEL[s.kind]} · ${STATUS_LABEL[status]}${best ? ` · ${best} of 3 stars` : ''}`),
+        el('span', 'site-meta', `${iceRunLabel(s)}${best ? ` · ${best} of 3 stars` : ''}`),
       );
       li.append(body);
       list.append(li);
@@ -146,7 +146,6 @@ export class Picker {
         : el('span', 'go disabled', STATUS_LABEL[status]);
     const game: HTMLElement[] = status !== 'ready' || !s.grid ? [] : this.gameCard(s);
     card.replaceChildren(
-      el('div', 'card-kind', KIND_LABEL[s.kind]),
       el('h3', 'card-name', s.name),
       ...(s.blurb.startsWith('TODO(') ? [] : [el('p', 'card-blurb', s.blurb)]), // never show placeholders
       el('div', 'card-coords', formatLatLon(s.lat!, s.lon!)),

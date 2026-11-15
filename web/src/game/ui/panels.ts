@@ -6,7 +6,7 @@ import type { Mods } from '../run';
 import { TIPS } from '../../tips';
 import { btn, el, tag } from './dom';
 import { isMuted, setMuted } from './sound';
-import { HAS_SPRITES, sprite } from './sprites';
+import { HAS_SPRITES, mascot, sprite } from './sprites';
 
 export class Modal {
   readonly el: HTMLElement;
@@ -81,7 +81,7 @@ export interface BriefInfo {
 export function briefPanel(b: BriefInfo, start: (mods: Mods) => void, extra: Node[] = []): Node[] {
   const out: Node[] = [];
   const head = el('div', 'g-brief-head');
-  head.append(sprite('t-cheer', { scale: 2, loop: 0.7 }));
+  head.append(mascot('cheer'));
   const t = el('div');
   t.append(el('p', 'g-kicker', b.daily ? 'Daily mission' : 'Mission brief'), el('h2', 'g-h', b.siteName));
   head.append(t);
@@ -160,8 +160,8 @@ export function reportPanel(r: ReportInfo, again: () => void, retry: () => void,
   out.push(list);
 
   const nm = el('div', 'g-nearmiss');
-  nm.append(sprite('t-sad', { scale: 2 }), el('p', '', r.nearMiss));
-  if (r.stars === 3) nm.firstElementChild?.replaceWith(sprite('t-love', { scale: 2, loop: 0.9 }));
+  nm.append(mascot('sad'), el('p', '', r.nearMiss));
+  if (r.stars === 3) nm.firstElementChild?.replaceWith(mascot('love'));
   out.push(nm);
   if (r.unlocked) out.push(el('p', 'g-unlock', `New site open: ${r.unlocked}.`));
   out.push(el('p', 'g-small', `${r.rank} · ${r.totalStars} stars in all${r.improved ? ' · new best for this site' : ''}`));
@@ -268,7 +268,7 @@ function creditsPage(back: () => void): Node[] {
   a.target = '_blank';
   a.rel = 'noopener';
   const p = el('p');
-  p.append('Assets from Sprout Lands by Cup Nooble (UI pack, sprites and the Sorry pack: frames, icons, the mascot, chests, sounds), recoloured for space. ', a);
+  p.append('Assets from Sprout Lands by Cup Nooble (UI pack, sprites and the Sorry pack: frames, icons, chests, sounds), recoloured for space. ', a);
   return [
     el('h2', 'g-h', 'Credits'),
     p,

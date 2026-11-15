@@ -4,6 +4,8 @@
 // ones) so one sprite pixel is always a crisp square. Without the pack each
 // sprite falls back to a short word, never an emoji.
 
+import frogUrl from './astrofrog.png';
+
 const urls = import.meta.glob('../../assets/ui-sprout/g/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const manifests = import.meta.glob('../../assets/ui-sprout/g/manifest.json', { eager: true, import: 'default' }) as Record<string, Record<string, SpriteInfo>>;
 
@@ -114,4 +116,24 @@ export function installSpriteVars(root: HTMLElement): void {
     if (u) root.style.setProperty(`--s-${n}`, `url("${u}")`);
   }
   root.classList.toggle('g-sprites', HAS_SPRITES && !!SKIN_URL.panel);
+}
+
+/**
+ * The mascot, Astrofrog: one 22 x 21 px frame (committed, our own art) drawn at
+ * 3x. Moods are CSS motions on `g-frog` (`mood-talk`, `mood-cheer`, ...).
+ */
+export function mascot(mood = 'idle', label?: string): HTMLElement {
+  const img = document.createElement('img');
+  img.src = frogUrl;
+  img.width = 66;
+  img.height = 63;
+  img.className = `g-frog mood-${mood}`;
+  img.alt = label ?? '';
+  if (!label) img.setAttribute('aria-hidden', 'true');
+  return img;
+}
+
+/** Change the mascot's mood (its motion). */
+export function setMood(el: HTMLElement, mood: string): void {
+  el.className = `g-frog mood-${mood}`;
 }

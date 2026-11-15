@@ -5,11 +5,10 @@
 // is kept for the menu's Radio log.
 
 import { el, reducedMotion } from './dom';
-import { setSprite, sprite } from './sprites';
+import { mascot, setMood, sprite } from './sprites';
 
 export type Mood = 'idle' | 'talk' | 'happy' | 'cheer' | 'love' | 'sad' | 'angry' | 'sleepy' | 'zzz' | 'cool';
 
-const MOOD_LOOP: Partial<Record<Mood, number>> = { idle: 0, talk: 0.6, happy: 0.8, cheer: 0.6, love: 0.9, sad: 1.2, angry: 0.8, zzz: 1.4, cool: 1 };
 const LINGER_MS = 6000;
 
 export class Comms {
@@ -30,8 +29,7 @@ export class Comms {
     this.el.setAttribute('aria-label', 'Mission control');
     this.el.hidden = true;
     const portrait = el('div', 'g-portrait');
-    this.face = sprite('t-idle', { scale: 2 });
-    if (!this.face.classList.contains('spr')) this.face = el('span', 'g-word g-face', 'CTRL');
+    this.face = mascot('idle');
     portrait.append(this.face);
     const box = el('div', 'g-dlg g-comms-box');
     this.line = el('p', 'g-comms-line');
@@ -51,7 +49,7 @@ export class Comms {
   /** The face the mascot rests on when it isn't talking. */
   mood(m: Mood): void {
     this.resting = m;
-    if (!this.typing) setSprite(this.face, `t-${m}`, MOOD_LOOP[m] || undefined);
+    if (!this.typing) setMood(this.face, m);
   }
 
   /** A passing line: typed out, logged, then it fades away. */
@@ -114,7 +112,7 @@ export class Comms {
     this.full = text;
     this.log.unshift(text);
     if (this.log.length > 60) this.log.pop();
-    setSprite(this.face, 't-talk', MOOD_LOOP.talk);
+    setMood(this.face, 'talk');
     if (reducedMotion()) {
       this.line.textContent = text;
       this.rest();
@@ -143,7 +141,7 @@ export class Comms {
   }
 
   private rest(): void {
-    setSprite(this.face, `t-${this.resting}`, MOOD_LOOP[this.resting] || undefined);
+    setMood(this.face, this.resting);
     this.linger();
   }
 }
