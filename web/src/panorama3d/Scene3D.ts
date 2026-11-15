@@ -20,8 +20,9 @@ import type { PanoramaView } from '../panorama/view';
 import { attachLookControls } from './controls';
 import { regolithBumpTexture, regolithTexture, ridgeTexture } from './ground';
 import {
-  clampToMask, patchHole, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap, type Hole,
+  clampToMask, heightOnMesh, patchHole, terrainColors, terrainIndex, terrainPositions, terrainUVs, type Heightmap, type Hole,
 } from './heightmap';
+import { settle } from './footing';
 import { buildLander, landerPlacement, type Lander } from './lander';
 import {
   cameraEuler, defaultPitch, defaultVfov, enuToThree, exaggerateEnu, fitExaggeration3D, lensShiftPx, type Vec3,
@@ -323,7 +324,32 @@ export class Scene3D implements PanoramaView {
       const place = landerPlacement(this.site.detail ?? this.site.terrain, this.site.mastM, this.k, p.azDeg, p.distM);
       p.object.position.set(...place.pos);
       p.object.scale.setScalar(place.scale);
+      this.settle(p.object);
     }
+  }
+
+  /**
+   * Fit a placed object to the slope under it (jacks or tilt, see footing.ts).
+   * The ground is sampled in the object's own frame: true metres, turned with it.
+   */
+  private settle(o: THREE.Object3D): void {
+    if (!this.site || (!o.userData.footing && !o.userData.tilt)) return;
+    const t = this.site.detail ?? this.site.terrain;
+    if (!t) return;
+    const { k } = this;
+    const { mastM } = this.site;
+    const c = Math.cos(o.rotation.y);
+    const s = Math.sin(o.rotation.y);
+    const x0 = o.position.x;
+    const y0 = o.position.y;
+    const z0 = o.position.z;
+    const lift = settle(o, (u, v) => {
+      const x = x0 + k * (u * c + v * s);
+      const z = z0 + k * (-u * s + v * c);
+      const h = heightOnMesh(t, x, -z);
+      return Number.isFinite(h) ? (k * (h - mastM) - y0) / k : 0;
+    });
+    o.position.y = y0 + lift * k;
   }
 
   setTime(time: TimeInput): void {
@@ -348,6 +374,7 @@ export class Scene3D implements PanoramaView {
     this.lander.group.scale.setScalar(place.scale);
     // Turn its front (+z) toward the eye, so the panel mast stands beside it, not in front.
     this.lander.group.rotation.y = Math.atan2(-place.pos[0], -place.pos[2]);
+    this.settle(this.lander.group);
     this.placeProps();
 
     // Shadow camera: an ortho box around the bounding sphere of the stretched mesh.

@@ -7,6 +7,7 @@
 // panel glows comes from the physics, never from the renderer.
 
 import * as THREE from 'three';
+import { addFooting, ring, tiltWithGround } from '../panorama3d/footing';
 import { fitTo, nasaModel } from '../panorama3d/nasaModels';
 import { buildSolarArray } from '../panorama3d/solarArray';
 
@@ -57,6 +58,7 @@ export interface SolarTower {
 /** A Sun-tracking array (NASA's InSight wing) on a lattice mast; the physics uses a 3 m mast height. */
 export function buildSolarTower(): SolarTower {
   const a = buildSolarArray(TOWER_HUB_M);
+  addFooting(a.group, { feet: ring(0.55, 3, Math.PI / 3), width: 0.12 });
   return { group: a.group, setLit: a.setLit, face: a.face };
 }
 
@@ -78,8 +80,9 @@ export function buildPlant(): Plant {
   const hdu = nasaModel('hdu');
   // Layout: the building at the origin, the processing gear to its +x side.
   const ox = hdu ? 6.4 : 0;
-  if (hdu) g.add(fitTo([hdu], { height: HDU_HEIGHT_M }));
-  else g.add(at(new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 1.8), paint(0xd4a038, 0.3)), 0, 1.0, 0));
+  const building = hdu ? fitTo([hdu], { height: HDU_HEIGHT_M })
+    : at(new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 1.8), paint(0xd4a038, 0.3)), 0, 1.0, 0);
+  g.add(building);
 
   // Processing column with a glowing vent ring, and the hopper rovers tip regolith into.
   const glow = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.4, emissive: 0xff7a1a, emissiveIntensity: 0 });
@@ -112,6 +115,23 @@ export function buildPlant(): Plant {
     m.scale.y = h;
     m.position.y = 0.05 + h / 2;
   };
+
+  // On a slope, the building and the processing gear each stand level on a
+  // foundation slab with leveling jacks (the slab sits just below ground on the flat).
+  const gear = new THREE.Group();
+  gear.position.x = ox;
+  for (const o of g.children.filter((c) => c !== building)) {
+    o.position.x -= ox;
+    gear.add(o);
+  }
+  g.add(gear);
+  const bb = new THREE.Box3().setFromObject(building);
+  const b = { x0: bb.min.x - 0.3, x1: bb.max.x + 0.3, z0: bb.min.z - 0.3, z1: bb.max.z + 0.3 };
+  g.add(slab(b));
+  addFooting(g, { feet: rectFeet(b), probes: [[0, 0]], width: 0.22, maxRise: 5 });
+  const gb = { x0: -1.4, x1: 5.3, z0: -2.4, z1: 1.8 };
+  gear.add(slab(gb));
+  addFooting(g, { node: gear, feet: rectFeet(gb), probes: [[2.8, 0]], width: 0.16 });
   finish(g);
   setFill(h2Fill, 0);
   setFill(o2Fill, 0);
@@ -139,6 +159,7 @@ export function buildBattery(): THREE.Group {
   g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.05, 1.36), metal()), 0, 0.3, 0));
   g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.04),
     new THREE.MeshStandardMaterial({ color: 0x4fd18b, emissive: 0x4fd18b, emissiveIntensity: 0.8 })), 0, 0.16, 0.66));
+  addFooting(g, { feet: [[-0.65, -0.55], [0.65, -0.55], [-0.65, 0.55], [0.65, 0.55]], width: 0.1 });
   return finish(g);
 }
 
@@ -149,12 +170,36 @@ function buildFallbackBattery(): THREE.Group {
   return finish(g);
 }
 
+/** A foundation slab over a rectangle, its top at y = 0 (so it is out of sight on flat ground). */
+function slab(b: { x0: number; x1: number; z0: number; z1: number }): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(b.x1 - b.x0, 0.25, b.z1 - b.z0), paint(0x6b7079, 0.9));
+  return at(m, (b.x0 + b.x1) / 2, -0.12, (b.z0 + b.z1) / 2);
+}
+
+/** Jack positions round a rectangle: the corners, plus mid-points on sides longer than 4 m. */
+function rectFeet(b: { x0: number; x1: number; z0: number; z1: number }): [number, number][] {
+  const xs = b.x1 - b.x0 > 4 ? [b.x0, (b.x0 + b.x1) / 2, b.x1] : [b.x0, b.x1];
+  const zs = b.z1 - b.z0 > 4 ? [b.z0, (b.z0 + b.z1) / 2, b.z1] : [b.z0, b.z1];
+  const cx = (b.x0 + b.x1) / 2;
+  const cz = (b.z0 + b.z1) / 2;
+  const feet: [number, number][] = [];
+  for (const x of xs) {
+    for (const z of zs) {
+      if (x === cx && z === cz) continue; // only round the edge
+      feet.push([x + Math.sign(cx - x) * 0.2, z + Math.sign(cz - z) * 0.2]); // just inside the slab
+    }
+  }
+  return feet;
+}
+
 /** NASA's Mars 2020 Perseverance rover, standing in as the base's regolith hauler. */
 export function buildRover(): THREE.Group {
   const rover = nasaModel('perseverance');
   if (!rover) return buildFallbackRover();
   rover.rotation.y = Math.PI / 2; // its long axis is z; drive along +x like the old rover
-  return finish(fitTo([rover], { length: ROVER_LENGTH_M }));
+  const g = finish(fitTo([rover], { length: ROVER_LENGTH_M }));
+  tiltWithGround(g, 1.1, 1.1); // its wheels, about 1.1 m out each way
+  return g;
 }
 
 function buildFallbackRover(): THREE.Group {
@@ -171,6 +216,7 @@ function buildFallbackRover(): THREE.Group {
       g.add(at(wheel, x, 0.32, z));
     }
   }
+  tiltWithGround(g, 0.5, 0.6);
   return finish(g);
 }
 
@@ -183,7 +229,7 @@ export interface Rocket {
  * The return rocket on its pad: NASA's Apollo LM, whose ascent stage lifts off
  * and leaves the descent stage behind, with the regolith blast wall if built.
  */
-export function buildRocket(berm: boolean): Rocket {
+export function buildRocket(withBerm: boolean): Rocket {
   const group = new THREE.Group();
   const descent = nasaModel('lm-descent');
   const ascent = nasaModel('lm-ascent');
@@ -198,15 +244,23 @@ export function buildRocket(berm: boolean): Rocket {
     buildFallbackRocketBody(body);
     group.add(body);
   }
-  if (berm) {
+  let berm: { node: THREE.Group; feet: [number, number][] } | null = null;
+  if (withBerm) {
     // A horseshoe of piled regolith between the pad and the base.
     const r = nasa ? 8.5 : 4.2;
     const wall = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.17, 8, 32, Math.PI * 1.4), paint(0x8d9097, 0.95));
     wall.rotation.x = Math.PI / 2;
     wall.rotation.z = Math.PI * 0.3;
     wall.scale.set(1, 1, 0.9);
-    group.add(at(wall, 0, 0.1, 0));
+    const pile = new THREE.Group();
+    pile.add(at(wall, 0, 0.1, 0));
+    group.add(pile);
+    // Piled regolith follows the ground down, rather than standing on the pad's jacks.
+    berm = { node: pile, feet: ring(r, 6, Math.PI * 0.3) };
   }
+  // On a slope the pad stays level on leveling jacks round its rim.
+  addFooting(group, { feet: ring(padR - 0.4, nasa ? 8 : 5, Math.PI / 8), probes: [[0, 0]], width: nasa ? 0.24 : 0.12, maxRise: 7 });
+  if (berm) addFooting(group, { ...berm, sink: true });
   finish(group);
   return { group, body };
 }

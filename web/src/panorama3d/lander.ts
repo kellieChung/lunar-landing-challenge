@@ -2,6 +2,7 @@
 // panel shows the physics result (lit or dark); it is never lit "by the renderer".
 
 import * as THREE from 'three';
+import { addFooting, ring } from './footing';
 import { heightOnMesh, type Heightmap } from './heightmap';
 import { fitTo, nasaModel } from './nasaModels';
 import { buildSolarArray, type SolarArray } from './solarArray';
@@ -23,6 +24,8 @@ const LM_HEIGHT_M = 7.0;
 /** The sun-tracking array stands on its own mast beside the LM, clear of its footpads (~4.5 m out). */
 const PANEL_MAST_X = 6.4;
 const PANEL_HUB_M = 3.4;
+/** The LM's footpads: on its ±x and ±z axes, this far out in NASA's model (its own units). */
+const LM_FOOTPAD_R_RAW = 2.86;
 
 /**
  * NASA's Apollo Lunar Module at true size in metres, standing on y = 0, with a
@@ -43,8 +46,11 @@ export function buildLander(): Lander {
     color: PANEL_DARK, emissive: PANEL_DARK, emissiveIntensity: 0.4, roughness: 0.4, flatShading: true,
   });
   const panels = new THREE.Group();
+  let footR = 1.45;
   if (nasa) {
-    group.add(fitTo([descent, ascent], { height: LM_HEIGHT_M }));
+    const lm = fitTo([descent, ascent], { height: LM_HEIGHT_M });
+    group.add(lm);
+    footR = LM_FOOTPAD_R_RAW * lm.children[0].scale.x;
     array = buildSolarArray(PANEL_HUB_M);
     array.group.position.x = PANEL_MAST_X;
     group.add(array.group);
@@ -76,6 +82,16 @@ export function buildLander(): Lander {
   contact.renderOrder = 1;
   contact.castShadow = false;
   group.add(contact);
+
+  // On a slope the LM stays level on leveling jacks under its footpads (and the
+  // mast on its own), instead of floating on the downhill side.
+  addFooting(group, {
+    feet: ring(footR, 4, nasa ? 0 : 45 * RAD),
+    probes: ring(footR * 0.5, 4, 45 * RAD),
+    width: nasa ? 0.2 : 0.1,
+    hideWhenRaised: [contact],
+  });
+  if (array) addFooting(group, { node: array.group, feet: ring(0.55, 3, Math.PI / 3), width: 0.12 });
 
   return {
     group,
