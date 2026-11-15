@@ -182,7 +182,7 @@ Cold trap (floor never or barely sunlit) → rovers dig icy dirt → haul home �
 
 **Stars:**
 - ★ **Launch:** tanks full before the deadline.
-- ★★ **Lights on:** the base slept for 96 h (4 days) or less in total (`TUNE`).
+- ★★ **Lights on:** the base slept for 168 h (7 days) or less in total (`TUNE`).
 - ★★★ **Sky Sense:** an average of 70 or more.
 
 Each star needs the one before it, so the order is the order of difficulty.

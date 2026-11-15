@@ -146,7 +146,7 @@ export const TRACE_MAX_SUNLIT = 0.05;
 /** A run must launch within this many hours of landing: 3 Sun circuits (synodic month 708.7 h). */
 export const RUN_DEADLINE_H = 2124;
 /** Most hours the base may sleep in a run and still earn the "Lights on" star. */
-export const LIGHTS_ON_MAX_SLEEP_H = 96;
+export const LIGHTS_ON_MAX_SLEEP_H = 168;
 /** Sky Sense points for the 1st, 2nd and 3rd best option of a look-and-compare. */
 export const SKY_SENSE_POINTS = [100, 70, 20];
 /** Average Sky Sense needed for the third star. */
