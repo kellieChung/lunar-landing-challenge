@@ -23,9 +23,9 @@ export const FACTS: Record<string, Fact> = {
   welcome: {
     id: 'welcome',
     title: 'Your mission',
-    text: `Fuel a small robot rocket (${ROCKET_DRY_KG} kg empty) so it can carry Moon samples home. It needs ${kg(T.h2Kg)} of hydrogen and ${kg(T.o2Kg)} of oxygen. You will make both from ice. The sunlight, the view of Earth and the hills in this game are the real ones for 2027.`,
+    text: `A leak drained your lander's tank, so you're stuck on the Moon. To fly home, it needs ${kg(T.h2Kg)} of hydrogen and ${kg(T.o2Kg)} of oxygen, and you'll make both from ice. The sunlight, the view of Earth and the hills in this game are the real ones for 2027.`,
     tag: 'REAL',
-    source: `Rocket equation: fuel = empty mass × (e^(Δv / (Isp × g)) − 1), with Δv ≈ ${RETURN_DELTA_V_MS / 1000} km/s and Isp ≈ ${ISP_S} s. The rocket itself is a made-up design.`,
+    source: `Rocket equation: fuel = empty mass × (e^(Δv / (Isp × g)) − 1), with Δv ≈ ${RETURN_DELTA_V_MS / 1000} km/s and Isp ≈ ${ISP_S} s. The lander itself is a made-up design, only ${ROCKET_DRY_KG} kg empty, far lighter than a real crewed lander.`,
   },
   dark: {
     id: 'dark',
