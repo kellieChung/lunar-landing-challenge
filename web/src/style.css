@@ -750,9 +750,9 @@ details.more > summary:focus-visible { outline: 2px solid var(--fg); outline-off
   text-transform: uppercase;
   text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
   animation: intro-fade 0.9s ease 0.3s both;
-  transition: opacity 0.9s linear;
 }
 .intro-caption b { letter-spacing: 2px; text-transform: none; }
-.intro-caption.intro-out { opacity: 0; }
+.intro-caption.intro-out { animation: intro-fade-out 0.9s linear forwards; }
+@keyframes intro-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes intro-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .intro-caption { animation: none; } }
