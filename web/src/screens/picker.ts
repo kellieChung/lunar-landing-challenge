@@ -112,12 +112,12 @@ export class Picker {
   private playIntro(): void {
     const globe = this.globe;
     if (!globe) return;
-    try {
-      // Once per tab session: replays whenever the site is opened fresh,
-      // but not when coming back to the globe from a site panorama.
-      if (sessionStorage.getItem('halo-intro-seen') === '1') return;
-      sessionStorage.setItem('halo-intro-seen', '1');
-    } catch { /* storage blocked: just play it */ }
+    // Play on every fresh open or reload; skip only when arriving here by
+    // clicking back from a site panorama inside the app.
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    let internal = false;
+    try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch { /* bad referrer */ }
+    if (internal && nav?.type !== 'reload') return;
     const caption = document.getElementById('intro-caption');
     if (caption) caption.hidden = false;
     const skip = () => globe.dismissLogo();
