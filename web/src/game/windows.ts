@@ -53,4 +53,3 @@ export function windowIndexAt(windows: SkyWindow[], h: number): number {
 }
 
 export const hasEarth = (k: WindowKind) => k === 'both' || k === 'earth';
-export const hasSun = (k: WindowKind) => k === 'both' || k === 'sun';

@@ -91,11 +91,6 @@ export function land(s: GameState, env: Env, spot: Key, craters: Key[]): Result 
   return OK;
 }
 
-/** Can the base talk to Earth right now (needed for new orders)? */
-export function hasEarthLink(s: GameState, env: Env): boolean {
-  return s.base !== null && !s.asleep && env.earthVisible(s.base, s.hour);
-}
-
 export function tripEnergyKWh(km: number, workHours: number, speed = ROVER_SPEED_KMH): number {
   return ROVER_KW * ((2 * km) / speed + workHours);
 }
@@ -127,22 +122,11 @@ export function orderRover(s: GameState, env: Env, roverId: number, job: Job): R
   return OK;
 }
 
-/** Stop a rover's hauling loop once it is back at the base. */
-export function recallRover(s: GameState, roverId: number): void {
-  const rover = s.rovers.find((r) => r.id === roverId);
-  if (!rover) return;
-  if (rover.phase === 'idle' || rover.phase === 'charging') {
-    rover.job = null;
-    rover.phase = 'idle';
-  } else rover.next = null;
-}
-
 // ---- Building with Moon dirt ----------------------------------------------
 
 export type BuildItem = 'pad' | 'shelter' | 'roads' | 'oven';
 export type Upgrade = Exclude<BuildItem, 'pad'>;
 export const BUILD_ITEMS: BuildItem[] = ['pad', 'shelter', 'roads', 'oven'];
-export const UPGRADES: Upgrade[] = ['shelter', 'roads', 'oven'];
 const UPGRADE_KG: Record<Upgrade, number> = { shelter: SHELTER_KG, roads: ROADS_KG, oven: OVEN_KG };
 export const isBuilt = (s: GameState, item: BuildItem): boolean => item !== 'pad' && !!s[item];
 export type Delivery = 'rover' | 'tower' | 'battery';

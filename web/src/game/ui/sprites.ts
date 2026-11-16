@@ -77,24 +77,6 @@ export function sprite(name: string, o: SpriteOpts = {}): HTMLElement {
   return i;
 }
 
-/** Swap an existing sprite element's image to another sprite of the same size (moods, states). */
-export function setSprite(el: HTMLElement, name: string, loop?: number): void {
-  const info = MANIFEST[name];
-  const src = URL_OF[name];
-  if (!info || !src || !el.classList.contains('spr')) return;
-  const k = parseFloat(el.style.width) / info.w || 2;
-  el.style.backgroundImage = `url("${src}")`;
-  el.style.backgroundSize = `${info.w * info.frames * k}px ${info.h * k}px`;
-  el.style.backgroundPositionX = '0px';
-  const anim = !!loop && info.frames > 1;
-  el.classList.toggle('spr-anim', anim);
-  if (anim) {
-    el.style.setProperty('--spr-end', `${-info.w * info.frames * k}px`);
-    el.style.setProperty('--spr-steps', String(info.frames));
-    el.style.setProperty('--spr-dur', `${loop}s`);
-  }
-}
-
 // The skin's own frames (assets/ui-sprout/*.png), shared with Explore.
 const skin = import.meta.glob('../../assets/ui-sprout/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const SKIN_URL: Record<string, string> = Object.fromEntries(

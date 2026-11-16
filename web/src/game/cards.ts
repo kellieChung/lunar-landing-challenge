@@ -8,7 +8,7 @@ import { CABLE_REACH_KM, ROVER_BATTERY_KWH } from './constants';
 import { craterSpots } from './deposits';
 import type { World } from './env';
 import { buildTerrain } from './paths';
-import { chooseCrater, deliver, land, reachableDark, tripHours, tripNeedKWh, type Env } from './sim';
+import { reachableDark, tripHours, tripNeedKWh, type Env } from './sim';
 import { keyOf, type GameState, type Key } from './state';
 import { windowIndexAt, type SkyWindow } from './windows';
 
@@ -23,15 +23,6 @@ export type LandRole = 'sun' | 'earth' | 'balanced'; // 'balanced' = the spot cl
 export function craterNames(env: Env, base: Key, craters: Key[]): Map<Key, string> {
   const reach = reachableDark(env, base, craters).sort((a, b) => env.route(base, a)!.km - env.route(base, b)!.km);
   return new Map(reach.map((k, i) => [k, `Crater ${String.fromCharCode(65 + (i % 26))}`]));
-}
-
-/** Put a card into effect. Returns false if the rules refused it. */
-export function playCard(s: GameState, env: Env, craters: Key[], card: Card): boolean {
-  switch (card.kind) {
-    case 'land': return land(s, env, card.spot, craters).ok;
-    case 'crater': return chooseCrater(s, env, card.target).ok;
-    case 'tower': return deliver(s, env, 'tower', card.spot).ok;
-  }
 }
 
 /** The REAL numbers a landing spot is judged on in the reveal. */

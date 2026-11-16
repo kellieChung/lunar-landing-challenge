@@ -7,7 +7,6 @@
 
 import type { GridSummary } from '../data/types';
 import { ICE_WT_PCT_MEAN, ICE_WT_PCT_SIGMA, LIT_MAX_SUNLIT } from './constants';
-import { keyOf, type Key } from './state';
 
 /**
  * Always-dark spots: no part of the Sun's disk showed in any hour of 2027
@@ -41,11 +40,6 @@ export function iceFraction(siteId: string, i: number, j: number): number {
   const lo = ICE_WT_PCT_MEAN - ICE_WT_PCT_SIGMA;
   const hi = ICE_WT_PCT_MEAN + ICE_WT_PCT_SIGMA;
   return (lo + (hi - lo) * hash01(`${siteId}:${i},${j}`)) / 100;
-}
-
-/** Ice share for every dark spot of a site, by spot key. */
-export function iceMap(siteId: string, summaries: GridSummary[]): Map<Key, number> {
-  return new Map(darkSpots(summaries).map((s) => [keyOf(s), iceFraction(siteId, s.i, s.j)]));
 }
 
 // ---- Cold-trap tiers (game.MD v3 §6) ---------------------------------------

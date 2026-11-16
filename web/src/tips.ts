@@ -25,8 +25,6 @@ export const TIPS = {
   battery: 'Machines on the Moon use solar panels to charge their batteries, so they can keep working when the Sun is hidden. But if a rover ran out of battery while exploring a dark crater, it would be stranded. This meter shows how much charge each rover has. A rover only leaves once it has enough for the whole round trip.',
 } as const;
 
-export type TipId = keyof typeof TIPS;
-
 /**
  * Short versions for the in-game tooltips and the Explore tour: one or two
  * short sentences each. The full texts above stay in the game's "Moon facts".

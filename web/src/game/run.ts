@@ -2,7 +2,7 @@
 // each look-and-compare, the choices made and how each option would have
 // turned out. Pure data and functions; the screen (start.ts) drives it.
 
-import { fill, projectFrom, type Strategy } from './autopilot';
+import { projectFrom, type Strategy } from './autopilot';
 import { craterCards, landingCards, towerCards, type LandRole } from './cards';
 import { BATTERY_KWH, PREPARE_LEAD_H, PREPARE_MIN_NIGHT_H, RUN_DEADLINE_H } from './constants';
 import type { World } from './env';
@@ -187,5 +187,3 @@ export function due(run: Run, w: World): Due {
   return null;
 }
 
-/** Share of the capsule filled so far (0..1). */
-export const runFill = (run: Run) => fill(run.game);

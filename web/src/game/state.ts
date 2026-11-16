@@ -28,8 +28,6 @@ export interface Rover {
   loadIceKg: number;
 }
 
-export type UpgradeKind = 'rover' | 'tower' | 'battery';
-
 export interface GameState {
   v: 1;
   siteId: string;

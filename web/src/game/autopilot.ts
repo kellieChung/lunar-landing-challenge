@@ -5,8 +5,8 @@
 
 import { craterCards, towerCards, tripFacts } from './cards';
 import type { World } from './env';
-import { buildCost, buy, chooseCrater, deliver, fuelReady, land, launch, step, TARGET, type Delivery } from './sim';
-import { newGame, type GameState, type Key } from './state';
+import { buildCost, buy, chooseCrater, deliver, fuelReady, launch, step, TARGET, type Delivery } from './sim';
+import type { GameState, Key } from './state';
 
 export type Strategy = 'rovers' | 'towers' | 'mixed' | 'shelter' | 'battery';
 export const STRATEGIES: Strategy[] = ['rovers', 'towers', 'mixed', 'shelter', 'battery'];
@@ -84,13 +84,6 @@ export function playOut(s: GameState, w: World, deadlineHour: number, strategy: 
   }
   const days = s.launchedHour === null || s.landedHour === null ? null : (s.launchedHour - s.landedHour) / 24;
   return { launchHour: s.launchedHour, days, sleepHours: s.sleepHours, fill: fill(s), state: s };
-}
-
-/** Land at `spot` at `startHour` and play the run out. */
-export function projectLanding(w: World, startHour: number, spot: Key, deadlineH: number, strategy: Strategy = 'mixed'): AutoResult {
-  const s = newGame(w.siteId, startHour);
-  if (!land(s, w.env, spot, w.craters).ok) return { launchHour: null, days: null, sleepHours: 0, fill: 0, state: s };
-  return playOut(s, w, startHour + deadlineH, strategy);
 }
 
 /** Copy the current run, apply one change (a choice), and play it out. */
