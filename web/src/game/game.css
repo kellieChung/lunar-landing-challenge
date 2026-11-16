@@ -11,7 +11,7 @@
      hard text shadow for legibility over the terrain.
    ========================================================================== */
 
-#pano-screen.game-ready {
+#pano-screen.game-ready, .g-quit {
   --g-ink: #e4e7ef;
   --g-muted: #a9afc2;
   --g-shadow: #12141c;
@@ -463,5 +463,6 @@ body:has(#pano-screen.game-ready) .topbar,
 @media (prefers-reduced-motion: reduce) { .g-crash * { animation: none !important; } }
 
 /* Exit to Explore: always reachable, above every game layer (modal 41, chooser 40). */
-.g-quit { position: fixed; left: 8px; top: 6px; z-index: 999; min-height: 28px; padding: 4px 10px; font-size: 12px; opacity: 0.85; }
-.g-quit:hover, .g-quit:focus-visible { opacity: 1; }
+.g-quit { position: fixed; left: 8px; top: 6px; z-index: 999; }
+.g-quit .g-b { min-height: 44px; font-size: 16px; }
+.g-quit .g-b .spr { width: 24px !important; height: 24px !important; background-size: 100% 100% !important; }

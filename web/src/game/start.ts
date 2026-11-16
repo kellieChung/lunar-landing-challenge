@@ -33,7 +33,7 @@ import { keyOf, type Key, type Rover } from './state';
 import { Chooser, revealPanel, type ChoiceOption, type RevealRow } from './ui/choose';
 import { Coach, type CoachStep } from './ui/coach';
 import { Comms, metFrog, setMetFrog, type Mood } from './ui/comms';
-import { dur, el, kg, reducedMotion } from './ui/dom';
+import { btn, dur, el, kg, reducedMotion } from './ui/dom';
 import { Hud, SPEEDS, type HudView } from './ui/hud';
 import { briefPanel, lockedPanel, menuPanel, Modal, reportPanel } from './ui/panels';
 import { burst, floatLabel } from './ui/juice';
@@ -176,11 +176,13 @@ export async function startGame(x: GameSession): Promise<void> {
   if (exploreBtn) exploreBtn.onclick = () => exitTo(exploreUrl());
   // Always-on way out: sits above every panel (brief, chooser, coach, launch), so a stray
   // click into the game never traps the player.
-  const quit = el('button', 'g-b g-quit', '\u2190 Explore') as HTMLButtonElement;
-  quit.type = 'button';
+  // Lives on <body> (outside #pano-screen), so it gets its own sprite vars to wear the pack's plate.
+  const quitWrap = el('div', 'g-quit');
+  installSpriteVars(quitWrap);
+  const quit = btn('Explore', () => exitTo(exploreUrl()), 'plate', 'i-remote');
   quit.title = 'Leave the game and go back to Explore';
-  quit.onclick = () => exitTo(exploreUrl());
-  document.body.append(quit);
+  quitWrap.append(quit);
+  document.body.append(quitWrap);
   window.addEventListener('pagehide', () => { if (!leaving && run && run.endedHour === null && run.game.base) saveRun(run); });
 
   // ---- Where we stand, and the 3D props there (rendering only) ----
