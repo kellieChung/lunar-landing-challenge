@@ -337,6 +337,8 @@ export class Globe {
   }
 
   private logoDone: (() => void) | null = null;
+  /** Fires once when the projected logo starts fading out. */
+  onLogoFadeOut: (() => void) | null = null;
 
   /** Skip the projected logo early (fades it out now). */
   dismissLogo(): void {
@@ -353,7 +355,11 @@ export class Globe {
     let o: number;
     if (t < fadeIn) o = t / fadeIn;
     else if (t < fadeIn + this.logo.hold) o = 1;
-    else o = 1 - (t - fadeIn - this.logo.hold) / fadeOut;
+    else {
+      o = 1 - (t - fadeIn - this.logo.hold) / fadeOut;
+      this.onLogoFadeOut?.();
+      this.onLogoFadeOut = null;
+    }
     // a little projector flicker while it warms up
     if (t < fadeIn) o *= 0.75 + 0.25 * Math.sin(t * 0.08);
     this.logo.mat.uniforms.time.value = t / 1000;

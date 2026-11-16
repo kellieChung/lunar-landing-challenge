@@ -123,14 +123,14 @@ export class Picker {
     const skip = () => globe.dismissLogo();
     addEventListener('pointerdown', skip, { once: true });
     addEventListener('keydown', skip, { once: true });
+    globe.onLogoFadeOut = () => caption?.classList.add('intro-out');
     globe
       .projectLogo(`${import.meta.env.BASE_URL}intro-t2ka3.png`)
       .catch((err) => console.error(err))
       .finally(() => {
         removeEventListener('pointerdown', skip);
         removeEventListener('keydown', skip);
-        caption?.classList.add('intro-out');
-        setTimeout(() => caption?.remove(), 700);
+        caption?.remove();
       });
   }
 
