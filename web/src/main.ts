@@ -5,13 +5,9 @@ import { openSite } from './screens/site';
 
 // Routes (full page loads, so the globe and the panorama never share a page):
 //   ./                          globe site picker + plain list of sites
-//   ./?focus=<id>               picker with that site selected (an old &pt=i,j is ignored)
+//   ./?focus=<id>               picker with that site selected
 //   ./?site=<id>&pt=i,j         panorama at grid point (i, j) of a site (default 0,0 = center;
 //                               also ?hour=N, ?view=2d|3d); the sidebar grid moves between spots
-// Old links (#/site/<id>, artemis-candidate) are rewritten to the new form.
-
-const ALIASES: Record<string, string> = { 'artemis-candidate': 'nobile-rim-2' };
-const LEGACY_HASH = /^#\/site\/([a-z0-9-]+)$/;
 
 const pickerScreen = document.getElementById('picker-screen')!;
 const panoScreen = document.getElementById('pano-screen')!;
@@ -23,16 +19,9 @@ function showError(err: unknown): void {
   errorBox.hidden = false;
 }
 
-/** Site id from the URL, rewriting legacy forms in place. null = picker. */
+/** Site id from the URL. null = picker. */
 function siteFromUrl(): string | null {
-  const params = new URLSearchParams(window.location.search);
-  const legacy = window.location.hash.match(LEGACY_HASH)?.[1];
-  let id = params.get('site') ?? legacy ?? null;
-  if (id && ALIASES[id]) id = ALIASES[id];
-  if (id && (id !== params.get('site') || legacy)) {
-    params.set('site', id);
-    history.replaceState(null, '', `${window.location.pathname}?${params}`);
-  }
+  const id = new URLSearchParams(window.location.search).get('site');
   return id && /^[a-z0-9-]+$/.test(id) ? id : null;
 }
 
@@ -60,11 +49,5 @@ async function route(): Promise<void> {
     await showPicker();
   }
 }
-
-// An old-style link clicked on this page: reload in the new form.
-window.addEventListener('hashchange', () => {
-  const legacy = window.location.hash.match(LEGACY_HASH)?.[1];
-  if (legacy) window.location.replace(`${window.location.pathname}?site=${ALIASES[legacy] ?? legacy}`);
-});
 
 route().catch(showError);

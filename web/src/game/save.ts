@@ -26,11 +26,6 @@ export function saveRun(r: Run): void {
 export function clearRun(): void {
   try {
     window.localStorage.removeItem(KEY);
-    // v1 saved one long game per site; those can't be resumed as runs.
-    for (let i = window.localStorage.length - 1; i >= 0; i--) {
-      const k = window.localStorage.key(i);
-      if (k?.startsWith('moonbase:v1:')) window.localStorage.removeItem(k);
-    }
   } catch {
     // nothing to clear
   }

@@ -8,7 +8,6 @@ const KEY = 'moonbase:v2:progress';
 
 export interface SiteBest {
   done: boolean; // launched from here at least once
-  stars?: number; // old saves (before stars were dropped): any star meant a launch
   skySense: number | null;
   days: number | null;
 }
@@ -45,8 +44,8 @@ export function saveProgress(p: Progress): void {
   }
 }
 
-/** Keep the best result for a site. Returns true if it improved. */
-const isDone = (b: SiteBest | undefined) => !!b && (b.done ?? (b.stars ?? 0) > 0);
+/** Has the player launched from this site? */
+const isDone = (b: SiteBest | undefined) => !!b?.done;
 
 /** Keep the best result for a site (a launch beats none; then the earlier launch). Returns true if it improved. */
 export function recordResult(p: Progress, siteId: string, v: Verdict): boolean {
