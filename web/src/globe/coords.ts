@@ -1,9 +1,8 @@
 // Lat/lon on the globe mesh, in three.js world coordinates (Y up).
 //
-// The moon mesh follows the MOON_ME body-fixed convention in Blender
-// (+Z north, +X = lon 0 facing Earth, +Y = lon 90 deg E; see
-// python/scripts/export_moon.py). glTF export turns Blender (x, y, z)
-// into three (x, z, -y), so:  north -> +Y,  lon 0 -> +X,  lon 90E -> -Z.
+// The moon mesh (python/scripts/build_optimized_moon.py) follows the MOON_ME
+// body-fixed convention in three.js axes:  north -> +Y,  lon 0 (the side
+// facing Earth) -> +X,  lon 90E -> -Z.
 
 const DEG = Math.PI / 180;
 

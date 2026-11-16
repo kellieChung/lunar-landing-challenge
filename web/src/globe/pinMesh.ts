@@ -4,7 +4,6 @@
 
 import * as THREE from 'three';
 
-export const SUN_GOLD = 0xffc845;
 export const STALK_LEN = 0.07;
 export const HEAD_RADIUS = 0.0125;
 export const HEAD_OUTLINE_RADIUS = 0.0152;

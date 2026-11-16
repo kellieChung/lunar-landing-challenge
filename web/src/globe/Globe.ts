@@ -102,7 +102,7 @@ export class Globe {
     let n = 0;
     moon.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
-        // If the model does not have UVs (e.g. legacy icosphere), generate spherical UVs.
+        // If the model has no UVs, generate spherical ones.
         if (!obj.geometry.getAttribute('uv')) {
           obj.geometry = this.prepareMoonGeometry(obj.geometry);
         }
