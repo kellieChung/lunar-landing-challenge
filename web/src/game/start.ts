@@ -575,7 +575,7 @@ export async function startGame(x: GameSession): Promise<void> {
       look: () => {
         goTo(k);
         looked.add(i);
-        if (!coach.active) { void holdOnce('look', `${SHORT_GAME.look} Is the ice close?`, 'talk', 'look'); return; }
+        if (!coach.active) { void holdOnce('look', SHORT_GAME.look, 'talk', 'look'); return; }
         coachSoon('look', [
           { target: q('.ov-compass'), text: TUTORIAL.compass },
           { target: q('#timebar'), text: TUTORIAL.timeline },
@@ -750,7 +750,7 @@ export async function startGame(x: GameSession): Promise<void> {
         choose: () => { deliver(r.game, env, 'rover'); comms.say(`Rover ${r.game.rovers.length} is down and heading for the crater.`, 'cheer'); after(); } },
       { glyph: 'e-sun', title: 'A solar tower', label: 'More power. You choose where it stands, up to 2 km away.', chooseLabel: 'Send a tower', choose: () => showTowers() },
       { glyph: 'e-gameboy', title: 'A battery pack', label: 'Stores another 2 days of base power for the night.', chooseLabel: 'Send a battery',
-        choose: () => { deliver(r.game, env, 'battery'); comms.say('Battery pack connected. The base can sit out longer nights.', 'happy'); after(); } },
+        choose: () => { deliver(r.game, env, 'battery'); comms.say('Battery pack connected. The base can now last through longer nights.', 'happy'); after(); } },
     ]);
   };
 
@@ -804,10 +804,10 @@ export async function startGame(x: GameSession): Promise<void> {
     slowUntil = n.start + SLOW_SPAN_H;
     const keep = KEEPALIVE_KW * (r.game.shelter ? SHELTER_KEEPALIVE_FACTOR : 1);
     const lasts = r.game.batteryKWh / keep;
-    const text = `In ${dur(n.start - r.game.hour)} the Sun sets here for ${dur(n.end - n.start)}. The battery can keep the base alive about ${dur(lasts)}${lasts < n.end - n.start ? ', so it will sleep part of the night' : ''}.`;
+    const text = `The Sun sets here in ${dur(n.start - r.game.hour)} and stays down for ${dur(n.end - n.start)}. The battery can keep the base going for about ${dur(lasts)}${lasts < n.end - n.start ? ', so the base will sleep through part of the night' : ''}.`;
     if (!r.blocking.includes('night')) {
       busy = true;
-      void holdOnce('night', `${text} When the base sleeps, the rovers park and the plant stops until sunlight returns.`, 'talk').then(() => { busy = false; sync(); });
+      void holdOnce('night', `${text} While the base sleeps, the rovers park and the plant shuts down until the Sun returns.`, 'talk').then(() => { busy = false; sync(); });
     } else comms.say(text, 'talk');
     return true;
   };
@@ -906,11 +906,11 @@ export async function startGame(x: GameSession): Promise<void> {
       else if (ev.type === 'wake') { comms.say('Sunlight! The base woke up.', 'happy'); }
       else if (ev.type === 'prospected') {
         const tier = world.tier(ev.spot);
-        comms.say(`${names.get(ev.spot) ?? 'The crater'}: ${(100 * ev.ice).toFixed(1)}% ice in the dirt (${tier} floor; the amount is made up). Digging starts.`, 'cheer');
+        comms.say(`${names.get(ev.spot) ?? 'The crater'}: the dirt is ${(100 * ev.ice).toFixed(1)}% ice (a ${tier} floor; this amount is made up). Digging starts.`, 'cheer');
       } else if (ev.type === 'delivered') {
         if (firstHaul) {
           firstHaul = false;
-          comms.say(`First load of icy dirt is home. The plant bakes the water out of it with spare sunlight. ${SHORT_GAME.dirt}`, 'happy');
+          comms.say(`The first load of icy dirt is home! The plant uses spare sunlight to bake the water out. ${SHORT_GAME.dirt}`, 'happy');
           hud.nudgeBuild();
         }
       }
@@ -944,10 +944,10 @@ export async function startGame(x: GameSession): Promise<void> {
       }
       if (f < 1) {
         if (t === 1) comms.say('The tank is half full. Halfway home!', 'cheer');
-        else if (t === 2) comms.say(`Three quarters full! The pad crew is waking up the rocket.${eta ? ` At this pace, launch in about ${eta}.` : ''}`, 'cheer');
+        else if (t === 2) comms.say(`Three quarters full! Time to start warming up the engines.${eta ? ` At this pace, launch in about ${eta}.` : ''}`, 'cheer');
         else if (t === 3) {
           banner('90% FUELED');
-          comms.say(`90% FUELED! The rocket is venting and ready to wake.${eta ? ` About ${eta} to launch.` : ''} Keep the ice coming!`, 'love', undefined, { loud: true, next: 'Go!' });
+          comms.say(`90% FUELED! The rocket is nearly ready.${eta ? ` About ${eta} to launch.` : ''} Keep the ice coming!`, 'love', undefined, { loud: true, next: 'Go!' });
         } else {
           banner('STAND BY FOR LAUNCH');
           comms.say('99%! Topping off the tanks… all stations, STAND BY FOR LAUNCH!', 'love', undefined, { loud: true, next: 'Standing by!' });
@@ -1072,7 +1072,7 @@ export async function startGame(x: GameSession): Promise<void> {
     };
     // The first time ever, Astrofrog says who it is before anything else.
     if (!metFrog()) {
-      void comms.hold('Hi! I\'m Astrofrog, your mission control back on Earth. I\'ll radio you here whenever something happens. Click me or press space to carry on.', 'cheer')
+      void comms.hold('Hi! I\'m Astrofrog, your mission control back on Earth. I\'ll radio you here whenever something happens. Click me or press space to continue.', 'cheer')
         .then(() => { setMetFrog(); void go(); });
     } else void go();
   };

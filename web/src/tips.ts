@@ -46,11 +46,11 @@ export const SHORT = {
 
 /** Tips for the look-and-decide game (round 4). */
 export const SHORT_GAME = {
-  look: 'Look around! Are hills hiding the Sun? Is Earth in view? The timeline below shows the whole year: green is best.',
+  look: 'Look around! Are hills hiding the Sun? Is Earth in view? Is the ice close? The timeline below shows the whole year, and green is best.',
   crater: 'Floors that never see the Sun keep the most ice. The more Sun a floor gets, the less ice it keeps. Closer craters mean shorter trips.',
-  dirt: 'The dry dirt left over piles up by the plant (Dirt, in the dock). Spend it on a landing pad or an upgrade with Build, any time you like.',
-  pad: 'Landing pad ready. Earth can land a crate near the base without sandblasting it.',
-  shelter: 'Moon dirt holds heat. Under its dirt cover, the base needs less power at night.',
+  dirt: 'The leftover dry dirt piles up by the plant (see Dirt in the dock). Spend it on a landing pad or an upgrade with Build whenever you like.',
+  pad: 'Landing pad ready. Earth can now land a crate near the base without sandblasting it.',
+  shelter: 'Dirt cover done. Moon dirt holds heat, so the base needs less power at night.',
   roads: 'Roads packed. The rovers roll faster and spend less charge on each trip.',
   oven: 'Oven wrapped in dirt. Baking ice out now takes less power.',
 } as const;
@@ -59,11 +59,11 @@ export const SHORT_GAME = {
 export const STORY = {
   crash: [
     'Mayday, mayday! Your fuel tank is leaking. There is not enough left to fly home!',
-    'You have to put it down right now, astronaut! Brace yourself!',
-    'Once you are down, we will dig up ice from a dark crater and turn it into rocket fuel. Fill the tank and you can fly home.',
+    'Put it down now, astronaut! Brace for landing!',
+    'Once you\'re down, we\'ll dig ice out of a dark crater and turn it into rocket fuel. Fill the tank and you\'re going home.',
   ],
-  landed: 'Phew, you made it! There is just enough fuel left for one short hop. Pick your base spot well: there are three to look at.',
-  resume: (day: number, site: string) => `Welcome back, astronaut. Day ${day} at ${site}. The tank still needs fuel to get you home.`,
+  landed: 'Phew, you made it! There\'s just enough fuel for one short hop, so let\'s choose a spot for the base. There are three nearby.',
+  resume: (day: number, site: string) => `Welcome back, astronaut. It\'s day ${day} at ${site}, and the tank still needs fuel to get you home.`,
 } as const;
 
 /**
@@ -74,26 +74,26 @@ export const STORY = {
 export const TUTORIAL = {
   /** Astrofrog, before the first landing choice. */
   intro: [
-    'Here is what makes a good base spot. You will check four things at each spot.',
-    'One: Sun. Our fuel plant runs on sunlight, so more Sun means fuel sooner.',
-    'Two: Earth. People on Earth drive the rovers by radio, and they can only drive while Earth is in view.',
-    'Three: a short longest night. When the Sun is hidden, the base lives on its battery. A long night can drain it and put the base to sleep.',
-    'Four: ice close by. Rovers haul icy dirt from a dark crater. A short drive means more trips.',
-    'No spot is best at everything. Look at all three, weigh them up, then pick. Tips will show you where to look.',
+    'So what makes a good base spot? There are four things to check.',
+    'One: sunlight. The fuel plant runs on it, so more Sun means fuel sooner.',
+    'Two: Earth. We drive the rovers by radio from down here, so they can only move while Earth is in view.',
+    'Three: short nights. When the Sun is hidden, the base runs on its battery, and a long night can drain it and put the base to sleep.',
+    'Four: nearby ice. The rovers haul icy dirt from a dark crater, and a shorter drive means more trips.',
+    'No spot wins at everything. Visit all three, weigh them up, then choose. I\'ll point out what to look at along the way.',
   ],
-  firstLook: 'Start here. "Go look" takes you to the spot, so you can see its sky. You can look at every spot before you choose.',
-  compass: 'This strip shows which way you are facing, with markers for the Sun and Earth. Drag the view to look toward them. Is a ridge sitting right under the Sun? Then this spot goes dark whenever the Sun is low.',
-  timeline: 'This bar is the whole year at this spot. Gold means the Sun is up, blue means Earth is in view, green means both. Long gaps with no gold are long nights.',
-  map: 'The map shows where you are and the ice craters nearby. The closer the ice, the shorter every rover trip.',
-  compare: 'Now look at the other spots and compare their timelines and their skies. When you are ready, land on the one you think is best.',
-  revealRows: 'Here are the real numbers behind what you just looked at. A tick marks the spot that won each row. Often no spot wins them all.',
-  revealProj: 'This row is what counts. The game replayed the run from each spot on the real 2027 sky to see which one would fill your tank first.',
-  revealWhy: 'And this is why your spot went dark at its worst moment. The view is turned to show it.',
-  crater: 'Now pick where to dig. A floor the Sun never reaches is a cold trap with the most ice. The more Sun a floor gets, the less ice it keeps, so each load brings home less water. A close sunlit floor can still win on drive time.',
-  craterTimeline: 'At a crater, the timeline shows the floor. Gold means Sun on the floor: the more gold, the less ice.',
-  craterMap: 'The dashed gold line on the map is the rovers\' route. A long route means fewer loads before the deadline, so weigh dark against close.',
-  craterReveal: 'The most ice sits on floors that saw 0% Sun all year: the cold-trap rule. More Sun, less ice. Ice amount and drive together decide the launch day.',
-  done: 'That\'s the tutorial. From here on, the choices are all yours. You can replay it from Menu, Guide & facts.',
+  firstLook: 'Start here. "Go look" takes you to a spot so you can see its sky for yourself. You can visit every spot before choosing.',
+  compass: 'This strip shows which way you\'re facing, with markers for the Sun and Earth. Drag the view to turn toward them. If a ridge sits right under the Sun, this spot goes dark whenever the Sun dips.',
+  timeline: 'This bar shows the whole year at this spot. Gold means the Sun is up, blue means Earth is in view, and green means both. Long stretches without gold are long nights.',
+  map: 'The map shows where you are and the ice craters nearby. The closer the ice, the shorter each rover trip.',
+  compare: 'Now visit the other spots and compare their skies and timelines. When you\'re ready, land on the one you think is best.',
+  revealRows: 'Here are the real numbers behind what you just saw. A tick marks the winner of each row, and often no spot wins them all.',
+  revealProj: 'This is the row that counts. The game replayed the run from each spot under the real 2027 sky to see which one fills your tank first.',
+  revealWhy: 'Here\'s what left your spot in the dark at its worst moment. The view has turned to show it.',
+  crater: 'Now pick where to dig. A floor the Sun never reaches is a cold trap, and it holds the most ice. The more Sun a floor gets, the less ice it keeps, so each load brings home less water. Still, a close sunlit floor can win on drive time.',
+  craterTimeline: 'At a crater, the timeline shows its floor. Gold means Sun on the floor, and the more gold, the less ice.',
+  craterMap: 'The dashed gold line on the map is the rovers\' route. A longer route means fewer loads before the deadline, so weigh dark against close.',
+  craterReveal: 'The most ice sits on floors that got 0% Sun all year. That\'s the cold-trap rule: more Sun, less ice. Ice and drive time together decide the launch day.',
+  done: 'That\'s the end of the tutorial. From here on, every choice is yours. You can replay it anytime from Menu → Guide & facts.',
 } as const;
 
 /** The menu's "Picking a good spot" checklist (How to play). */
