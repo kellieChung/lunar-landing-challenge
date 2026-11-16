@@ -34,7 +34,7 @@ export interface World {
   env: Env;
   siteId: string;
   dark: Key[]; // spots with no sunlight all year (no part of the Sun's disk in any hour)
-  craters: Key[]; // spots whose floor holds ice by the cold-trap tiers (rich or trace)
+  craters: Key[]; // spots whose floor holds ice by the cold-trap tiers (rich or sunlit)
   ice: Map<Key, number>; // HYPOTHETICAL ice share of each crater
   /** REAL mean sunlit share of a crater floor over 2027 (from the hourly series). */
   floor(k: Key): number;

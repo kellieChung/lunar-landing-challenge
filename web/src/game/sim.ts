@@ -25,7 +25,7 @@ export interface Env {
   iceFraction(spot: Key): number | null;
   /** Is the spot dark all year (REAL)? Solar panels would never work there. */
   isDark(spot: Key): boolean;
-  /** Does the floor hold ice by the cold-trap tiers (rich or trace)? */
+  /** Does the floor hold ice by the cold-trap tiers (rich or sunlit)? */
   isCrater(spot: Key): boolean;
   /**
    * Hours of Earth link left at this spot from `hour` (0 if Earth is down now), as

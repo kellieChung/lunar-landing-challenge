@@ -48,7 +48,7 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
 | test | what it checks | expected | result |
 | --- | --- | --- | --- |
 | Smooth sphere | every azimuth shows the geometric dip `−acos(R/(R+h))` | −0.1065° | within 0.001° at all 360 azimuths |
-| Cone mountain (1 km high, 4 km due north) | north value equals the exact 3D angle to the tip | exact 3D angle | within 1e-6°; spec's small-angle formula agrees within 0.05° |
+| Cone mountain (1 km high, 4 km due north) | north value equals the exact 3D angle to the tip | exact 3D angle | within 1e-6°; the small-angle formula agrees within 0.05° |
 | Cone, looking away | south shows only the sphere dip | −0.1065° | within 0.001° |
 | Orientation | a peak placed at 0°, 90°, 180°, 270° shows up at that same azimuth | same index | pass (guards against a mirrored panorama) |
 | Near/far maps | a peak only in the far map is seen where the near map has no data; a near-map peak wins over a flat far map | peak visible | pass |
@@ -103,7 +103,7 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
 - The highest ridge (northwest, around 300°) is in the same direction as
   Earth (azimuth about 291°–307° over 2027), so terrain hides Earth much of
   the time.
-- Computing one 360° mask takes about 0.02 s (spec target: under 2 s);
+- Computing one 360° mask takes about 0.02 s (design target: under 2 s);
   loading the two map windows takes about 3.5 s per site.
 
 ### Grid points (11 × 11, 1 km apart)
@@ -193,7 +193,7 @@ Points: **nobile-rim-2** is Nobile Rim 2 (−84.20156°, 60.69989°).
 points only, not landing sites.
 
 **Result: worst disagreement 0.095 arcseconds (0.000026°), median 0.005″.**
-The spec target was "well under 0.1°", so we're about 4,000× inside it. The
+The design target was "well under 0.1°", so we're about 4,000× inside it. The
 small Earth differences (≤ 0.1″) are not investigated further; likely causes
 are Horizons using DE441 (we use DE440) and small differences in how
 light-time and aberration are applied.
@@ -245,7 +245,7 @@ Full year 2027, hourly, elevations relative to a flat horizon (no terrain).
 | test-near-pole (−89.5°) | −2.02° to +2.02° | −6.60° to +7.07° | Sun stays within ~2° of the horizon |
 | test-equator (0°, 0°) | −89.95° to +89.60° | +79.69° to +89.97° | Earth parked near the zenith |
 
-- **Spec correction:** the spec said pole sites keep the Sun within about
+- **Correction to the original brief:** it said pole sites keep the Sun within about
   ±1.6°. That only holds right at the pole. In general the Sun's elevation is
   bounded by *(distance from the pole) + ~1.5°* (the tilt of the Moon's axis),
   so Nobile Rim 2, about 6° from the pole, sees the Sun up to about 7.3°. The
@@ -378,7 +378,7 @@ Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
   closer than that, and the lander itself, are not in the horizon.
 - **Distant sampling:** beyond 5 km, samples are spaced at 1% of the distance
   (about 1 km apart at 100 km), so a narrow distant peak can fall between
-  samples. This follows the spec's design.
+  samples. This was a design choice.
 - **Fixed 250 km range:** terrain further away is ignored. Rerunning all nine
   site centers out to 500 km changes no mask value by more than the 0.005°
   rounding (see §1b).

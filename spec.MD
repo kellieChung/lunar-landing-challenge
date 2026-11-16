@@ -2,7 +2,7 @@
 
 NASA Space Apps 2026. Team **T^2 = Ka^3**: a builder (frontend) and an astronomer (physics, validation). This document describes what the app does and how it is put together. The physics is written up in `docs/METHODS.md`, how it was checked in `docs/VALIDATION.md`, and the Moon Base game in `game.MD`.
 
-**Privacy rule:** both team members are under 18. No personal names, photos, voices, emails or usernames go into the UI, the docs or demo assets. The team is credited by team name only.
+**Privacy rule:** both team members are under 18. No team member's name, photo, voice or email goes into the app, the project page or demo assets. The team is credited by team name only.
 
 ## The product
 

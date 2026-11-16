@@ -45,7 +45,7 @@ Three layers, in order: **look and decide** (the skill), **watch it play out** (
 | Running | Rovers haul by themselves; the dock says why they wait. |
 | Builds | When dry dirt pays for something, the clock pauses for the choice; **Build** in the dock works any time. |
 | Prepare | ~24 h before a dark stretch of 48 h or more at the base, mission control warns about the coming night. |
-| Launch | Fuel milestones at 50 / 75 / 90 / 99% (banners, an ETA), then **Go for launch**, countdown and liftoff in 3D. |
+| Launch | Mission control calls out 50% and 75% with an ETA, banners mark 90% and 99%, then **Go for launch**, countdown and liftoff in 3D. |
 | Report | The result, Sky Sense, the near-miss line, unlocks, then **Another mission**, **Same start again** or **Moon map**. |
 
 **Deadline:** 3 Sun circuits from landing (2,124 h, 89 days). If it passes, the run ends with a report that shows the biggest drag and offers the same start again.
@@ -77,7 +77,7 @@ Choices 2, 3 and 4a are real look-and-compare moments; the rest are quick cards.
 
 ## 5. How the options are drawn (no dominant answer)
 
-**Landing spots:** cells with some sun and at least one icy crater in rover range, offered as three roles: the sunniest spot, the spot with the most Earth, and a balanced spot. If one option beats both others on every REAL metric, the dominated role is swapped for the next candidate (`playthrough.test.ts` checks this on the shipped data). The **projection** decides which spot is best, not a formula.
+**Landing spots:** cells with some sun and at least one icy crater in rover range, offered as three roles: the sunniest spot, the spot with the most Earth, and the spot closest to ice. If one option beats both others on every REAL metric, the dominated role is swapped for the next candidate (`playthrough.test.ts` checks this on the shipped data). The **projection** decides which spot is best, not a formula.
 
 **Craters:** cells whose floor holds ice by the tier rule (§6) within rover range of the base: the darkest floor, a floor that sees a little Sun (a closer one if there is one), and a third whose sunlight differs most from both, so the three span the range. With fewer than 3, the game offers what exists.
 

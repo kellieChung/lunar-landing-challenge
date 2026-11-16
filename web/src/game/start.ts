@@ -518,7 +518,7 @@ export async function startGame(x: GameSession): Promise<void> {
   const cardLook = (n: number) => () => document.querySelectorAll('.g-chooser .g-card')[n]?.querySelector('button') ?? null;
   const revealRow = (n: number) => () => document.querySelectorAll('.g-reveal-table tr')[n]?.firstElementChild ?? null;
 
-  // ---- Blocking tips: only three in a run's life (game.MD §7) ----
+  // ---- Blocking tips: only three in a run's life ----
   const holdOnce = async (id: string, text: string, mood: Mood = 'talk', tag?: string) => {
     if (!run || run.blocking.includes(id)) return;
     run.blocking.push(id);
