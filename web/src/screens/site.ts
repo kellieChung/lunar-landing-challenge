@@ -4,7 +4,7 @@
 
 import { loadMastFile, loadSite, loadSiteIndex, loadTerrain } from '../data/load';
 import { loadNasaModels } from '../panorama3d/nasaModels';
-import type { GridPoint, MastPoint, SiteData } from '../data/types';
+import type { GridPoint, MastPoint } from '../data/types';
 import { Panorama } from '../panorama/Panorama';
 import { maskAt, vecToAzEl } from '../panorama/geometry';
 import type { PanoramaView } from '../panorama/view';
@@ -30,7 +30,7 @@ import { formatUtc, PAGE_SAMPLES, TimeBar } from '../ui/TimeBar';
 type Mode = '3d' | '2d';
 
 const TRACK_HOURS = 709; // ~29.5 days: one trip of the Sun around the horizon
-const EARTH_RADIUS_FALLBACK_DEG = 0.95; // only for files without earth.r_km (fake data)
+const EARTH_RADIUS_FALLBACK_DEG = 0.95; // only for a site file without earth.r_km (Earth distance)
 const MARGIN_DEG = 0.5;
 const NEAR_TERRAIN_HALF_M = 5000; // the 3D view draws 10 x 10 km of ground around the observer
 const DETAIL_PATCH_HALF_M = 1500; // and the 3 x 3 km nearest it from the 10 m heightmap
@@ -100,18 +100,6 @@ function elevationRange(sunU: ArrayLike<number>, earthU: ArrayLike<number>, mask
   return [Math.min(...mask) - MARGIN_DEG, top + MARGIN_DEG];
 }
 
-function showBadge(data: SiteData): void {
-  const badge = document.getElementById('badge')!;
-  badge.hidden = true;
-  if (data.fake) {
-    badge.textContent = 'FAKE DATA';
-    badge.hidden = false;
-  } else if (data.mask_fake) {
-    badge.textContent = 'TERRAIN NOT REAL YET';
-    badge.hidden = false;
-  }
-}
-
 export async function openSite(id: string): Promise<void> {
   // NASA's 3D models (lander, base, rovers) load alongside the site data; the
   // 3D view waits for them so its props never pop in. Never rejects.
@@ -121,7 +109,6 @@ export async function openSite(id: string): Promise<void> {
     .then((all) => all.find((s) => s.id === id)?.grid ?? null)
     .catch((err) => { console.error(err); return null; });
   const data = await loadSite(id);
-  showBadge(data);
   const game = gameFromUrl();
   wireModeSwitch(game, hostsRuns(id));
   const seriesAt = seriesCache(data); // hourly lit / Earth per grid point, shared with the game

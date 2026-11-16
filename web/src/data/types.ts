@@ -62,8 +62,6 @@ export interface TerrainHeader {
 }
 
 export interface SiteData {
-  fake?: boolean; // whole file is made up (milestone 1 test data)
-  mask_fake?: boolean; // real Sun/Earth, but the terrain mask is still made up
   site: {
     id: string;
     name: string;
@@ -109,7 +107,7 @@ export interface SiteIndexEntry {
   name: string;
   kind: SiteKind;
   blurb: string;
-  lat: number | null; // null = coordinates not cited yet (TODO astronomer)
+  lat: number | null; // null = no coordinates yet
   lon: number | null;
   has_data: boolean; // web/public/data/<id>.json exists
   grid?: GridSummary[]; // built sites with an 11 x 11 grid

@@ -8,7 +8,7 @@ import pytest
 
 WEB_DATA = Path(__file__).resolve().parents[2] / "web" / "public" / "data"
 SHIPPED = sorted(p.stem for p in WEB_DATA.glob("*.json")
-                 if p.stem not in ("sites", "fake") and "_mast" not in p.stem)
+                 if p.stem != "sites" and "_mast" not in p.stem)
 
 
 def _reject_nan(token):

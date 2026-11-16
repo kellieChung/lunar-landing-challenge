@@ -43,14 +43,6 @@ html, body {
 
 .hook { color: var(--sun); font-size: 14px; }
 
-.badge {
-  margin-left: auto;
-  padding: 2px 8px;
-  border: 1px solid #ff6b6b;
-  color: #ff6b6b;
-  font: 12px var(--mono);
-}
-
 /* The 2D strip and the 3D scene share one stage; only one is shown. */
 .pano-stage {
   position: relative;

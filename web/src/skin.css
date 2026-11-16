@@ -143,16 +143,6 @@ button.go { background: none; }
 .topbar h1 { font: 20px var(--pixel); letter-spacing: 0.5px; }
 .topbar .hook { color: #ffe08a; }
 
-.badge {
-  border-style: solid;
-  border-width: 6px;
-  border-image: url(./assets/ui-sprout/slot-purple.png) 4 fill;
-  image-rendering: pixelated;
-  padding: 0 4px;
-  color: #fff;
-  font: 14px var(--pixel);
-}
-
 .credit {
   display: inline;
   margin-left: auto;
@@ -162,7 +152,6 @@ button.go { background: none; }
   white-space: nowrap;
 }
 .credit:hover, .credit:focus-visible { color: #fff; text-decoration: underline; }
-.badge:not([hidden]) + .credit { margin-left: 12px; }
 .credit + .credit { margin-left: 12px; }
 
 @media (max-width: 700px) {
