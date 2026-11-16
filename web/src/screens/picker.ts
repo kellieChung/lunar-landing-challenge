@@ -18,6 +18,8 @@ function dailySite(): string | null {
   return SITE_ORDER[Math.floor(hash01(dailySeed()) * SITE_ORDER.length)];
 }
 
+const START_TIP_KEY = 'halo.startTipSeen';
+
 type Status = 'ready' | 'no-data' | 'no-coords';
 
 function statusOf(s: SiteIndexEntry): Status {
@@ -155,6 +157,7 @@ export class Picker {
     list.replaceChildren();
     this.items.clear();
     this.renderDaily();
+    this.renderStartTip();
     for (const s of this.sites) {
       const status = statusOf(s);
       const li = el('li', `site-item status-${status}`);
@@ -221,6 +224,39 @@ export class Picker {
     if (done) row.append(sprite('patch-golden', { scale: 2, label: 'Completed' }));
     row.append(el('span', 'card-patch-text', done ? `Complete${best?.days != null ? `: launched on day ${Math.ceil(best.days)}` : ''}` : 'Not launched yet'));
     return [row, Object.assign(el('a', 'go card-game', 'Start an ice run →'), { href: `?site=${s.id}&mode=game` })];
+  }
+
+  /** "Where to start?" at the top of the panel: Explore first, then the game. Dismissible. */
+  private renderStartTip(): void {
+    const panel = document.querySelector('.picker-panel');
+    if (!panel || panel.querySelector('.start-tip')) return;
+    try { if (localStorage.getItem(START_TIP_KEY)) return; } catch { /* storage blocked: show it */ }
+    const box = el('div', 'start-tip');
+    box.setAttribute('role', 'note');
+    const step = (n: string, title: string, body: string, btn: string) => {
+      const li = el('li', 'start-step');
+      const text = el('div', 'start-step-text');
+      const head = el('b', 'start-step-title', title);
+      const p = el('p', '');
+      const [before, after] = body.split('%');
+      p.append(before, el('span', 'start-btn', btn), after);
+      text.append(head, p);
+      li.append(el('span', 'start-num', n), text);
+      return li;
+    };
+    const ol = el('ol', 'start-steps');
+    ol.append(
+      step('1', 'Explore first', 'Pick a site, then press % to look around and see when it gets sunlight and can reach Earth.', 'Stand here'),
+      step('2', 'Then play the game', 'Press % to land, dig up ice and fuel your rocket home.', 'Start an ice run'),
+    );
+    const ok = el('button', 'start-ok', 'Got it');
+    ok.type = 'button';
+    ok.onclick = () => {
+      box.remove();
+      try { localStorage.setItem(START_TIP_KEY, '1'); } catch { /* fine */ }
+    };
+    box.append(el('p', 'start-title', 'New here? Start in this order:'), ol, ok);
+    panel.querySelector('h2')?.after(box);
   }
 
   /** The Daily Mission line at the top of the panel, and the player's rank. */

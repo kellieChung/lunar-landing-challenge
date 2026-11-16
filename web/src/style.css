@@ -641,6 +641,43 @@ details.more > summary:focus-visible { outline: 2px solid var(--fg); outline-off
 .daily { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; }
 .daily-rank { font: 12px var(--mono); color: var(--muted); }
 
+/* Picker: "New here?" start tip (Explore first, then the game). */
+.start-tip {
+  position: relative;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--earth);
+  background: rgba(90, 169, 255, 0.08);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.start-title { margin: 0 0 8px; font-weight: 600; }
+.start-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.start-step { display: flex; gap: 8px; align-items: flex-start; }
+.start-num {
+  flex: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--earth);
+  color: var(--bg);
+  font: 600 12px/20px var(--mono);
+  text-align: center;
+}
+.start-step-title { display: block; }
+.start-step p { margin: 2px 0 0; color: var(--muted); }
+.start-btn { color: var(--sun); font-weight: 600; white-space: nowrap; }
+.start-ok {
+  margin-top: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+.start-ok:hover, .start-ok:focus-visible { border-color: var(--earth); color: var(--earth); }
+
 /* ---- H.A.L.O.sim cockpit HUD over the globe ---- */
 .halo-hud {
   --hud: #5ff3ff;
