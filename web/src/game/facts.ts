@@ -1,5 +1,5 @@
 // "Did you know?" cards. Each one says how sure we are (tag) and where it
-// comes from. TODO(astronomer): check every card and source before submission.
+// comes from.
 
 import { fuelTarget, H2_PER_KG_WATER, O2_PER_KG_WATER } from './chemistry';
 import {

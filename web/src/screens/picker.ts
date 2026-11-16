@@ -192,7 +192,7 @@ export class Picker {
     const game: HTMLElement[] = status !== 'ready' || !s.grid ? [] : this.gameCard(s);
     card.replaceChildren(
       el('h3', 'card-name', s.name),
-      ...(s.blurb.startsWith('TODO(') ? [] : [el('p', 'card-blurb', s.blurb)]), // never show placeholders
+      ...(s.blurb ? [el('p', 'card-blurb', s.blurb)] : []),
       el('div', 'card-coords', formatLatLon(s.lat!, s.lon!)),
       action,
       ...game,

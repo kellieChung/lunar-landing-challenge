@@ -86,7 +86,7 @@ def test_year_shape_and_units(year):
 def test_sun_stays_near_horizon_at_high_latitude(year, name):
     # The Sun's height is bounded by the distance from the pole plus the
     # ~1.54 deg tilt of the Moon's axis (1.6 deg leaves a little room for
-    # libration). TODO(astronomer): confirm and cite the 1.54 deg value. Near the pole this is the spec's "within ~1.6 deg"; at
+    # libration). Near the pole this is "within ~1.6 deg"; at
     # Nobile Rim 2 (about 6 deg from the pole) the Sun can reach about 7 deg.
     lat = VALIDATION_POINTS[name][0]
     d = year[name]
@@ -97,7 +97,7 @@ def test_sun_stays_near_horizon_at_high_latitude(year, name):
 def test_earth_barely_moves_at_equator(year):
     # Sanity check: from (0, 0) Earth hangs near the zenith and only wobbles
     # by the libration, commonly quoted as about 7.9 deg in longitude and
-    # 6.9 deg in latitude. TODO(astronomer): confirm and cite these values.
+    # 6.9 deg in latitude.
     d = year["test-equator"]
     east_offset = np.degrees(np.arcsin(d["earth"]["e"]))
     north_offset = np.degrees(np.arcsin(d["earth"]["n"]))

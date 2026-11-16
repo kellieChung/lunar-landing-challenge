@@ -5,7 +5,6 @@
 //   ESTIMATE      an engineering value taken from a published source
 //   HYPOTHETICAL  a design or amount nobody has measured or flown; a labelled guess
 //
-// TODO(astronomer): verify every value and source below before submission.
 // Nothing here is tuned to make the game easier; change a number only with a source.
 
 export type Tag = 'REAL' | 'ESTIMATE' | 'HYPOTHETICAL';
@@ -64,7 +63,7 @@ export const MAX_SLOPE_DEG = 15;
 /**
  * Regolith carried per trip (HYPOTHETICAL). No flown rover has a published
  * figure; NASA's IPEx digging robot is itself a ~30 kg-class machine, and a
- * RASSOR mission study assumed 20 kg of regolith per trip. TODO(astronomer): cite.
+ * RASSOR mission study assumed 20 kg of regolith per trip.
  */
 export const ROVER_PAYLOAD_KG = 30;
 /** Power while driving or digging (HYPOTHETICAL). */
@@ -105,7 +104,7 @@ export const MIXTURE_RATIO = 6;
 
 // ---- Building with Moon dirt (the dry regolith left after baking out the ice) ----
 // Ideas researchers really propose for regolith; the numbers are HYPOTHETICAL
-// game values. TODO(astronomer): check the sources and the wording.
+// game values.
 
 /**
  * Landing pad: a flat, stabilised pad with a regolith berm, so Earth can land

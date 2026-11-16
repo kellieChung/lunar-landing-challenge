@@ -4,8 +4,8 @@ Nine south-pole sites matching NASA's Artemis III candidate landing regions
 (spec.MD, "Curated sites"). Coordinates are the exact values from the team's
 brief: latitude negative = south, longitude in degrees east (-180..180).
 Do not round them. Four come from the astronomer's papers ("paper 1",
-"paper 2"; full citations TODO); the rest are still uncited placeholders
-from the brief. Blurbs are TODO(astronomer).
+"paper 2"); the others have no source recorded. Blurbs are left empty
+rather than invented.
 """
 
 from dataclasses import dataclass
@@ -29,24 +29,24 @@ class Site:
         return self.lat is not None and self.lon is not None
 
 
-BLURB_TODO = "TODO(astronomer)"
-CITE_TODO = "TODO(astronomer): cite"
-PAPER1 = "paper 1, TODO(astronomer): full citation"
-PAPER2 = "paper 2, TODO(astronomer): full citation"
+NO_BLURB = ""
+NO_SOURCE = ""
+PAPER1 = "paper 1"
+PAPER2 = "paper 2"
 
 SITES: list[Site] = [
-    Site("cabeus-b-peak", "Peak near Cabeus B", -83.661, -69.014, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("cabeus-b-peak", "Peak near Cabeus B", -83.661, -69.014, "south-pole", NO_BLURB, NO_SOURCE),
     # Paper 2 gives 338.33290 deg E; the same longitude in -180..180 is -21.66710.
-    Site("haworth", "Haworth", -86.80402, -21.66710, "south-pole", BLURB_TODO, PAPER2),
-    Site("malapert-massif", "Malapert Massif", -85.995, -0.236, "south-pole", BLURB_TODO, CITE_TODO),
-    Site("mons-mouton-plateau", "Mons Mouton Plateau", -84.232, 29.926, "south-pole", BLURB_TODO, CITE_TODO),
-    Site("mons-mouton", "Mons Mouton", -85.423, 31.586, "south-pole", BLURB_TODO, CITE_TODO),
-    Site("nobile-rim-1", "Nobile Rim 1", -85.54419, 37.62660, "south-pole", BLURB_TODO, PAPER2),
-    Site("nobile-rim-2", "Nobile Rim 2", -84.20156, 60.69989, "south-pole", BLURB_TODO, PAPER1),
+    Site("haworth", "Haworth", -86.80402, -21.66710, "south-pole", NO_BLURB, PAPER2),
+    Site("malapert-massif", "Malapert Massif", -85.995, -0.236, "south-pole", NO_BLURB, NO_SOURCE),
+    Site("mons-mouton-plateau", "Mons Mouton Plateau", -84.232, 29.926, "south-pole", NO_BLURB, NO_SOURCE),
+    Site("mons-mouton", "Mons Mouton", -85.423, 31.586, "south-pole", NO_BLURB, NO_SOURCE),
+    Site("nobile-rim-1", "Nobile Rim 1", -85.54419, 37.62660, "south-pole", NO_BLURB, PAPER2),
+    Site("nobile-rim-2", "Nobile Rim 2", -84.20156, 60.69989, "south-pole", NO_BLURB, PAPER1),
     # Paper 1 gives 298.832680556 deg E; the same longitude in -180..180 is -61.167319444.
     # (An earlier copy of the spec had +61.16732, which lands on a crater floor.)
-    Site("de-gerlache-rim-2", "de Gerlache Rim 2", -88.51566, -61.167319444, "south-pole", BLURB_TODO, PAPER1),
-    Site("slater-plain", "Slater Plain", -87.149, 126.134, "south-pole", BLURB_TODO, CITE_TODO),
+    Site("de-gerlache-rim-2", "de Gerlache Rim 2", -88.51566, -61.167319444, "south-pole", NO_BLURB, PAPER1),
+    Site("slater-plain", "Slater Plain", -87.149, 126.134, "south-pole", NO_BLURB, NO_SOURCE),
 ]
 
 

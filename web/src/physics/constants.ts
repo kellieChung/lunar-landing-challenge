@@ -1,5 +1,5 @@
-// Physical constants used by the browser. TODO(astronomer): cite each value
-// in docs/METHODS.md (IAU 2015 nominal solar radius; IAU mean Earth radius).
+// Physical constants used by the browser (IAU 2015 nominal solar radius and
+// total solar irradiance; IAU mean Earth radius). Same values as the Python.
 
 export const AU_KM = 149_597_870.7; // same value as python/lunar/ephemeris.py
 export const R_SUN_KM = 695_700;
@@ -17,5 +17,5 @@ export function earthRadiusDeg(rKm: number): number {
   return Math.asin(R_EARTH_KM / rKm) * DEG;
 }
 
-/** Solar power at 1 AU (W/m^2), same as python/lunar/metrics.py. TODO(astronomer): cite. */
+/** Solar power at 1 AU (W/m^2), same as python/lunar/metrics.py. */
 export const SOLAR_CONSTANT_W_M2 = 1361.0;

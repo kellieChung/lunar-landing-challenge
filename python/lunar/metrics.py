@@ -33,7 +33,7 @@ import numpy as np
 
 from lunar.ephemeris import AU_KM, az_el
 
-SOLAR_CONSTANT_W_M2 = 1361.0  # TODO(astronomer): cite (e.g. IAU 2015 nominal total solar irradiance)
+SOLAR_CONSTANT_W_M2 = 1361.0  # IAU 2015 nominal total solar irradiance
 R_SUN_KM = 695_700.0  # IAU 2015 nominal solar radius, same as web/src/physics/constants.ts
 R_EARTH_KM = 6371.0  # mean Earth radius, same as web/src/physics/constants.ts
 LIT_THRESHOLD = 0.5  # sunlit fraction that counts as "lit"

@@ -38,7 +38,7 @@ def test_kinds_valid():
 
 def test_blurbs_not_invented():
     for s in SITES:
-        assert s.blurb.startswith("TODO(astronomer)"), s.id
+        assert s.blurb == "", s.id
 
 
 def test_get_site():
