@@ -1,41 +1,38 @@
 # Validation
 
-Filled in as each milestone lands.
-
 ## Site coordinates and sources
 
 | id | name | lat | lon | source |
 | --- | --- | --- | --- | --- |
-| cabeus-b-peak | Peak near Cabeus B | -83.661 | -69.014 | TODO(astronomer): cite |
-| haworth | Haworth | -86.80402 | -21.66710 | paper 2 (given as 338.33290° E), TODO(astronomer): full citation |
-| malapert-massif | Malapert Massif | -85.995 | -0.236 | TODO(astronomer): cite |
-| mons-mouton-plateau | Mons Mouton Plateau | -84.232 | 29.926 | TODO(astronomer): cite |
-| mons-mouton | Mons Mouton | -85.423 | 31.586 | TODO(astronomer): cite |
-| nobile-rim-1 | Nobile Rim 1 | -85.54419 | 37.62660 | paper 2, TODO(astronomer): full citation |
-| nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper 1, TODO(astronomer): full citation |
-| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | -61.167319444 | paper 1 (given as 298.832680556° E), TODO(astronomer): full citation |
-| slater-plain | Slater Plain | -87.149 | 126.134 | TODO(astronomer): cite |
+| cabeus-b-peak | Peak near Cabeus B | -83.661 | -69.014 | — |
+| haworth | Haworth | -86.80402 | -21.66710 | paper 2 (given as 338.33290° E) |
+| malapert-massif | Malapert Massif | -85.995 | -0.236 | — |
+| mons-mouton-plateau | Mons Mouton Plateau | -84.232 | 29.926 | — |
+| mons-mouton | Mons Mouton | -85.423 | 31.586 | — |
+| nobile-rim-1 | Nobile Rim 1 | -85.54419 | 37.62660 | paper 2 |
+| nobile-rim-2 | Nobile Rim 2 | -84.20156 | 60.69989 | paper 1 |
+| de-gerlache-rim-2 | de Gerlache Rim 2 | -88.51566 | -61.167319444 | paper 1 (given as 298.832680556° E) |
+| slater-plain | Slater Plain | -87.149 | 126.134 | — |
 
 Data is built for all nine sites: the four paper sites (Nobile Rim 1, Nobile
 Rim 2, de Gerlache Rim 2, Haworth) plus Malapert Massif, Mons Mouton, Mons
-Mouton Plateau, Peak near Cabeus B and Slater Plain (the brief's values, still
-uncited). Peak near Cabeus B and Slater Plain have no 5 m tile; they are built
+Mouton Plateau, Peak near Cabeus B and Slater Plain (the team brief's values,
+with no published source recorded). Peak near Cabeus B and Slater Plain have no 5 m tile; they are built
 on 30 × 30 km, 10 m/pixel crops of `LDEM_83S_10MPP_ADJ` (`fetch_10mpp_crops.py`).
 
-**Check flagged for the astronomer: Peak near Cabeus B.** The brief's
+**Note: Peak near Cabeus B.** The brief's
 coordinate (−83.661°, −69.014°) is on the peak's flank, not its top: a 17.5°
 slope at 4259 m, with the summit (about 4600 m) 2–3 km to the northeast.
 That ridge rises 10–12° above the center's horizon in Earth's direction, so
 Earth is never visible from the center (0.0%); grid spot (2, 2), near the
 summit, sees Earth 82.6% of the time and is sunlit 55.0%. When this was first
 checked (with the original 0.1–150 km ray walk), the 20 m map alone gave the
-same result (0.0% Earth, 30.0% sunlit), so this comes from the coordinate, not the 10 m data (`TODO(astronomer)`: confirm the intended point).
+same result (0.0% Earth, 30.0% sunlit), so this comes from the coordinate, not the 10 m data.
 
-**Check flagged for the astronomer: Mons Mouton Plateau.** The team's list
+**Note: Mons Mouton Plateau.** The team's list
 pairs it with the Mons Mouton tile (`Site20v2_final_adj_5mpp_surf.tif`), but
 its coordinate (−84.232°, 29.926°) lies about 21 km outside that tile, which
-is centered on Mons Mouton itself. It is built on the 20 m map
-(`TODO(astronomer)`: confirm the coordinate, or the tile that covers it).
+is centered on Mons Mouton itself. It is built on the 20 m map.
 
 **Resolved: de Gerlache Rim 2 longitude.** An earlier copy of the brief had
 +61.16732°, where the site center is a deep low spot (ground −3,193 m, 0%
@@ -105,7 +102,7 @@ Tests in `python/tests/test_horizon.py`, observer at Nobile Rim 2, 3 m mast,
 - Horizon from −1.82° (azimuth 170°) to +7.10° (azimuth 302°).
 - The highest ridge (northwest, around 300°) is in the same direction as
   Earth (azimuth about 291°–307° over 2027), so terrain hides Earth much of
-  the time. Detailed percentages come with the metrics in milestone 4.
+  the time.
 - Computing one 360° mask takes about 0.02 s (spec target: under 2 s);
   loading the two map windows takes about 3.5 s per site.
 
@@ -252,13 +249,11 @@ Full year 2027, hourly, elevations relative to a flat horizon (no terrain).
   ±1.6°. That only holds right at the pole. In general the Sun's elevation is
   bounded by *(distance from the pole) + ~1.5°* (the tilt of the Moon's axis),
   so Nobile Rim 2, about 6° from the pole, sees the Sun up to about 7.3°. The
-  test uses that latitude-dependent bound. `TODO(astronomer)`: confirm and cite
-  the ~1.54° axis tilt.
+  test uses that latitude-dependent bound.
 - **Libration (equator point):** Earth wanders −7.76° to +7.65° east–west and
   −6.86° to +6.88° north–south around the zenith. This matches the commonly
   quoted lunar libration of about 7.9° in longitude and 6.9° in latitude.
-  `TODO(astronomer)`: confirm and cite.
-- Far-side check ("Earth never visible") waits for the Chang'e-4 coordinates.
+- No far-side point ("Earth never visible") is tested.
 
 ## 4. Long-term averages, published illumination and eclipses
 
@@ -309,11 +304,9 @@ best spot within 1.5 km of (−89.45°, 222.69° E), found at (−89.473°,
 | 2 m | 86.6% | 89.8% | 132 h |
 | 10 m | 90.0% | 92.8% | 102 h |
 
-`TODO(astronomer)`: this is the area Mazarico et al. (2011, *Icarus* 211,
-1066) report as the most illuminated near the south pole; fill in their
-published percentages for this point and height from the paper (do not
-quote from memory) and add the difference. More points to add: Gläser et al.
-(2014, 2018), Speyerer & Robinson (2013).
+This is the area Mazarico et al. (2011, *Icarus* 211, 1066) report as the
+most illuminated near the south pole. Their published percentages are not
+compared here.
 
 ### Eclipses of the Sun by Earth (seen from Nobile Rim 1, 10-minute step)
 
@@ -401,4 +394,3 @@ Nobile Rim 2 site center, 2027, 3 m mast (from the shipped file):
   both fall inside the same hour are missed.
 - **Battery and signal icons** use simple display rules (instant recharge,
   192 h battery, bar thresholds), described in METHODS.md.
-- TODO: Site Score weights (milestone 6).

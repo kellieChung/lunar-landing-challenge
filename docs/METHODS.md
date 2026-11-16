@@ -1,6 +1,6 @@
 # Methods
 
-Physics write-up for the project page. Filled in at milestone 8.
+Physics write-up for the project page.
 
 ## Site frame
 Code: `site_frame` in `python/lunar/ephemeris.py`, `point_axes` in
@@ -187,9 +187,8 @@ test fixture checks both give the same numbers (see VALIDATION.md §5).
   center and 8 points 45° apart on a ring at `r/√2` (r = angular radius),
   and count how many are above the horizon at their own azimuth: 0 = dark,
   1/9 … 8/9 = partly behind a ridge, 1 = fully lit. A sideways offset of x
-  degrees on the sky is x / cos(elevation) degrees of azimuth.
-  `TODO(astronomer)`: review the ring radius (a numerical choice; `r/√2`
-  splits the disk into two equal areas).
+  degrees on the sky is x / cos(elevation) degrees of azimuth. The ring
+  radius is a numerical choice: `r/√2` splits the disk into two equal areas.
 - **Lit** means at least half of those points are up (fraction ≥ 0.5). For a
   locally flat horizon this is the same as "the Sun's center is above it".
 - **Earth visible** means Earth's center is above the horizon. The margin
@@ -209,7 +208,8 @@ test fixture checks both give the same numbers (see VALIDATION.md §5).
   facing the Sun and `sin(el)` (0 if negative) for a panel lying flat. At the
   pole the Sun is within a few degrees of the horizon, so a flat panel gets
   almost nothing: at Nobile Rim 2 in 2027, 33 W/m² on average against
-  436 W/m² for a vertical one. `TODO(astronomer)`: cite 1361 W/m².
+  436 W/m² for a vertical one. 1361 W/m² is the IAU 2015 nominal total
+  solar irradiance.
 - **Between hourly samples** (smooth playback, countdowns): the Sun and Earth
   directions are interpolated linearly and re-normalized, and the Sun
   distance linearly.
@@ -258,34 +258,33 @@ These are metaphors for the public; the real numbers are shown beside them.
   Earth radius of clearance); 2 up to 2°, 3 up to 4°, 4 above that. The bar
   thresholds are a design choice; the clearance in degrees is shown under it.
 
-## Site Score
-TODO: formula and weights. The weights are a design choice, not physics.
-
 ## Moon Base mode (game)
 Code: `web/src/game/`. The game reuses the Navigator's physics and never
 computes its own: every number about the Moon comes from `src/physics/` or
 `sites.json`. All other numbers sit in `web/src/game/constants.ts` with their
 source. In the game each number carries a tag: **REAL**, **ESTIMATE** or
-**HYPOTHETICAL**. `TODO(astronomer)`: check every value and source.
+**HYPOTHETICAL**.
 
 | What | How | Tag |
 | --- | --- | --- |
 | Solar power | 10 kW tower × sunlit fraction × (1 AU / r)², Sun-tracking, at the tower's grid spot, every hour of 2027 (`fluxWm2`) | REAL sunlight, ESTIMATE tower size (NASA VSAT class) |
-| Earth contact | rovers are driven from Earth by radio (straight lines), so they drive and dig only while Earth's center is above the base's horizon (`siteSeries().earth`); caught out when Earth sets, they park (0.05 kW heaters) until it rises. A rover starts a trip only if it can finish before Earth sets, as rover teams plan drives around communication windows. Future lunar relay satellites would relax this. `TODO(astronomer)`: cite | REAL visibility; simplified operations |
-| Where ice can be | cold-trap tiers by the floor's mean sunlit share over 2027 (exact hourly series, 3 m mast): **rich** = no part of the Sun's disk in any hour; **trace** = above 0 up to 5%; **none** above. A one-year test of our own, **not** the official multi-year PSR maps (e.g. Mazarico et al. 2011); the 5% cut-off is a game rule | REAL sunlight, game-rule tiers |
-| How much ice | rich: a fixed value per spot spread over 5.6 ± 2.9 wt% (LCROSS, Colaprete et al. 2010); trace: at most the lowest rich value (2.7%), shrinking to 0 at the cut-off, so it is always less than any rich floor | HYPOTHETICAL |
+| Earth contact | rovers are driven from Earth by radio (straight lines), so they drive and dig only while Earth's center is above the base's horizon (`siteSeries().earth`); caught out when Earth sets, they park (0.05 kW heaters) until it rises. A rover starts a trip only if it can finish before Earth sets, as rover teams plan drives around communication windows. Future lunar relay satellites would relax this. | REAL visibility; simplified operations |
+| Where ice can be | cold-trap tiers by the floor's mean sunlit share over 2027 (exact hourly series, 3 m mast): **rich** = no part of the Sun's disk in any hour; **sunlit** = above 0 up to 15%; **none** above. A one-year test of our own, **not** the official multi-year PSR maps (e.g. Mazarico et al. 2011); the 15% cut-off is a game rule | REAL sunlight, game-rule tiers |
+| How much ice | a fixed value per spot spread over 5.6 ± 2.9 wt% (LCROSS, Colaprete et al. 2010), times the share that survives the Sun: all of it on a floor that never sees the Sun, shrinking linearly to a quarter at the 15% cut-off | HYPOTHETICAL |
 | Rover | 0.72 km/h and 15° max slope (NASA VIPER); routes between 8-neighbour grid spots, slope from the LOLA ground heights 1–1.4 km apart; 30 kg per trip (a NASA RASSOR study assumed 20 kg; IPEx is itself a ~30 kg-class robot) | ESTIMATE speed/slope, HYPOTHETICAL payload |
 | Rover battery | 8 kWh; driving and digging use 0.3 kW; a rover leaves only with enough charge for the round trip plus 0.5 kWh, so spots beyond one charge are out of range | HYPOTHETICAL |
 | Moon dirt (regolith) | the dry regolith left after baking out the ice is the game's building material | REAL mass balance |
 | Landing pad | packed regolith pad with a berm, so Earth can land hardware near the base without sandblasting it (Metzger et al.; NASA landing / launch pad concepts). Each pad brings one rover, solar tower or 48 kWh battery pack; 150, 250, 350 … kg | ESTIMATE idea, HYPOTHETICAL costs |
-| Thermal shelter | base hardware under heat-holding regolith ("thermal wadi", NASA NIAC): night keep-alive power × 0.5; 250 kg | ESTIMATE idea, HYPOTHETICAL numbers |
+| Dirt cover | base hardware under heat-holding regolith ("thermal wadi", NASA NIAC): keep-alive power × 0.5; 250 kg | ESTIMATE idea, HYPOTHETICAL numbers |
+| Packed roads | graded, compacted regolith tracks: rover speed × 1.5; 300 kg | ESTIMATE idea, HYPOTHETICAL numbers |
+| Dirt-lined oven | the ice oven wrapped in regolith insulation: baking energy × 0.75; 350 kg | ESTIMATE idea, HYPOTHETICAL numbers |
 | Baking ice out | 0.04 kWh per kg regolith + 0.78 kWh per kg ice (sublimation ≈ 2.8 MJ/kg) | ESTIMATE |
 | Electrolysis | 1 kg water → 0.112 kg H₂ + 0.888 kg O₂; 53 kWh per kg H₂ (theory ≥ 39.4) | REAL masses, ESTIMATE energy |
-| Fuel target | rocket equation, 150 kg dry (a small robotic sample capsule), Δv 2.8 km/s, Isp 450 s, O/F 6 → 133 kg (19 kg H₂ + 114 kg O₂) | REAL formula, ESTIMATE inputs, HYPOTHETICAL vehicle |
+| Fuel target | the fuel to fly home after the lander's tank leaks: rocket equation, 150 kg dry (a small vehicle of the size of robotic sample-return stages), Δv 2.8 km/s, Isp 450 s, O/F 6 → 133 kg (19 kg H₂ + 114 kg O₂) | REAL formula, ESTIMATE inputs, HYPOTHETICAL vehicle |
 | Battery | 0.25 kW keep-alive for the Navigator's 192 h endurance = 48 kWh; empty → the base sleeps until 10% charged | HYPOTHETICAL design |
 
-**How it plays** (full design: `game.MD`, v3). A run is one seeded draw: a
-site, a start hour within 12 h of a sunrise or sunset at the site center, and
+**How it plays** (full design: `game.MD`). A run is one seeded draw: a
+site, a start at the midnight before a sunrise or sunset at the site center, and
 three landing spots chosen so none beats another on all of % sunlit, % Earth,
 longest night and distance to ice. The player compares them by *looking* (3D
 view, year timeline, Sun / Earth *windows* from `game/windows.ts`), then
@@ -293,22 +292,21 @@ three craters, and later where a solar tower stands. After each choice an
 autopilot (`game/autopilot.ts`) replays the run on the real sky for every
 option, and the reveal shows the REAL metrics plus each option's projected
 launch day (ESTIMATE); Sky Sense scores the pick by that projection's rank,
-with outcomes within 1.5 days counted as ties. The ridge flash turns the
+with outcomes within 2 days counted as ties. The ridge flash turns the
 camera to the Sun at the middle of the spot's longest dark stretch and says
 whether a ridge or the horizon hid it (`game/why.ts`, from the mask and the
 SPICE vector). Time runs at 1 or 3 days per second, slows near sunsets and
-Earthsets, and stops for every choice. The capsule must fill within 3 Sun
-circuits (2,124 h) of landing; ★ launch, ★★ base slept ≤ 48 h, ★★★ Sky
-Sense ≥ 80.
+Earthsets, and stops for every choice. The tank must fill within 3 Sun
+circuits (2,124 h, 89 days) of landing. Launching completes the site, and
+each completed site unlocks the next one.
 
 Nothing physical is scaled for game balance; the levers are design choices
-(the capsule size, the building costs, the tier cut-off). A site hosts runs
+(the vehicle size, the building costs, the tier cut-off). A site hosts runs
 only if some start can launch in time (`par.test.ts`, which also orders the
-unlocks): 7 of 9 do. Malapert Massif has no cold trap; at Peak near Cabeus B
-every floor sees a little Sun, so only traces survive, too little in time.
+unlocks): 8 of 9 do. Malapert Massif has no floor dark enough nearby.
 A strategy sweep (`balance.test.ts`) checks that no single delivery order
-is best everywhere: rovers-first launches fastest at most sites, while
-battery- or shelter-first win where keeping the lights on matters. **Not modelled:** keeping
+is best everywhere: rovers-first launches first at most sites, and a mixed
+order (rovers, towers and batteries) at the rest. **Not modelled:** keeping
 hydrogen liquid (cryogenics, boil-off), machine temperatures, dust, masts
 taller than 3 m, and slopes between the 1 km grid spots. Rare-earth elements
 are left out on purpose: they are concentrated in the near side's
