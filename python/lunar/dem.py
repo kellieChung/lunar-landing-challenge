@@ -13,6 +13,11 @@ doi:10.3847/PSJ/acf3e1). Heights are in metres relative to a sphere of radius
 
 They are stacked finest first (LayeredDEM). Near a site tile's edge its
 heights blend into the 20 m map over DETAIL_FEATHER_M, so there is no step.
+
+Some site tiles carry bad-data spikes: a few pixels 30-100 m above or below
+the ground around them (e.g. DM2, Nobile Rim 2). Where a pixel stands out
+both from its own surroundings and from the 20 m map, it and its flanks take
+the 20 m map's heights instead (despike_tile).
 """
 
 from pathlib import Path
@@ -31,6 +36,10 @@ FAR_NAMES = ["LDEM_60S_240MPP_ADJ.TIF", "LDEM_60S_240MPP_ADJ.tiff"]
 DETAIL_PATTERNS = ["*5mpp*", "*10mpp*"]  # e.g. SL2_final_adj_5mpp_surf.tif, slater-plain_10mpp_crop.tif
 DETAIL_FEATHER_M = 200.0  # blend width at a site tile's edge
 DETAIL_REACH_KM = 20.0  # use a site tile if it comes this close to the site
+SPIKE_M = 25.0  # a tile pixel this far from both its 60 m ring and the 20 m map is bad data
+SPIKE_RING_M = 60.0
+SPIKE_EDGE_M = 5.0  # the replaced patch grows until the tile is back within this of the 20 m map
+SPIKE_MAX_GROW_M = 200.0
 
 
 def find_detail_tiles(dem_dir: Path = DEM_DIR) -> list[Path]:
@@ -216,6 +225,61 @@ def site_detail_tiles(lat: float, lon: float, reach_km: float = DETAIL_REACH_KM,
     return [path for _, _, path in sorted(out)]
 
 
+def _ring_median(data: np.ndarray, k: int) -> np.ndarray:
+    """Median of the 8 pixels k away (N, NE, E, ...) from each pixel; NaN near the edges."""
+    h, w = data.shape
+    pad = np.pad(data, k, constant_values=np.nan)
+    ring = [pad[k + dy * k:k + dy * k + h, k + dx * k:k + dx * k + w]
+            for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]
+    return np.median(np.stack(ring), axis=0)  # NaN wherever the ring leaves the tile
+
+
+def _grow(mask: np.ndarray) -> np.ndarray:
+    """mask plus its 8 neighbours."""
+    out = mask.copy()
+    out[1:] |= mask[:-1]
+    out[:-1] |= mask[1:]
+    out[:, 1:] |= out[:, :-1].copy()
+    out[:, :-1] |= out[:, 1:].copy()
+    return out
+
+
+def despike_tile(data: np.ndarray, ref: np.ndarray, res_m: float) -> np.ndarray:
+    """Mask of bad-data spikes in a site tile, given the 20 m map's heights (ref) at its pixels.
+
+    Cores: pixels more than SPIKE_M from both the median of their ring SPIKE_RING_M
+    out and the 20 m map. Each core grows over the spike's flanks while the
+    tile is still more than SPIKE_EDGE_M off the 20 m map (at most
+    SPIKE_MAX_GROW_M), so swapping in the 20 m heights leaves no step.
+    """
+    dev = np.abs(data - ref)
+    k = max(1, int(round(SPIKE_RING_M / res_m)))
+    with np.errstate(invalid="ignore"):
+        core = (np.abs(data - _ring_median(data, k)) > SPIKE_M) & (dev > SPIKE_M)
+        off = dev > SPIKE_EDGE_M
+    mask = core
+    for _ in range(int(SPIKE_MAX_GROW_M / res_m)):
+        grown = _grow(mask) & off
+        grown |= mask
+        if np.array_equal(grown, mask):
+            break
+        mask = grown
+    return _grow(mask)  # one more pixel so bilinear reads at the edge use the 20 m map too
+
+
+def _despike_with(tile: "PolarDEM", ref: "PolarDEM", verbose: bool) -> None:
+    """Swap the 20 m map's heights into tile's bad-data spikes (in place)."""
+    h, w = tile.data.shape
+    xs = tile.x0 + (np.arange(w) + 0.5) * tile.dx
+    ys = tile.y0 + (np.arange(h) + 0.5) * tile.dy
+    ref_h = ref.height_xy(xs[None, :], ys[:, None]).astype(np.float32)
+    bad = despike_tile(tile.data, ref_h, tile.resolution_m) & ~np.isnan(ref_h)
+    tile.data[bad] = ref_h[bad]
+    if verbose and bad.any():
+        print(f"  {tile.path.name}: {int(bad.sum())} spike pixels "
+              f"({bad.sum() * tile.resolution_m ** 2 / 1e6:.3f} km2) set to the 20 m map", flush=True)
+
+
 FAR_RADIUS_KM = 260.0  # the 240 m map is small, so it is read out to the full ray length
 
 
@@ -235,5 +299,7 @@ def load_site_dem(lat: float, lon: float, radius_km: float = 160.0, verbose: boo
         names = ", ".join(d.path.name for d in detail) or "none (20 m map only)"
         print(f"  site tiles (5 m / 10 m) for ({lat}, {lon}): {names}", flush=True)
     near = PolarDEM(find_dem(NEAR_NAMES, dem_dir), lat, lon, radius_km)
+    for tile in detail:
+        _despike_with(tile, near, verbose)
     far = PolarDEM(find_dem(FAR_NAMES, dem_dir), lat, lon, max(radius_km, far_radius_km))
     return LayeredDEM([*detail, near, far])

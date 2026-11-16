@@ -158,3 +158,16 @@ def test_mast_masks(site):
             assert np.all(np.array(masks[hi][ij]) <= np.array(masks[lo][ij]) + 0.0051), (ij, hi)
             assert pre[hi][ij]["sunlit_pct"] >= pre[lo][ij]["sunlit_pct"] - 0.006
             assert pre[hi][ij]["earth_pct"] >= pre[lo][ij]["earth_pct"] - 0.006
+
+
+def test_detail_has_no_spikes(site):
+    """No bad-data spikes: every 10 m detail vertex stays near the median of its 9 x 9 block."""
+    h = site.get("terrain_detail")
+    if h is None:
+        pytest.skip("built before the detail heightmap")
+    z = np.fromfile(WEB_DATA / h["file"], dtype="<i2").reshape(h["ny"], h["nx"]) * h["scale_m"]
+    k = 4
+    pad = np.pad(z, k, mode="edge")
+    win = np.lib.stride_tricks.sliding_window_view(pad, (2 * k + 1, 2 * k + 1))
+    resid = np.abs(z - np.median(win, axis=(-1, -2)))
+    assert resid.max() < 40.0, np.unravel_index(resid.argmax(), resid.shape)

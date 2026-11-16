@@ -113,3 +113,21 @@ def test_sample_steps():
     mid = s[(s >= 2.0 - 1e-9) & (s <= 5.0 + 1e-9)]
     np.testing.assert_allclose(np.diff(mid), 0.05, atol=1e-9)  # 50 m to 5 km
     assert np.all(np.diff(s) > 0)
+
+
+def test_despike_tile_removes_spikes_but_keeps_real_slopes():
+    res = 5.0
+    y, x = np.mgrid[0:200, 0:200] * res
+    ground = 0.3 * x + 0.1 * y  # tilted plane
+    ground[:, 150:] += (x[:, 150:] - 150 * res)  # a 45 deg ramp on the east side
+    ref = ground.copy()  # the 20 m map agrees with the real terrain
+    tile = ground.copy()
+    tile[50, 50] += 60.0  # a bad-data spike with sloping flanks
+    tile[49:52, 49:52] += 20.0
+    tile[120, 80] -= 80.0  # a bad-data pit
+    mask = D.despike_tile(tile, ref, res)
+    assert mask[50, 50] and mask[49:52, 49:52].all() and mask[120, 80]
+    assert mask.sum() < 60  # only the spots themselves (plus a pixel of margin)
+    clean = np.where(mask, ref, tile)
+    np.testing.assert_allclose(clean, ground)
+    assert not D.despike_tile(ground, ref, res).any()  # real slopes and ramps stay

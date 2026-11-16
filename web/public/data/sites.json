@@ -11050,7 +11050,7 @@
      "ground_m": 298.1,
      "sunlit_pct": 0.0,
      "mean_sunlit_fraction": 0.0,
-     "earth_pct": 28.32,
+     "earth_pct": 28.31,
      "both_pct": 0.0,
      "longest_dark_h": 8760.0,
      "longest_blackout_h": 468.0
@@ -11468,8 +11468,8 @@
      "lat": -84.265113,
      "lon": 59.050612,
      "ground_m": 916.7,
-     "sunlit_pct": 4.38,
-     "mean_sunlit_fraction": 0.044127,
+     "sunlit_pct": 6.11,
+     "mean_sunlit_fraction": 0.061098,
      "earth_pct": 0.0,
      "both_pct": 0.0,
      "longest_dark_h": 4241.0,
@@ -11950,8 +11950,8 @@
      "ground_m": 168.7,
      "sunlit_pct": 35.19,
      "mean_sunlit_fraction": 0.351839,
-     "earth_pct": 12.43,
-     "both_pct": 4.89,
+     "earth_pct": 12.47,
+     "both_pct": 4.91,
      "longest_dark_h": 490.0,
      "longest_blackout_h": 1233.0
     },
@@ -12488,12 +12488,12 @@
      "lat": -84.068913,
      "lon": 59.743034,
      "ground_m": 1293.9,
-     "sunlit_pct": 44.01,
-     "mean_sunlit_fraction": 0.440119,
-     "earth_pct": 35.84,
-     "both_pct": 15.49,
+     "sunlit_pct": 44.34,
+     "mean_sunlit_fraction": 0.443328,
+     "earth_pct": 37.53,
+     "both_pct": 17.04,
      "longest_dark_h": 421.0,
-     "longest_blackout_h": 436.0
+     "longest_blackout_h": 411.0
     },
     {
      "i": -2,
