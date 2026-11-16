@@ -249,7 +249,7 @@ export class Picker {
       step('1', 'Explore first', 'Pick a site, then press % to look around and see when it gets sunlight and can reach Earth.', 'Stand here'),
       step('2', 'Then play the game', 'Press % to land, dig up ice and fuel your rocket home.', 'Start an ice run'),
     );
-    const ok = el('button', 'start-ok', 'Got it');
+    const ok = el('button', 'go start-ok', 'Got it');
     ok.type = 'button';
     ok.onclick = () => {
       box.remove();

@@ -250,6 +250,41 @@ button.go { background: none; }
   font: 14px var(--pixel);
 }
 
+/* ---------- "New here?" start tip: same grey card, pixel headings ---------- */
+
+.start-tip {
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/card.png) 3 fill;
+  border-radius: 0;
+  background: none;
+  image-rendering: pixelated;
+  padding: 8px 10px 10px;
+  color: var(--ink);
+}
+.start-tip .start-title { font: 16px var(--pixel); text-shadow: 1px 1px 0 var(--ink-shadow); color: #ffe08a; }
+.start-tip .start-step-title { font: 14px var(--pixel); text-shadow: 1px 1px 0 var(--ink-shadow); color: var(--ink); }
+.start-tip .start-step p { color: var(--ink-muted); }
+.start-tip .start-num {
+  width: auto; height: auto;
+  border-style: solid;
+  border-width: 6px;
+  border-image: url(./assets/ui-sprout/slot-purple.png) 4 fill;
+  border-radius: 0;
+  background: none;
+  image-rendering: pixelated;
+  padding: 0 3px;
+  color: #fff;
+  font: 14px/14px var(--pixel);
+}
+.start-tip .start-btn {
+  font: 13px var(--pixel);
+  color: #fff;
+  text-shadow: 1px 1px 0 var(--ink-shadow);
+  font-weight: normal;
+}
+.start-tip .start-ok { margin-top: 10px; padding: 0 10px; font: 16px var(--pixel); }
+
 /* ---------- Site list: corner brackets on hover (purple) / selected (blue) ---------- */
 
 .site-item { border-top: 0; }
