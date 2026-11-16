@@ -1027,7 +1027,7 @@ export async function startGame(x: GameSession): Promise<void> {
       el('h2', 'g-h', traces ? `${siteName}: only traces of ice` : `${siteName}: no cold trap in reach`),
       el('p', 'g-lede', traces
         ? 'Every crater floor in rover reach sees a little Sun during the year, so only traces of ice survive: too little to fill your tank before the deadline. That comes from the real 2027 sunlight. Great for power, no good for an ice run.'
-        : 'Every floor near here sees the Sun more than 5% of the year, so ice can\'t last. That is real: it is one of the sunniest ridges at the pole. Great for power, no good for an ice run.'),
+        : 'Every floor near here sees the Sun more than 15% of the year, so ice can\'t last. That is real: it is one of the sunniest ridges at the pole. Great for power, no good for an ice run.'),
       Object.assign(el('a', 'g-b g-b-go', 'Moon map'), { href: sitesUrl }),
       Object.assign(el('a', 'g-b g-b-plate', 'Explore this site'), { href: exploreUrl() }),
     ], true);
