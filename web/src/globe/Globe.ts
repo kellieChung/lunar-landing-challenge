@@ -313,7 +313,7 @@ export class Globe {
           vec3 col = vec3(cr.r * keyed(cr), cg.g * keyed(cg), cb.b * keyed(cb));
           float art = max(max(keyed(cr), keyed(cg)), keyed(cb));
           // scanlines + rolling refresh bar
-          float scan = 0.72 + 0.28 * sin(uv.y * 520.0);
+          float scan = 0.84 + 0.16 * sin(uv.y * 520.0);
           float roll = 1.0 + 0.35 * smoothstep(0.06, 0.0, abs(fract(uv.y - time * 0.35) - 0.5));
           // faint glowing screen rectangle with a border, so it reads as a projected screen
           vec2 e = min(uv, 1.0 - uv);
@@ -321,10 +321,10 @@ export class Globe {
           float border = smoothstep(0.012, 0.004, edge) * smoothstep(0.0, 0.003, edge);
           float panel = 0.10 * smoothstep(0.0, 0.05, edge);
           vec3 tint = vec3(0.45, 0.95, 1.0);
-          vec3 rgb = col * mix(vec3(1.0), tint, 0.25) * scan * roll * 1.25 + tint * (panel + border * 0.9);
+          vec3 rgb = col * mix(vec3(1.0), tint, 0.25) * scan * roll * 1.45 + tint * (panel + border * 0.9);
           float flick = 0.92 + 0.08 * sin(time * 53.0) * sin(time * 7.0);
-          float a = clamp(art * scan + panel + border * 0.9, 0.0, 1.0) * opacity * flick * smoothstep(0.05, 0.3, facing);
-          if (a < 0.01) discard;
+          float a = clamp(art * min(1.0, scan * 1.15) + panel + border * 0.9, 0.0, 1.0) * opacity * flick * smoothstep(0.05, 0.3, facing);
+          if (a < 0.002) discard;
           gl_FragColor = vec4(rgb, a);
           #include <colorspace_fragment>
         }`,
@@ -350,20 +350,21 @@ export class Globe {
 
   private updateLogo(): void {
     if (!this.logo) return;
-    const fadeIn = 900, fadeOut = 900;
+    const fadeIn = 900, fadeOut = 1800;
     const t = performance.now() - this.logo.start;
     let o: number;
     if (t < fadeIn) o = t / fadeIn;
     else if (t < fadeIn + this.logo.hold) o = 1;
     else {
-      o = 1 - (t - fadeIn - this.logo.hold) / fadeOut;
+      const k = Math.min(1, (t - fadeIn - this.logo.hold) / fadeOut);
+      o = 1 - k * k * (3 - 2 * k); // smoothstep ease-out
       this.onLogoFadeOut?.();
       this.onLogoFadeOut = null;
     }
     // a little projector flicker while it warms up
     if (t < fadeIn) o *= 0.75 + 0.25 * Math.sin(t * 0.08);
     this.logo.mat.uniforms.time.value = t / 1000;
-    this.logo.mat.uniforms.opacity.value = Math.max(0, Math.min(1, o)) * 0.95;
+    this.logo.mat.uniforms.opacity.value = Math.max(0, Math.min(1, o));
     if (o <= 0 && t > fadeIn) {
       this.scene.remove(this.logo.mesh);
       this.logo.mesh.geometry.dispose();
