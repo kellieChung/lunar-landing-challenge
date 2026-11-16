@@ -247,7 +247,7 @@ const REAL_ROWS: [string, Parameters<typeof tag>[0]][] = [
   ['Terrain and horizons (NASA LOLA)', 'REAL'],
   ['% sunlit, % Earth, longest night, crater floor sunlight', 'REAL'],
   ['Water splits into 11% hydrogen, 89% oxygen', 'REAL'],
-  ['Capsule fuel (rocket equation), tower power, rover speed (VIPER)', 'ESTIMATE'],
+  ['Fuel to fly home (rocket equation), tower power, rover speed (VIPER)', 'ESTIMATE'],
   ['Projected launch day (the game rules replayed on the real sky)', 'ESTIMATE'],
   ['Rich / sunlit / no ice by how dark a floor is; the 15% cut-off', 'RULE'],
   ['How much ice each crater holds (inside the LCROSS range)', 'HYPOTHETICAL'],
