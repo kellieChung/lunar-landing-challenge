@@ -18,6 +18,11 @@ Some site tiles carry bad-data spikes: a few pixels 30-100 m above or below
 the ground around them (e.g. DM2, Nobile Rim 2). Where a pixel stands out
 both from its own surroundings and from the 20 m map, it and its flanks take
 the 20 m map's heights instead (despike_tile).
+
+A few sharp cones and pits sit in both maps, or in the 20 m map where no
+site tile covers it. Near the site (SHARP_REACH_KM), any spot more than
+SHARP_M from its 60 m ring is filled in smoothly from the ground around it
+(fill_sharp_spots).
 """
 
 from pathlib import Path
@@ -40,6 +45,10 @@ SPIKE_M = 25.0  # a tile pixel this far from both its 60 m ring and the 20 m map
 SPIKE_RING_M = 60.0
 SPIKE_EDGE_M = 5.0  # the replaced patch grows until the tile is back within this of the 20 m map
 SPIKE_MAX_GROW_M = 200.0
+SHARP_M = 40.0  # any map: this far from its 60 m ring is a cone/pit no real slope or rim here makes
+SHARP_EDGE_M = 10.0  # the filled patch grows over the flanks while they are this far from their ring
+SHARP_MAX_GROW_M = 100.0
+SHARP_REACH_KM = 15.0  # only within this of the site (the 20 m map window is far too big)
 
 
 def find_detail_tiles(dem_dir: Path = DEM_DIR) -> list[Path]:
@@ -267,6 +276,66 @@ def despike_tile(data: np.ndarray, ref: np.ndarray, res_m: float) -> np.ndarray:
     return _grow(mask)  # one more pixel so bilinear reads at the edge use the 20 m map too
 
 
+def sharp_spots(data: np.ndarray, res_m: float) -> np.ndarray:
+    """Mask of sharp cones and pits: more than SHARP_M from their 60 m ring, plus their flanks."""
+    k = max(1, int(round(SPIKE_RING_M / res_m)))
+    with np.errstate(invalid="ignore"):
+        resid = np.abs(data - _ring_median(data, k))
+        core = resid > SHARP_M
+        flank = resid > SHARP_EDGE_M
+    mask = core
+    for _ in range(int(SHARP_MAX_GROW_M / res_m)):
+        grown = (_grow(mask) & flank) | mask
+        if np.array_equal(grown, mask):
+            break
+        mask = grown
+    mask = _grow(mask)
+    mask[:2] = mask[-2:] = False  # the fill reads each pixel's 4 neighbours
+    mask[:, :2] = mask[:, -2:] = False
+    return mask
+
+
+def fill_from_surroundings(data: np.ndarray, mask: np.ndarray, iterations: int = 2000) -> None:
+    """Fill masked pixels smoothly (Laplace: each the mean of its 4 neighbours), in place."""
+    J, I = np.nonzero(mask)
+    if J.size == 0:
+        return
+    data[J, I] = np.nan
+    ring = data[J, I].copy()
+    for _ in range(4):  # start from the nearest unmasked heights
+        nb = np.stack([data[J - 1, I], data[J + 1, I], data[J, I - 1], data[J, I + 1]])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            ring = np.where(np.isnan(ring), np.nanmean(nb, axis=0), ring)
+        data[J, I] = ring
+    data[J, I] = np.where(np.isnan(ring), np.nanmean(data[~mask]), ring)
+    for _ in range(iterations):
+        new = 0.25 * (data[J - 1, I] + data[J + 1, I] + data[J, I - 1] + data[J, I + 1])
+        if np.abs(new - data[J, I]).max() < 0.01:
+            break
+        data[J, I] = new
+    data[J, I] = new
+
+
+def _fill_sharp(layer: "PolarDEM", lat: float, lon: float, verbose: bool) -> None:
+    """Fill the sharp cones and pits of one map within SHARP_REACH_KM of the site (in place)."""
+    cx, cy = polar_stereo_xy(lat, lon)
+    reach = SHARP_REACH_KM * 1000.0
+    h, w = layer.data.shape
+    c0 = max(0, int((cx - reach - layer.x0) / layer.dx))
+    c1 = min(w, int((cx + reach - layer.x0) / layer.dx) + 1)
+    r0 = max(0, int((cy + reach - layer.y0) / layer.dy))
+    r1 = min(h, int((cy - reach - layer.y0) / layer.dy) + 1)
+    if c1 - c0 < 8 or r1 - r0 < 8:
+        return
+    part = layer.data[r0:r1, c0:c1]
+    mask = sharp_spots(part, layer.resolution_m) & ~np.isnan(part)
+    if mask.any():
+        fill_from_surroundings(part, mask)
+        if verbose:
+            print(f"  {layer.path.name}: {int(mask.sum())} pixels of sharp cones/pits filled in", flush=True)
+
+
 def _despike_with(tile: "PolarDEM", ref: "PolarDEM", verbose: bool) -> None:
     """Swap the 20 m map's heights into tile's bad-data spikes (in place)."""
     h, w = tile.data.shape
@@ -301,5 +370,7 @@ def load_site_dem(lat: float, lon: float, radius_km: float = 160.0, verbose: boo
     near = PolarDEM(find_dem(NEAR_NAMES, dem_dir), lat, lon, radius_km)
     for tile in detail:
         _despike_with(tile, near, verbose)
+    for layer in [*detail, near]:
+        _fill_sharp(layer, lat, lon, verbose)
     far = PolarDEM(find_dem(FAR_NAMES, dem_dir), lat, lon, max(radius_km, far_radius_km))
     return LayeredDEM([*detail, near, far])

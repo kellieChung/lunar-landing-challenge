@@ -131,3 +131,18 @@ def test_despike_tile_removes_spikes_but_keeps_real_slopes():
     clean = np.where(mask, ref, tile)
     np.testing.assert_allclose(clean, ground)
     assert not D.despike_tile(ground, ref, res).any()  # real slopes and ramps stay
+
+
+def test_sharp_spots_are_filled_smoothly():
+    res = 20.0
+    y, x = np.mgrid[0:120, 0:120] * res
+    ground = 0.4 * x + 0.2 * y + 15.0 * np.sin(x / 300.0)  # sloping, rolling ground
+    tile = ground.copy()
+    r2 = (x - 1200.0) ** 2 + (y - 1200.0) ** 2
+    tile += 60.0 * np.exp(-r2 / (2 * 25.0 ** 2))  # a sharp 60 m cone
+    tile[30, 90] -= 50.0  # a one-pixel pit
+    assert not D.sharp_spots(ground, res).any()  # real slopes stay
+    mask = D.sharp_spots(tile, res)
+    assert mask[60, 60] and mask[30, 90]
+    D.fill_from_surroundings(tile, mask)
+    assert np.abs(tile - ground).max() < 6.0

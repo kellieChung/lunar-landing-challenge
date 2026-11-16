@@ -170,4 +170,4 @@ def test_detail_has_no_spikes(site):
     pad = np.pad(z, k, mode="edge")
     win = np.lib.stride_tricks.sliding_window_view(pad, (2 * k + 1, 2 * k + 1))
     resid = np.abs(z - np.median(win, axis=(-1, -2)))
-    assert resid.max() < 40.0, np.unravel_index(resid.argmax(), resid.shape)
+    assert resid.max() < 30.0, np.unravel_index(resid.argmax(), resid.shape)
