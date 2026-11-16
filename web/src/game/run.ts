@@ -1,4 +1,4 @@
-// One run (game.MD v3 §3): a site, a seeded start hour, the options offered at
+// One run (game.MD §3): a site, a seeded start hour, the options offered at
 // each look-and-compare, the choices made and how each option would have
 // turned out. Pure data and functions; the screen (start.ts) drives it.
 
@@ -16,7 +16,7 @@ export type ChoiceKind = 'land' | 'crater' | 'tower';
 export interface Projection {
   key: Key;
   days: number | null; // landing to launch, null = missed the deadline
-  fill: number; // capsule share filled at the end (0..1)
+  fill: number; // fuel tank share filled at the end (0..1)
   sleep: number; // hours the base slept
 }
 
@@ -77,7 +77,7 @@ export function newRun(w: World, seed: string, mods: Mods = {}, daily = false): 
   return run!;
 }
 
-/** The hour by which the capsule must launch. */
+/** The hour by which the rocket must launch. */
 export function deadlineHour(run: Run): number {
   return (run.game.landedHour ?? run.startHour) + RUN_DEADLINE_H;
 }

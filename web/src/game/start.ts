@@ -1,4 +1,4 @@
-// Moon Base v3 (game.MD): short runs about Moon ice, decided by looking.
+// Moon Base (game.MD): short runs about Moon ice, decided by looking.
 //
 // This file only wires things together: the run (run.ts) and the rules
 // (sim.ts) on one side; the 3D view, the time bar and the spot map (from the
@@ -518,7 +518,7 @@ export async function startGame(x: GameSession): Promise<void> {
   const cardLook = (n: number) => () => document.querySelectorAll('.g-chooser .g-card')[n]?.querySelector('button') ?? null;
   const revealRow = (n: number) => () => document.querySelectorAll('.g-reveal-table tr')[n]?.firstElementChild ?? null;
 
-  // ---- Blocking tips: only three in a run's life (game.MD v3 §7) ----
+  // ---- Blocking tips: only three in a run's life (game.MD §7) ----
   const holdOnce = async (id: string, text: string, mood: Mood = 'talk', tag?: string) => {
     if (!run || run.blocking.includes(id)) return;
     run.blocking.push(id);

@@ -4,8 +4,8 @@
 # Total size is about 2 GB, mostly the 20 m near-field DEM.
 #
 # Usage: fetch_data.sh [kernels|dem|all]   (default: all)
-#   kernels  SPICE kernels only (~60 MB), needed from milestone 2
-#   dem      LOLA elevation maps (~2.8 GB), needed from milestone 3
+#   kernels  SPICE kernels only (~60 MB), for the Sun/Earth ephemeris
+#   dem      LOLA elevation maps (~2.8 GB), for the horizons and terrain
 set -euo pipefail
 
 MODE="${1:-all}"

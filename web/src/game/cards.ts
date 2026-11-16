@@ -1,7 +1,7 @@
 // The look-and-compare choices of a run: which landing spot, which crater,
 // where a solar tower goes. Pure functions of the game state and the real
 // data. Options are drawn so that none beats the others on every REAL metric
-// (game.MD v3 §5); which one is actually best is left to the projection.
+// (game.MD §5); which one is actually best is left to the projection.
 
 import type { GridSummary } from '../data/types';
 import { CABLE_REACH_KM, ROVER_BATTERY_KWH } from './constants';

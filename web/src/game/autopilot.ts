@@ -16,7 +16,7 @@ export interface AutoResult {
   /** Days from landing to launch, or null if the deadline passed first. */
   days: number | null;
   sleepHours: number;
-  /** Share of the capsule filled when the run ended (0..1). */
+  /** Share of the fuel tank filled when the run ended (0..1). */
   fill: number;
   state: GameState;
 }

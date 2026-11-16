@@ -1,4 +1,4 @@
-// Scoring (game.MD v3 §8). Sky Sense judges each look-and-compare choice by
+// Scoring (game.MD §5, §8). Sky Sense judges each look-and-compare choice by
 // how the options actually turned out in the projection, not by a formula.
 
 import { fill } from './autopilot';
@@ -10,7 +10,7 @@ import type { ChoiceRecord, Projection, Run } from './run';
 
 const DEADLINE_DAYS = RUN_DEADLINE_H / 24;
 
-/** Sort value of a projection: launch day, or past the deadline by how empty the capsule was. */
+/** Sort value of a projection: launch day, or past the deadline by how empty the tank was. */
 export function outcomeValue(p: Projection): number {
   return p.days ?? DEADLINE_DAYS + (1 - p.fill) * DEADLINE_DAYS;
 }

@@ -1,4 +1,4 @@
-// Balance sweep (game.MD v3 §0): with the autopilot, no single build order
+// Balance sweep (game.MD §4): with the autopilot, no single build order
 // should be the best at most sites, and every ice site must be winnable.
 // "Best" = launches in the most runs, then the earliest launch.
 

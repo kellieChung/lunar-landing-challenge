@@ -1,4 +1,4 @@
-// Progress between runs (game.MD v3 §8): which sites launched (best run kept),
+// Progress between runs (game.MD §8): which sites launched (best run kept),
 // unlocks and Sky Rank. Stored in this browser only; nothing about the player.
 
 import PAR from './par.json';

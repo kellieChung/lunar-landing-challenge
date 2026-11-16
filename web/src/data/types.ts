@@ -1,4 +1,4 @@
-// Shape of web/public/data/<site_id>.json (see spec section 6).
+// Shape of web/public/data/<site_id>.json (spec.MD, "Data files").
 
 export type SiteKind = 'south-pole' | 'reference';
 

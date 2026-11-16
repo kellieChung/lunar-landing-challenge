@@ -133,7 +133,7 @@ export const OVEN_BAKE_FACTOR = 0.75;
 /** Battery pack Earth can land on a pad: one more base battery's worth (HYPOTHETICAL). */
 export const BATTERY_PACK_KWH = BATTERY_KWH;
 
-// ---- Game rules (TUNE: design values, not physics; see game.MD v3) ---------
+// ---- Game rules (TUNE: design values, not physics; see game.MD) ---------
 
 /**
  * Cold-trap tiers. A floor whose mean sunlit share over 2027 is 0 is "rich";

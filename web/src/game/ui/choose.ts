@@ -1,4 +1,4 @@
-// Look-and-compare (game.MD v3 §4): a full-screen choice whose cards give no
+// Look-and-compare (game.MD §4): a full-screen choice whose cards give no
 // numbers away, a slim bar while you go and look, and the reveal afterwards.
 
 import type { Tag } from '../constants';

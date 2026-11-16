@@ -1,4 +1,4 @@
-// The instruments (game.MD v3 §7): ONE compact dock along the bottom, beside
+// The instruments (game.MD §7): ONE compact dock along the bottom, beside
 // mission control and the timeline, so the 3D view keeps the rest of the
 // screen. Readings are glyphs and short meters; details live in tooltips, and
 // at most one warning shows at a time. The dirt pile and the Build button sit

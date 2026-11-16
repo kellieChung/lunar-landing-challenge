@@ -67,7 +67,7 @@ def test_cone_mountain_matches_exact_angle():
     hz = horizon_mask(LAT, LON, cone(tip, 1000.0, 2000.0), observer_height_m=MAST)
     expected = exact_elevation(tip, 1000.0)
     assert hz.mask_deg[0] == pytest.approx(expected, abs=1e-6)
-    # Small-angle version from the spec, for intuition: atan(dz/d) - d/(2R).
+    # Small-angle version from METHODS.md, for intuition: atan(dz/d) - d/(2R).
     small = np.degrees(np.arctan((1000.0 - MAST) / (dist * 1000)) - dist * 1000 / (2 * R))
     assert hz.mask_deg[0] == pytest.approx(small, abs=0.05)
     # Looking the other way there is no mountain: just the sphere dip.

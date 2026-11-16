@@ -1,4 +1,4 @@
-// The run and its scoring (game.MD v3 §3, §8), on one shipped site.
+// The run and its scoring (game.MD §3, §5), on one shipped site.
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';

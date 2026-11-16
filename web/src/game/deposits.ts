@@ -42,7 +42,7 @@ export function iceFraction(siteId: string, i: number, j: number): number {
   return (lo + (hi - lo) * hash01(`${siteId}:${i},${j}`)) / 100;
 }
 
-// ---- Cold-trap tiers (game.MD v3 §6) ---------------------------------------
+// ---- Cold-trap tiers (game.MD §6) ---------------------------------------
 
 export type IceTier = 'rich' | 'sunlit' | 'none';
 
