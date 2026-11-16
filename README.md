@@ -16,7 +16,7 @@ Python (offline precompute, Python ≥ 3.11):
 python3.12 -m venv python/.venv
 python/.venv/bin/pip install -e "python[dev]"
 python/.venv/bin/pytest python/tests
-python/scripts/fetch_data.sh kernels  # ~45 MB of SPICE kernels (not committed)
+python/scripts/fetch_data.sh kernels  # ~60 MB of SPICE kernels (not committed)
 python/scripts/fetch_data.sh dem      # ~2.8 GB of LOLA elevation maps (NASA GSFC PGDA)
 python/.venv/bin/python python/scripts/build_site.py --site nobile-rim-2 --site haworth   # JSON + _terrain.bin, ~6 s per site
 python/.venv/bin/python python/scripts/validate_horizons.py   # table for docs/VALIDATION.md
